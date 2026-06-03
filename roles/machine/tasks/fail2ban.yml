@@ -1,0 +1,32 @@
+- name: "Install fail2ban packages"
+  tags: ["fail2ban"]
+  ansible.builtin.package:
+    name: "fail2ban"
+    state: "present"
+  register: "fail2ban_install"
+
+- name: "Enable jail for SSH"
+  tags: ["fail2ban"]
+  ansible.builtin.copy:
+    content: |
+      [sshd]
+      enabled = true
+      bantime = {{ fail2ban_ssh_bantime }}
+      maxretry = {{ fail2ban_ssh_maxretry }}
+    dest: "/etc/fail2ban/jail.d/sshd.local"
+    mode: "0644"
+  register: "fail2ban_jail"
+
+- name: "Enable fail2ban"
+  tags: ["fail2ban"]
+  ansible.builtin.systemd:
+    name: "fail2ban"
+    state: "started"
+    enabled: true
+
+- name: "Restart fail2ban"
+  tags: ["fail2ban"]
+  ansible.builtin.systemd:
+    name: "fail2ban"
+    state: "restarted"
+  when: "fail2ban_install is changed or fail2ban_jail is changed or (force | default(false) | bool)"

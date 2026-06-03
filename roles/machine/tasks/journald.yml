@@ -1,0 +1,47 @@
+- name: "Touch journald config"
+  tags: ["journald"]
+  ansible.builtin.copy:
+    dest: "/etc/systemd/journald.conf"
+    content: "[Journal]"
+    force: false
+    mode: "0644"
+  register: "journald_config"
+
+- name: "Store the journald logs on disk"
+  tags: ["journald"]
+  ansible.builtin.lineinfile:
+    dest: "/etc/systemd/journald.conf"
+    regexp: "^Storage="
+    line: "Storage={{ journald_storage }}"
+    state: "present"
+  register: "journald_storage_res"
+
+- name: "Limit journald logs memory"
+  tags: ["journald"]
+  ansible.builtin.lineinfile:
+    dest: "/etc/systemd/journald.conf"
+    regexp: "^SystemMaxUse="
+    line: "SystemMaxUse={{ journald_system_max_use }}"
+    state: "present"
+  register: "journald_max_use_res"
+
+- name: "Enable journald logs compression"
+  tags: ["journald"]
+  ansible.builtin.lineinfile:
+    dest: "/etc/systemd/journald.conf"
+    regexp: "^Compress="
+    line: "Compress={{ 'yes' if (journald_compress | bool) else 'no' }}"
+    state: "present"
+  register: "journald_compress_res"
+
+- name: "Restart systemd-journald"
+  tags: ["journald"]
+  ansible.builtin.systemd:
+    name: "systemd-journald"
+    state: "restarted"
+  when: >-
+    journald_config is changed
+    or journald_storage_res is changed
+    or journald_max_use_res is changed
+    or journald_compress_res is changed
+    or (force | default(false) | bool)

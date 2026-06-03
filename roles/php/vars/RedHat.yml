@@ -1,0 +1,21 @@
+# RHEL-family PHP package set (CentOS / AlmaLinux / Rocky).
+php_packages:
+  - "php"
+  - "php-fpm"
+  - "php-cli"
+  - "php-mysqlnd"
+  - "php-json"
+  - "php-gd"
+  - "php-ldap"
+  - "php-odbc"
+  - "php-pdo"
+  - "php-opcache"
+  - "php-xml"
+  - "php-mbstring"
+  - "php-snmp"
+  - "php-soap"
+  - "php-zip"
+
+php_fpm_service: "php-fpm"
+php_fpm_pool_conf: "/etc/php-fpm.d/www.conf"
+php_session_dir: "/var/lib/php/session"

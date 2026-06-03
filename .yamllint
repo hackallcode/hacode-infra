@@ -1,0 +1,33 @@
+extends: "default"
+
+# Don't walk into the molecule-managed collection cache or the symlink
+# shim that the Makefile materialises.
+ignore: |
+  .ansible/
+  .collection-root/
+
+rules:
+  document-start:
+    present: false
+  document-end:
+    present: false
+  line-length:
+    max: 120
+    level: "warning"
+    # Prometheus alert rules embed long description templates; rest of
+    # yamllint still applies (indent, octal, etc).
+    ignore: |
+      roles/prometheus/files/rules/
+  truthy:
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: "disable"
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    # ansible-lint's yaml rule requires both flags true. We already quote
+    # modes everywhere (`mode: "0644"`), so this is the strict-but-safe
+    # setting; explicit `0o644` style would also be rejected.
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

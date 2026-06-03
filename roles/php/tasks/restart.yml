@@ -1,0 +1,9 @@
+- name: "Ensure OS-specific vars are loaded"
+  tags: ["restart"]
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: "Restart PHP-FPM"
+  tags: ["restart"]
+  ansible.builtin.systemd:
+    name: "{{ php_fpm_service }}"
+    state: "restarted"

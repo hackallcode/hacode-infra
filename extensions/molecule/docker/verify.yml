@@ -1,0 +1,29 @@
+- name: "Verify: docker role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Docker CLI is on PATH"
+      ansible.builtin.command: "docker --version"
+      register: "docker_version"
+      changed_when: false
+      failed_when: "docker_version.rc != 0"
+
+    - name: "Docker compose plugin is installed"
+      ansible.builtin.command: "docker compose version"
+      register: "compose_version"
+      changed_when: false
+      failed_when: "compose_version.rc != 0"
+
+    - name: "Required kernel modules are listed for boot-time load"
+      ansible.builtin.stat:
+        path: "/etc/modules-load.d/docker.conf"
+      register: "modules_conf"
+      failed_when: "not modules_conf.stat.exists"
+
+    - name: "Ip_forward sysctl is on"
+      ansible.builtin.slurp:
+        src: "/proc/sys/net/ipv4/ip_forward"
+      register: "ip_forward"
+      failed_when: "(ip_forward.content | b64decode | trim) != '1'"

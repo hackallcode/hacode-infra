@@ -1,0 +1,49 @@
+- name: "Verify: certbot role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Certbot binary is installed"
+      ansible.builtin.stat:
+        path: "/usr/bin/certbot"
+      register: "certbot_bin"
+      failed_when: "not certbot_bin.stat.exists"
+
+    - name: "Renewal cron job is registered"
+      ansible.builtin.command: "crontab -l"
+      register: "cron_list"
+      changed_when: false
+      failed_when: "'certbot renew' not in cron_list.stdout"
+
+    - name: "Mock log captured the certonly invocation (default mode)"
+      ansible.builtin.command:
+        cmd: "grep -F -- '--nginx' /var/log/certbot-mock.log"
+      register: "nginx_log"
+      changed_when: false
+      failed_when:
+        - "nginx_log.rc != 0"
+        - "'molecule.example.test' not in nginx_log.stdout"
+
+    - name: "Mock log captured the revoke invocation (default mode)"
+      ansible.builtin.command:
+        cmd: "grep -F 'certbot revoke' /var/log/certbot-mock.log"
+      register: "revoke_log"
+      changed_when: false
+      failed_when:
+        - "revoke_log.rc != 0"
+        - "'molecule.example.test' not in revoke_log.stdout"
+
+    - name: "Mock log captured the staging ACME server URL"
+      ansible.builtin.command:
+        cmd: "grep -F 'acme-staging-v02.api.letsencrypt.org' /var/log/certbot-mock.log"
+      register: "staging_log"
+      changed_when: false
+      failed_when: "staging_log.rc != 0"
+
+    - name: "Mock log captured the webroot authenticator"
+      ansible.builtin.command:
+        cmd: "grep -F -- '--webroot' /var/log/certbot-mock.log"
+      register: "webroot_log"
+      changed_when: false
+      failed_when: "webroot_log.rc != 0"

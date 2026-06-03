@@ -1,0 +1,14 @@
+[Interface]
+Address = {{ wg_ipv4_prefix }}.{{ wg_client.ip }}/24,{{ wg_ipv6_prefix }}::{{ wg_client.ip }}/64
+PrivateKey = {{ client_private_key }}
+DNS = {{ wg_ipv4_prefix }}.1,{{ wg_ipv6_prefix }}::1
+
+[Peer]
+Endpoint = {{ ansible_host }}:1194
+PublicKey = {{ server_public_key }}
+AllowedIPs = {{
+    wg_ipv4_prefix + '.0/24,' + wg_ipv6_prefix + '::/64'
+    if (local_net_only | default(false))
+    else '0.0.0.0/0,::/0'
+}}
+PersistentKeepalive = 25

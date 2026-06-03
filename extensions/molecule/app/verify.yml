@@ -1,0 +1,17 @@
+- name: "Verify: app role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Content dir was created on the remote"
+      ansible.builtin.stat:
+        path: "/opt/molecule-static"
+      register: "content_dir"
+      failed_when: "not content_dir.stat.isdir"
+
+    - name: "Source files were synced to the remote"
+      ansible.builtin.stat:
+        path: "/opt/molecule-static/index.html"
+      register: "index_html"
+      failed_when: "not index_html.stat.exists"

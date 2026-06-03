@@ -1,0 +1,22 @@
+- name: "Converge: certificate role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: "Refresh apt cache (Debian)"
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 600
+      when: "ansible_os_family == 'Debian'"
+
+    - name: "Install OS deps required by community.crypto"
+      ansible.builtin.package:
+        name:
+          - "python3-cryptography"
+          - "openssl"
+          - "ca-certificates"
+        state: "present"
+
+  roles:
+    - role: "hacode.infra.certificate"

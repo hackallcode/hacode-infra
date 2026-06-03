@@ -1,0 +1,64 @@
+# k8s_addons scenario: spins up a one-node k3s cluster in a privileged
+# container, then runs the addons role against the fetched kubeconfig from
+# the controller (everything in the role is delegate_to: localhost +
+# run_once: true). Single platform (almalinux10) keeps CI cost down -
+# k3s bootstrap + Headlamp chart is one of the slower scenarios in the
+# matrix; multi-platform would blow the per-job budget on free runners.
+#
+# The Helm CLI is installed on the controller in prepare; the
+# `kubernetes.core.helm` module shells out to it.
+
+driver:
+  name: "docker"
+
+platforms:
+  - name: "almalinux10"
+    image: "almalinux:10"
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+    groups: ["k3s_server"]
+    # Forward apiserver to the controller (GH runner) so the addons play -
+    # which runs on localhost and talks to k8s via the fetched kubeconfig -
+    # can reach k3s without docker-network lookup. The kubeconfig URL is
+    # patched to `https://127.0.0.1:6443` in converge.yml.
+    published_ports: ["6443:6443"]
+
+provisioner:
+  name: "ansible"
+  inventory:
+    group_vars:
+      all:
+        ansible_host: "{{ inventory_hostname }}"
+        hostname: "{{ inventory_hostname }}"
+        # k3s role wiring (mirrors extensions/molecule/k3s/molecule.yml).
+        k3s_cluster_name: "{{ inventory_hostname }}"
+        k3s_token: "molecule-shared-token"
+        k3s_kubeconfig_local_dir: "/tmp/molecule-k3s-kubeconfig"
+        k3s_kubeconfig_local_file: "{{ inventory_hostname }}.yaml"
+        k3s_server_args:
+          - "--snapshotter=native"
+        # Containers lack `kmod` + can't load modules; skip role's
+        # module-load preflight in tests. br_netfilter sysctls likewise.
+        k3s_kernel_modules: []
+        k3s_sysctls: {}
+        k3s_node_ip: ""  # see k3s scenario molecule.yml
+
+scenario:
+  # `idempotence` skipped: a second helm install/upgrade against an
+  # already-applied release can flap on metadata diffs (annotations,
+  # last-applied-config) that the helm controller itself touches
+  # between runs. We accept this and rely on the kubernetes.core.k8s
+  # idempotence checks for the RBAC + token Secret instead.
+  test_sequence:
+    - "dependency"
+    - "destroy"
+    - "syntax"
+    - "create"
+    - "prepare"
+    - "converge"
+    - "verify"
+    - "destroy"

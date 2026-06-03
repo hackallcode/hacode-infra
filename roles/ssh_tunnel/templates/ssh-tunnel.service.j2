@@ -1,0 +1,13 @@
+[Unit]
+Description=SSH Tunnel: {{ tunnel.name }}
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/ssh -N -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/root/.ssh/known_hosts -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3{% if tunnel.forward_port is defined %} -D 0.0.0.0:{{ tunnel.forward_port }}{% endif %}{% if tunnel.reverse_port is defined %} -R 0.0.0.0:{{ tunnel.reverse_port }}{% endif %} {{ tunnel.remote_user }}@{{ tunnel.remote_host }}
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

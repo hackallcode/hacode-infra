@@ -1,0 +1,6 @@
+# `mariadb` provides the CLI on every RHEL-family release (AlmaLinux 8/9/10,
+# Rocky 10). The old `mysql` meta-package was dropped in EL10, and the
+# `mariadb-devel` headers aren't needed any more — the role installs
+# python3-PyMySQL from the OS instead of compiling it via pip.
+maria_db_client_packages:
+  - "mariadb"

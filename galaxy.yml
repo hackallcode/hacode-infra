@@ -1,0 +1,74 @@
+namespace: "hacode"
+name: "infra"
+version: "0.1.0"
+
+readme: "README.md"
+license:
+  - "Apache-2.0"
+
+authors:
+  - "Vladimir Severov <vsev.s@mail.ru>"
+
+description: >-
+  Reusable Ansible roles for bootstrapping bare-metal and VM hosts: machine
+  baseline (users, ssh, firewall, dns, fail2ban, journald, swap, zsh, nvidia,
+  cockpit), Docker, k3s + Helm-based k8s addons (Headlamp), MariaDB, Nginx,
+  PHP, Node.js builds, Prometheus stack, WireGuard, Certbot, internal CA,
+  GitLab Runner, GOST tunnel, SSH tunnels.
+
+tags:
+  - "infrastructure"
+  - "linux"
+  - "system"
+  - "docker"
+  - "kubernetes"
+  - "k3s"
+  - "helm"
+  - "nginx"
+  - "prometheus"
+  - "wireguard"
+  - "mariadb"
+  - "certbot"
+
+repository: "https://github.com/hackallcode/hacode-infra"
+documentation: "https://github.com/hackallcode/hacode-infra"
+homepage: "https://github.com/hackallcode/hacode-infra"
+issues: "https://github.com/hackallcode/hacode-infra/issues"
+
+dependencies:
+  # Only lower bounds are pinned. Upper bounds are left open so consumers
+  # who already pull a newer major (community.general 9/10, community.docker
+  # 4, ...) into the same playbook aren't forced into resolver conflicts.
+  # Supported platforms (AlmaLinux/Rocky 9-10, Ubuntu 22.04/24.04) all ship
+  # Python >= 3.9 — no need to cap on Python 3.6.
+  "ansible.posix": ">=1.5.0"
+  "community.general": ">=8.0.0"
+  "community.docker": ">=3.10.0"
+  "community.mysql": ">=3.10.0"
+  "community.crypto": ">=2.20.0"
+  "kubernetes.core": ">=3.0.0"
+  "prometheus.prometheus": ">=0.29.0"
+
+build_ignore:
+  - ".git"
+  - ".github"
+  - ".idea"
+  - ".vscode"
+  - ".claude"
+  - ".DS_Store"
+  - "*.tar.gz"
+  - "tests/output"
+  - "extensions"
+  - "test-requirements.txt"
+  - "requirements.yml"
+  - ".ansible-lint"
+  - ".ansible-lint-ignore"
+  - ".yamllint"
+  - ".markdownlint-cli2.yaml"
+  - "Makefile"
+  - "dist"
+  - ".collection-root"
+  - ".ansible"
+  - ".molecule"
+  - ".cache"
+  - ".facts_cache"

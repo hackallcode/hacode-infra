@@ -1,0 +1,21 @@
+galaxy_info:
+  role_name: "wireguard"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: "Install and configure WireGuard server and clients; generate peers and download/export their configs."
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+    - name: "Debian"
+      versions: ["bullseye", "bookworm"]
+  galaxy_tags:
+    - "wireguard"
+    - "vpn"
+    - "networking"
+
+dependencies:
+  - role: "hacode.infra.common"

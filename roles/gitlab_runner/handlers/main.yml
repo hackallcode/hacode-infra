@@ -1,0 +1,16 @@
+- name: "Reload systemd"
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: "Restart docker"
+  ansible.builtin.systemd:
+    name: "docker"
+    state: "restarted"
+  when: "(_gitlab_runner_docker_unit.stat.exists | default(false)) | bool"
+
+- name: "Restart gitlab runner"
+  ansible.builtin.systemd:
+    name: "gitlab-runner"
+    state: "restarted"
+    enabled: true
+  when: "not ansible_check_mode"

@@ -1,0 +1,260 @@
+- name: "Gather os_family (firewall + package gating)"
+  ansible.builtin.setup:
+    gather_subset: ["min"]
+    filter: ["ansible_os_family"]
+  when: "ansible_os_family is not defined"
+
+- name: "Validate gost_instances entries"
+  ansible.builtin.assert:
+    that:
+      - "item.name is defined and (item.name | length > 0)"
+      - "item.listen_port is defined"
+      - "item.socks_ip is defined and (item.socks_ip | length > 0)"
+      - "item.socks_port is defined"
+    fail_msg: >-
+      Each gost_instances entry must define name, listen_port,
+      socks_ip and socks_port. Got: {{ item }}
+  loop: "{{ gost_instances }}"
+  loop_control:
+    label: "{{ item.name | default('(unnamed)') }}"
+
+- name: "Validate at most one gost instance has default: true"
+  ansible.builtin.assert:
+    that:
+      - >-
+        (gost_instances
+         | selectattr('default', 'defined')
+         | selectattr('default')
+         | list | length) <= 1
+    fail_msg: >-
+      Only one gost_instances entry may set `default: true` per host -
+      the catch-all REDIRECT is global, multiple defaults would collide.
+
+- name: "Resolve default instance (if any)"
+  ansible.builtin.set_fact:
+    _gost_default_instance: >-
+      {{ (gost_instances
+          | selectattr('default', 'defined')
+          | selectattr('default')
+          | list | first) | default({}) }}
+
+- name: "Resolve default-route exclude CIDRs"
+  ansible.builtin.set_fact:
+    _gost_default_excludes: >-
+      {{ (_gost_default_instance.exclude_cidrs | default(gost_default_exclude_cidrs))
+         if (_gost_default_instance | length > 0) else [] }}
+
+- name: "Stat existing gost binary"
+  ansible.builtin.stat:
+    path: "{{ gost_bin_path }}"
+  register: "gost_bin_stat"
+
+- name: "Install gost from upstream archive"
+  when: "force | default(false) | bool or not gost_bin_stat.stat.exists"
+  block:
+    - name: "Download gost archive"
+      check_mode: false
+      ansible.builtin.get_url:
+        url: "{{ gost_download_url }}"
+        dest: "/tmp/gost.tar.gz"
+        mode: "0644"
+      register: "gost_download"
+
+    - name: "Unpack gost"
+      check_mode: false
+      ansible.builtin.unarchive:
+        src: "/tmp/gost.tar.gz"
+        remote_src: true
+        dest: "/tmp/"
+        creates: "/tmp/gost"
+      register: "gost_unpack"
+
+    - name: "Install gost binary"
+      ansible.builtin.copy:
+        src: "/tmp/gost"
+        remote_src: true
+        dest: "{{ gost_bin_path }}"
+        mode: "0755"
+      register: "gost_bin_install"
+
+- name: "Ensure /etc/gost dir exists"
+  ansible.builtin.file:
+    path: "/etc/gost"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+- name: "Render per-instance environment file"
+  ansible.builtin.template:
+    src: "gost.env.j2"
+    dest: "/etc/gost/{{ instance.name }}.env"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+  loop: "{{ gost_instances }}"
+  loop_control:
+    loop_var: "instance"
+    index_var: "instance_idx"
+    label: "{{ instance.name }}"
+  register: "gost_envs"
+  no_log: true
+
+- name: "Render systemd unit per gost instance"
+  ansible.builtin.template:
+    src: "gost.service.j2"
+    dest: "/etc/systemd/system/{{ instance.name }}.service"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  loop: "{{ gost_instances }}"
+  loop_control:
+    loop_var: "instance"
+    index_var: "instance_idx"
+    label: "{{ instance.name }}"
+  register: "gost_units"
+
+- name: "Enable and start gost instances"
+  ansible.builtin.systemd:
+    name: "{{ instance.name }}"
+    state: "started"
+    enabled: true
+    daemon_reload: true
+  loop: "{{ gost_instances }}"
+  loop_control:
+    loop_var: "instance"
+    label: "{{ instance.name }}"
+  when: "not ansible_check_mode"
+
+- name: "Restart gost instances when binary, env file or unit changed"
+  ansible.builtin.systemd:
+    name: "{{ instance.name }}"
+    state: "restarted"
+  loop: "{{ gost_instances }}"
+  loop_control:
+    loop_var: "instance"
+    index_var: "instance_idx"
+    label: "{{ instance.name }}"
+  when:
+    - "not ansible_check_mode"
+    - >-
+      (gost_bin_install | default({}) is changed)
+      or (gost_units.results[instance_idx] is changed)
+      or (gost_envs.results[instance_idx] is changed)
+      or (force | default(false) | bool)
+
+- name: "Manage gost firewall rules on RHEL family"
+  when: "ansible_os_family == 'RedHat'"
+  block:
+    # ---- Selective REDIRECT rules per (instance, ip) pair (priority 0) ----
+
+    - name: "Add selective REDIRECT for instance IPs (OUTPUT)"
+      ansible.builtin.command: >
+        firewall-cmd --permanent --direct --add-rule ipv4 nat OUTPUT 0
+        -d {{ item.1.ip }} -p tcp -j REDIRECT --to-ports {{ item.0.listen_port }}
+      register: "fw_sel_out_add"
+      changed_when: "'ALREADY_ENABLED' not in fw_sel_out_add.stderr"
+      failed_when: "fw_sel_out_add.rc != 0 and 'ALREADY_ENABLED' not in fw_sel_out_add.stderr"
+      loop: "{{ gost_instances | subelements('redirects', skip_missing=True) }}"
+      loop_control:
+        label: "{{ item.0.name }} -> {{ item.1.ip }}"
+      when: "item.1.get('state', 'enabled') != 'disabled'"
+
+    - name: "Add selective REDIRECT for instance IPs (PREROUTING)"
+      ansible.builtin.command: >
+        firewall-cmd --permanent --direct --add-rule ipv4 nat PREROUTING 0
+        -s {{ gost_docker_cidr }} -d {{ item.1.ip }} -p tcp
+        -j REDIRECT --to-ports {{ item.0.listen_port }}
+      register: "fw_sel_pre_add"
+      changed_when: "'ALREADY_ENABLED' not in fw_sel_pre_add.stderr"
+      failed_when: "fw_sel_pre_add.rc != 0 and 'ALREADY_ENABLED' not in fw_sel_pre_add.stderr"
+      loop: "{{ gost_instances | subelements('redirects', skip_missing=True) }}"
+      loop_control:
+        label: "{{ item.0.name }} -> {{ item.1.ip }}"
+      when: "item.1.get('state', 'enabled') != 'disabled'"
+
+    # firewalld's --remove-rule returns rc=12 + stderr `NOT_ENABLED` when
+    # the rule wasn't present — treat that as not-changed, not-failed.
+    - name: "Remove disabled selective REDIRECT (PREROUTING)"
+      ansible.builtin.command: >
+        firewall-cmd --permanent --direct --remove-rule ipv4 nat PREROUTING 0
+        -s {{ gost_docker_cidr }} -d {{ item.1.ip }} -p tcp
+        -j REDIRECT --to-ports {{ item.0.listen_port }}
+      register: "fw_sel_pre_rm"
+      changed_when: "'NOT_ENABLED' not in fw_sel_pre_rm.stderr"
+      failed_when: "fw_sel_pre_rm.rc != 0 and 'NOT_ENABLED' not in fw_sel_pre_rm.stderr"
+      loop: "{{ gost_instances | subelements('redirects', skip_missing=True) }}"
+      loop_control:
+        label: "{{ item.0.name }} -> {{ item.1.ip }}"
+      when: "item.1.get('state', 'enabled') == 'disabled'"
+
+    - name: "Remove disabled selective REDIRECT (OUTPUT)"
+      ansible.builtin.command: >
+        firewall-cmd --permanent --direct --remove-rule ipv4 nat OUTPUT 0
+        -d {{ item.1.ip }} -p tcp -j REDIRECT --to-ports {{ item.0.listen_port }}
+      register: "fw_sel_out_rm"
+      changed_when: "'NOT_ENABLED' not in fw_sel_out_rm.stderr"
+      failed_when: "fw_sel_out_rm.rc != 0 and 'NOT_ENABLED' not in fw_sel_out_rm.stderr"
+      loop: "{{ gost_instances | subelements('redirects', skip_missing=True) }}"
+      loop_control:
+        label: "{{ item.0.name }} -> {{ item.1.ip }}"
+      when: "item.1.get('state', 'enabled') == 'disabled'"
+
+    # ---- Default-route catch-all (only when an instance has default: true) ----
+    # Order matters: RETURN rules at priority 1 short-circuit excluded CIDRs
+    # before the REDIRECT at priority 100 sweeps everything else into the
+    # default instance.
+
+    - name: "Add RETURN excludes for default-route (OUTPUT)"
+      ansible.builtin.command: >
+        firewall-cmd --permanent --direct --add-rule ipv4 nat OUTPUT 1
+        -d {{ item }} -p tcp -j RETURN
+      register: "fw_def_out_return"
+      changed_when: "'ALREADY_ENABLED' not in fw_def_out_return.stderr"
+      failed_when: "fw_def_out_return.rc != 0 and 'ALREADY_ENABLED' not in fw_def_out_return.stderr"
+      loop: "{{ _gost_default_excludes }}"
+      when: "_gost_default_instance | length > 0"
+
+    - name: "Add RETURN excludes for default-route (PREROUTING)"
+      ansible.builtin.command: >
+        firewall-cmd --permanent --direct --add-rule ipv4 nat PREROUTING 1
+        -s {{ gost_docker_cidr }} -d {{ item }} -p tcp -j RETURN
+      register: "fw_def_pre_return"
+      changed_when: "'ALREADY_ENABLED' not in fw_def_pre_return.stderr"
+      failed_when: "fw_def_pre_return.rc != 0 and 'ALREADY_ENABLED' not in fw_def_pre_return.stderr"
+      loop: "{{ _gost_default_excludes }}"
+      when: "_gost_default_instance | length > 0"
+
+    - name: "Add catch-all REDIRECT for default route (OUTPUT)"
+      ansible.builtin.command: >
+        firewall-cmd --permanent --direct --add-rule ipv4 nat OUTPUT 100
+        -p tcp -j REDIRECT --to-ports {{ _gost_default_instance.listen_port }}
+      register: "fw_def_out_redirect"
+      changed_when: "'ALREADY_ENABLED' not in fw_def_out_redirect.stderr"
+      failed_when: "fw_def_out_redirect.rc != 0 and 'ALREADY_ENABLED' not in fw_def_out_redirect.stderr"
+      when: "_gost_default_instance | length > 0"
+
+    - name: "Add catch-all REDIRECT for default route (PREROUTING)"
+      ansible.builtin.command: >
+        firewall-cmd --permanent --direct --add-rule ipv4 nat PREROUTING 100
+        -s {{ gost_docker_cidr }} -p tcp
+        -j REDIRECT --to-ports {{ _gost_default_instance.listen_port }}
+      register: "fw_def_pre_redirect"
+      changed_when: "'ALREADY_ENABLED' not in fw_def_pre_redirect.stderr"
+      failed_when: "fw_def_pre_redirect.rc != 0 and 'ALREADY_ENABLED' not in fw_def_pre_redirect.stderr"
+      when: "_gost_default_instance | length > 0"
+
+    - name: "Reload firewalld when any rule changed"
+      ansible.builtin.service:
+        name: "firewalld"
+        state: "reloaded"
+      when: >-
+        (fw_sel_out_add.results        | default([]) | selectattr('changed', 'true') | list | length > 0)
+        or (fw_sel_pre_add.results     | default([]) | selectattr('changed', 'true') | list | length > 0)
+        or (fw_sel_pre_rm.results      | default([]) | selectattr('changed', 'true') | list | length > 0)
+        or (fw_sel_out_rm.results      | default([]) | selectattr('changed', 'true') | list | length > 0)
+        or (fw_def_out_return.results  | default([]) | selectattr('changed', 'true') | list | length > 0)
+        or (fw_def_pre_return.results  | default([]) | selectattr('changed', 'true') | list | length > 0)
+        or (fw_def_out_redirect.changed | default(false))
+        or (fw_def_pre_redirect.changed | default(false))
+        or (force | default(false) | bool)

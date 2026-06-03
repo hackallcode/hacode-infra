@@ -1,0 +1,61 @@
+- name: "Prepare: install docker + stage a tiny node source tree"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Install dnf-plugins-core for docker-ce.repo (RHEL)"
+      ansible.builtin.package:
+        name: "dnf-plugins-core"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Ensure docker config dir exists"
+      ansible.builtin.file:
+        path: "/etc/docker"
+        state: "directory"
+        mode: "0755"
+
+    # overlay2 breaks under DinD on linuxkit; vfs works.
+    - name: "Configure dockerd to use vfs storage"
+      ansible.builtin.copy:
+        dest: "/etc/docker/daemon.json"
+        mode: "0644"
+        content: |
+          {"storage-driver": "vfs"}
+
+    - name: "Install docker via the docker role"
+      ansible.builtin.include_role:
+        name: "hacode.infra.docker"
+
+    - name: "Create source tree for node_js role"
+      ansible.builtin.file:
+        path: "/opt/molecule-node"
+        state: "directory"
+        mode: "0755"
+
+    - name: "Stage a minimal package.json (no deps, build = echo)"
+      ansible.builtin.copy:
+        dest: "/opt/molecule-node/package.json"
+        mode: "0644"
+        content: |
+          {
+            "name": "molecule-test",
+            "version": "1.0.0",
+            "scripts": {"build": "echo built > built.txt"}
+          }
+
+    - name: "Stage a matching minimal package-lock.json"
+      ansible.builtin.copy:
+        dest: "/opt/molecule-node/package-lock.json"
+        mode: "0644"
+        content: |
+          {
+            "name": "molecule-test",
+            "version": "1.0.0",
+            "lockfileVersion": 3,
+            "requires": true,
+            "packages": {
+              "": {"name": "molecule-test", "version": "1.0.0"}
+            }
+          }

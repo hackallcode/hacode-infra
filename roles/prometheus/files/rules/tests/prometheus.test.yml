@@ -1,0 +1,34 @@
+rule_files:
+  - ../prometheus.yml
+
+evaluation_interval: 30s
+
+tests:
+  # last_reload_successful == 0 → срабатывает
+  - interval: 30s
+    input_series:
+      - series: 'prometheus_config_last_reload_successful{job="prometheus",instance_name="testhost"}'
+        values: "0x10"
+
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: PrometheusConfigReloadError
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: prometheus
+              instance_name: testhost
+            exp_annotations:
+              summary: "Prometheus config reload error."
+              description: "Prometheus config reload error on testhost: 0."
+
+  # last_reload_successful == 1 → не срабатывает
+  - interval: 30s
+    input_series:
+      - series: 'prometheus_config_last_reload_successful{job="prometheus",instance_name="testhost"}'
+        values: "1x10"
+
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: PrometheusConfigReloadError
+        exp_alerts: []

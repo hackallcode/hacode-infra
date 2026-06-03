@@ -1,0 +1,87 @@
+- name: "Install WireGuard packages"
+  tags: ["package"]
+  ansible.builtin.package:
+    name:
+      - "wireguard-tools"
+      - "qrencode"
+    state: "present"
+
+- name: "Enable and persist IPv4 forwarding"
+  tags: ["network"]
+  ansible.posix.sysctl:
+    name: "net.ipv4.ip_forward"
+    value: "1"
+    state: "present"
+    sysctl_set: true
+    reload: true
+
+- name: "Enable and persist IPv6 forwarding"
+  tags: ["network"]
+  ansible.posix.sysctl:
+    name: "net.ipv6.conf.all.forwarding"
+    value: "1"
+    state: "present"
+    sysctl_set: true
+    reload: true
+
+- name: "Manage WireGuard firewall rules on RHEL family"
+  when: "ansible_os_family == 'RedHat'"
+  tags: ["network"]
+  block:
+    - name: "Enable UDP port for WireGuard in firewall"
+      ansible.posix.firewalld:
+        port: "1194/udp"
+        state: "enabled"
+        permanent: true
+      notify: "Reload firewalld"
+
+    - name: "Enable NAT in firewall"
+      ansible.posix.firewalld:
+        zone: "public"
+        masquerade: true
+        state: "enabled"
+        permanent: true
+      notify: "Reload firewalld"
+
+    # DNS for VPN clients — accept port 53 from wg subnets only, no rate
+    # limit. Lives in direct filter/INPUT at priority -10 so it runs
+    # BEFORE any per-source-IP hashlimit DROP that `machine_dns_public`
+    # would install at priority 0. External clients still hit the
+    # hashlimit; wg clients bypass it entirely.
+    - name: "Ensure direct DNS-accept rules for WG subnets"
+      ansible.builtin.shell:
+        cmd: |
+          set -eu
+          args="{{ item.family }} filter INPUT -10
+                -s {{ item.cidr }}
+                -p {{ item.proto }} --dport 53
+                -j ACCEPT"
+          firewall-cmd --permanent --direct --query-rule $args >/dev/null 2>&1 && exit 0
+          firewall-cmd --permanent --direct --add-rule $args >/dev/null
+          echo CHANGED
+        executable: "/bin/bash"
+      loop:
+        - {family: "ipv4", cidr: "{{ wg_ipv4_prefix }}.0/24", proto: "udp"}
+        - {family: "ipv4", cidr: "{{ wg_ipv4_prefix }}.0/24", proto: "tcp"}
+        - {family: "ipv6", cidr: "{{ wg_ipv6_prefix }}::/64", proto: "udp"}
+        - {family: "ipv6", cidr: "{{ wg_ipv6_prefix }}::/64", proto: "tcp"}
+      loop_control:
+        label: "{{ item.family }}/{{ item.proto }}"
+      register: "wg_fw_dns_accept"
+      changed_when: "'CHANGED' in wg_fw_dns_accept.stdout"
+      notify: "Reload firewalld"
+      when: "wg_dns_enabled | bool"
+
+    - name: "Force firewall reload when `force` is set"
+      ansible.builtin.systemd:
+        name: "firewalld"
+        state: "reloaded"
+      when: "force | default(false) | bool"
+
+# Cross-role include keeps wg-side dnsmasq setup identical to a stand-alone
+# DNS host. Listen interfaces still come from `dns_server_interfaces`.
+- name: "Install and configure dnsmasq for VPN clients"
+  ansible.builtin.include_role:
+    name: "hacode.infra.machine"
+    tasks_from: "dns"
+  when: "wg_dns_enabled | bool"

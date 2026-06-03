@@ -1,0 +1,38 @@
+# Collection-wide defaults. Roles that need any of these declare a `common`
+# dependency in their `meta/main.yml`; the variables become available in the
+# dependent role without the consumer having to define them.
+
+# Custom `--rsh` for `ansible.posix.synchronize` invocations. The module
+# hard-codes `ssh -S none`, which disables ssh ControlMaster for rsync;
+# passing our own --rsh (rsync uses the last `--rsh` it sees) re-enables
+# socket reuse, so N host aliases on one IP share one ssh connection
+# instead of opening N fresh ones. Our baseline options come first so that
+# inventory-supplied bits (port, key, ssh_common/extra_args) appended after
+# can override them — ssh takes the last value for repeated `-o`.
+hacode_sync_rsh: >-
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+  -o ControlMaster=auto -o ControlPath=~/.ssh/ansible-cm-%h-%p-%r
+  -o ControlPersist=600 -o ConnectTimeout=60
+  -o PreferredAuthentications=publickey
+  {% if ansible_port is defined %} -p {{ ansible_port }}{% endif %}
+  {% if ansible_ssh_private_key_file is defined %} -i {{ ansible_ssh_private_key_file }}{% endif %}
+  {% if ansible_ssh_common_args is defined %} {{ ansible_ssh_common_args }}{% endif %}
+  {% if ansible_ssh_extra_args is defined %} {{ ansible_ssh_extra_args }}{% endif %}
+
+# Force-restart / re-apply switch read across the collection as
+# `force | default(false) | bool`. When true, idempotence guards (such as
+# "is changed" / "sources_changed") are short-circuited so services restart,
+# firewalld reloads, compose redeploys, etc. happen unconditionally.
+force: false
+
+# Controller-side root for artifacts written by roles (issued certs,
+# kubeconfigs, generated wg-client configs, …). Set once in inventory to
+# relocate everything in one go.
+hacode_output_dir: "{{ playbook_dir }}/output"
+
+# Shared kubeconfig drop-off. `hacode.infra.k3s` writes here by default,
+# `hacode.infra.k8s_addons` reads from here by default — both roles share
+# this single convention so adding `k8s_addons` to the same inventory
+# group as `k3s` Just Works without per-role path plumbing. Override
+# globally to relocate kubeconfigs alongside other controller artifacts.
+hacode_kube_configs_dir: "{{ hacode_output_dir }}/kube-configs"

@@ -1,0 +1,33 @@
+- name: "Prepare: firewalld stack on RHEL for k3s open-ports task"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Install firewalld + python3-firewall on RHEL family"
+      ansible.builtin.package:
+        name:
+          - "firewalld"
+          - "python3-firewall"
+          - "iptables"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    # Docker Desktop's linuxkit kernel can't load nftables hooks across
+    # nested netns, which makes firewalld's default `nftables` backend
+    # fail to apply its base policy. Switch to the iptables backend in
+    # the container so firewalld actually starts.
+    - name: "Force firewalld onto the iptables backend on RHEL family"
+      ansible.builtin.lineinfile:
+        path: "/etc/firewalld/firewalld.conf"
+        regexp: "^FirewallBackend="
+        line: "FirewallBackend=iptables"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Start firewalld on RHEL family"
+      ansible.builtin.systemd:
+        name: "firewalld"
+        state: "started"
+        enabled: true
+      when: "ansible_os_family == 'RedHat'"

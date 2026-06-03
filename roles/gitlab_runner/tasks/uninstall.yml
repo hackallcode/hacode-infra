@@ -1,0 +1,32 @@
+- name: "Stop gitlab runner"
+  ansible.builtin.systemd:
+    name: "gitlab-runner"
+    state: "stopped"
+    enabled: false
+  register: "result"
+  failed_when:
+    - "result.failed"
+    - "'Could not find' not in result.msg"
+
+- name: "Uninstall gitlab runner"
+  ansible.builtin.command:
+    cmd: "/usr/local/bin/gitlab-runner uninstall"
+  register: "result"
+  changed_when:
+    - "result.rc == 0"
+  failed_when:
+    - "result.rc != 0"
+    - "result.rc != 1"
+    - "'No such file' not in result.msg"
+  throttle: 1
+
+- name: "Remove user 'gitlab-runner'"
+  ansible.builtin.user:
+    name: "gitlab-runner"
+    state: "absent"
+  throttle: 1
+
+- name: "Remove GitLab runner binary"
+  ansible.builtin.file:
+    path: "/usr/local/bin/gitlab-runner"
+    state: "absent"

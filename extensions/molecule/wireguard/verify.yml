@@ -1,0 +1,27 @@
+- name: "Verify: wireguard role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Wg binary is installed"
+      ansible.builtin.stat:
+        path: "/usr/bin/wg"
+      register: "wg_bin"
+      failed_when: "not wg_bin.stat.exists"
+
+    - name: "IPv4 forwarding sysctl is set"
+      ansible.builtin.command: "sysctl -n net.ipv4.ip_forward"
+      register: "ip_forward"
+      changed_when: false
+      failed_when: "ip_forward.stdout.strip() != '1'"
+
+    - name: "Server private key was generated"
+      ansible.builtin.stat:
+        path: "/etc/wireguard/keys/server"
+      register: "server_key"
+      failed_when: "not server_key.stat.exists"
+
+    - name: "Wg0.conf contains the server block"
+      ansible.builtin.command: "grep -q 'server config begin' /etc/wireguard/wg0.conf"
+      changed_when: false

@@ -1,0 +1,24 @@
+- name: "Converge: docker role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    # The "Start and enable Docker" step inside the role assumes systemd can
+    # bring up dockerd. Nested cgroup setups occasionally refuse — let that
+    # specific failure mode be reported but not abort the converge.
+    - name: "Run the docker role"
+      block:
+        - name: "Include docker role"
+          ansible.builtin.include_role:
+            name: "hacode.infra.docker"
+      rescue:
+        - name: "Daemon may not start under nested cgroups; surface in logs"
+          ansible.builtin.command: "journalctl -u docker --no-pager -n 100"
+          register: "docker_journal"
+          changed_when: false
+          failed_when: false
+
+        - name: "Print journal tail"
+          ansible.builtin.debug:
+            var: "docker_journal.stdout_lines"

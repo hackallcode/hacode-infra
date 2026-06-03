@@ -1,0 +1,9 @@
+- name: "Add WireGuard server"
+  tags: ["servers-add"]
+  ansible.builtin.include_tasks:
+    file: "client-server-add.yml"
+    apply:
+      tags: ["servers-add"]
+  loop: "{{ wg_servers }}"
+  loop_control:
+    loop_var: "wg_server"

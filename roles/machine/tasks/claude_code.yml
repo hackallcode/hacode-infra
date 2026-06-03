@@ -1,0 +1,24 @@
+# Install Anthropic's Claude Code CLI globally via npm. Self-contained:
+# ensures nodejs + npm are present before invoking the npm module.
+
+- name: "Enable Node.js 20 module stream (RHEL)"
+  tags: ["claude_code"]
+  ansible.builtin.command: "dnf module enable -y nodejs:20"
+  args:
+    creates: "/etc/dnf/modules.d/nodejs.module"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Install Node.js + npm"
+  tags: ["claude_code"]
+  ansible.builtin.package:
+    name:
+      - "nodejs"
+      - "npm"
+    state: "present"
+
+- name: "Install Claude Code CLI"  # noqa: package-latest
+  tags: ["claude_code"]
+  community.general.npm:
+    name: "@anthropic-ai/claude-code"
+    global: true
+    state: "latest"

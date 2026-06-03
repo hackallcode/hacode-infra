@@ -1,0 +1,51 @@
+# Verify runs entirely on the controller: every observable side effect
+# of the role lives there (saved token file) or in the cluster reachable
+# via the kubeconfig (helm release, namespace, RBAC).
+
+- name: "Verify: k8s_addons role"
+  hosts: "localhost"
+  connection: "local"
+  gather_facts: false
+
+  vars:
+    _kubeconfig: "/tmp/molecule-k3s-kubeconfig/almalinux10.yaml"
+
+  tasks:
+    - name: "Headlamp admin token file exists next to kubeconfig"
+      ansible.builtin.stat:
+        path: "/tmp/molecule-k3s-kubeconfig/almalinux10-headlamp-token.txt"
+      register: "_token_stat"
+      failed_when: >-
+        not _token_stat.stat.exists
+        or _token_stat.stat.size == 0
+        or _token_stat.stat.mode != '0600'
+
+    - name: "Helm release `headlamp` is deployed"
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        name: "headlamp"
+        release_namespace: "headlamp"
+      register: "_helm_release"
+      failed_when: >-
+        (_helm_release.status is not defined)
+        or (_helm_release.status.status | default('')) != 'deployed'
+
+    - name: "Namespace `headlamp` exists"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "v1"
+        kind: "Namespace"
+        name: "headlamp"
+      register: "_ns_info"
+      failed_when: "(_ns_info.resources | length) == 0"
+
+    - name: "ClusterRoleBinding `headlamp-admin` points at cluster-admin"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "rbac.authorization.k8s.io/v1"
+        kind: "ClusterRoleBinding"
+        name: "headlamp-admin"
+      register: "_crb_info"
+      failed_when: >-
+        (_crb_info.resources | length) == 0
+        or _crb_info.resources[0].roleRef.name != 'cluster-admin'

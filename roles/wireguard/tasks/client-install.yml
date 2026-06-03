@@ -1,0 +1,7 @@
+- name: "Install WireGuard client packages"
+  tags: ["package"]
+  ansible.builtin.package:
+    name:
+      - "openresolv"
+      - "wireguard-tools"
+    state: "present"

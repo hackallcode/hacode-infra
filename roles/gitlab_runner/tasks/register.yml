@@ -1,0 +1,70 @@
+- name: "Probe existing gitlab-runner registrations"
+  ansible.builtin.command:
+    cmd: "/usr/local/bin/gitlab-runner list"
+  register: "runner_list_res"
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: "Initialize gitlab-runner register argv"
+  ansible.builtin.set_fact:
+    _runner_register_argv:
+      - "/usr/local/bin/gitlab-runner"
+      - "register"
+      - "-n"
+      - "--name"
+      - "{{ runner_name | string }}"
+      - "--url"
+      - "{{ runner_api_url | string }}"
+      - "--registration-token"
+      - "{{ runner_registration_token | string }}"
+      - "--tag-list"
+      - "{{ runner_tag_list | join(',') }}"
+      - "--executor"
+      - "{{ runner_executor | string }}"
+      - "--docker-image"
+      - "{{ runner_docker_image | string }}"
+  no_log: true
+
+- name: "Append --env pairs from runner_default_env + runner_env"
+  ansible.builtin.set_fact:
+    _runner_register_argv: >-
+      {{ _runner_register_argv
+         + ['--env', (item.key | string) ~ '=' ~ (item.value | string)] }}
+  loop: "{{ (runner_default_env | combine(runner_env)) | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  no_log: true
+
+- name: "Append --docker-volumes args"
+  ansible.builtin.set_fact:
+    _runner_register_argv: "{{ _runner_register_argv + ['--docker-volumes', item | string] }}"
+  loop: "{{ runner_docker_volumes }}"
+
+- name: "Append --docker-network-mode if set"
+  ansible.builtin.set_fact:
+    _runner_register_argv: >-
+      {{ _runner_register_argv
+         + ['--docker-network-mode', runner_docker_network_mode | string] }}
+  when: "runner_docker_network_mode is not none"
+
+- name: "Append --docker-privileged if requested"
+  ansible.builtin.set_fact:
+    _runner_register_argv: "{{ _runner_register_argv + ['--docker-privileged'] }}"
+  when: "runner_privileged is true"
+
+- name: "Append --limit"
+  ansible.builtin.set_fact:
+    _runner_register_argv: "{{ _runner_register_argv + ['--limit', runner_limit | string] }}"
+
+- name: "Register gitlab runner"
+  ansible.builtin.command:
+    argv: "{{ _runner_register_argv }}"
+  register: "runner_register_res"
+  changed_when: "'succeeded' in runner_register_res.stderr"
+  throttle: 1
+  no_log: true
+  notify: "Restart gitlab runner"
+  when: >-
+    (runner_list_res.stdout | default('')
+      | regex_search('(?m)^' ~ (runner_name | regex_escape) ~ '(\\s|$)')) is none

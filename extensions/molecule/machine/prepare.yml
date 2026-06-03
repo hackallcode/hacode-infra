@@ -1,0 +1,39 @@
+# Install bare-minimum services the role assumes are already present
+# (openssh-server, sudo) on the raw upstream images.
+- name: "Prepare RHEL-family hosts"
+  hosts: "all"
+  become: true
+  gather_facts: true
+  tasks:
+    - name: "Install sshd and sudo on RHEL family"
+      ansible.builtin.dnf:
+        name:
+          - "openssh-server"
+          - "sudo"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Generate host keys on RHEL family"
+      ansible.builtin.command: "ssh-keygen -A"
+      args:
+        creates: "/etc/ssh/ssh_host_rsa_key"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Ensure sshd config exists on RHEL family"
+      ansible.builtin.copy:
+        dest: "/etc/ssh/sshd_config"
+        content: |
+          PermitRootLogin yes
+          PasswordAuthentication yes
+        mode: "0600"
+        force: false
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Install sshd and sudo on Debian family"
+      ansible.builtin.apt:
+        name:
+          - "openssh-server"
+          - "sudo"
+        state: "present"
+        update_cache: true
+      when: "ansible_os_family == 'Debian'"

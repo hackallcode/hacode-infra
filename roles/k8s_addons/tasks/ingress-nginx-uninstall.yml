@@ -1,0 +1,22 @@
+- name: "Uninstall ingress-nginx chart"
+  tags: ["ingress-nginx"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "ingress-nginx"
+    release_namespace: "{{ k8s_addons_ingress_nginx_namespace }}"
+    state: "absent"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Delete ingress-nginx namespace"
+  tags: ["ingress-nginx"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "v1"
+    kind: "Namespace"
+    name: "{{ k8s_addons_ingress_nginx_namespace }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false

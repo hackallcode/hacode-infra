@@ -1,0 +1,72 @@
+- name: "Gather minimal facts (role branches on ansible_os_family)"
+  tags: ["always"]
+  ansible.builtin.setup:
+    gather_subset: "min"
+  when: "ansible_facts.os_family is not defined"
+
+- name: "Check for k3s server uninstall script"
+  tags: ["uninstall"]
+  ansible.builtin.stat:
+    path: "/usr/local/bin/k3s-uninstall.sh"
+  register: "k3s_server_uninstall"
+
+- name: "Run k3s server uninstall"
+  tags: ["uninstall"]
+  ansible.builtin.command: "/usr/local/bin/k3s-uninstall.sh"
+  when: "k3s_server_uninstall.stat.exists"
+  changed_when: "k3s_server_uninstall.stat.exists"
+
+- name: "Check for k3s agent uninstall script"
+  tags: ["uninstall"]
+  ansible.builtin.stat:
+    path: "/usr/local/bin/k3s-agent-uninstall.sh"
+  register: "k3s_agent_uninstall"
+
+- name: "Run k3s agent uninstall"
+  tags: ["uninstall"]
+  ansible.builtin.command: "/usr/local/bin/k3s-agent-uninstall.sh"
+  when: "k3s_agent_uninstall.stat.exists"
+  changed_when: "k3s_agent_uninstall.stat.exists"
+
+- name: "Close k3s server ports in firewall"
+  tags: ["uninstall"]
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: "disabled"
+  loop: "{{ k3s_server_ports }}"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "inventory_hostname in (groups['k3s_server'] | default([]))"
+
+- name: "Close k3s agent ports in firewall"
+  tags: ["uninstall"]
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: "disabled"
+  loop: "{{ k3s_agent_ports }}"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "inventory_hostname in (groups['k3s_agent'] | default([]))"
+
+- name: "Drop trusted k3s pod/service CIDRs from firewalld"
+  tags: ["uninstall"]
+  ansible.posix.firewalld:
+    zone: "trusted"
+    source: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: "disabled"
+  loop: "{{ k3s_trusted_cidrs }}"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "k3s_trusted_cidrs | length > 0"
+
+- name: "Remove k3s modules-load drop-in"
+  tags: ["uninstall"]
+  ansible.builtin.file:
+    path: "{{ k3s_modules_load_file }}"
+    state: "absent"

@@ -1,0 +1,8 @@
+server_name
+        {% for d in app_domains %}{{ d }} www.{{ d }}
+        {% endfor %};
+
+    root {{ app_content_dir }};
+    access_log /var/log/{{ app_project }}/nginx/access.log;
+    error_log /var/log/{{ app_project }}/nginx/error.log;
+

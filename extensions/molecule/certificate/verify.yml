@@ -1,0 +1,38 @@
+- name: "Verify: certificate role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  vars:
+    expected_anchor_dir: >-
+      {{ '/etc/pki/ca-trust/source/anchors'
+         if ansible_os_family == 'RedHat'
+         else '/usr/local/share/ca-certificates' }}
+    expected_cert_dir: >-
+      {{ '/etc/pki/tls/certs'
+         if ansible_os_family == 'RedHat'
+         else '/etc/ssl/certs' }}
+    expected_key_dir: >-
+      {{ '/etc/pki/tls/private'
+         if ansible_os_family == 'RedHat'
+         else '/etc/ssl/private' }}
+
+  tasks:
+    - name: "CA certificate is installed in the system anchor dir"
+      ansible.builtin.stat:
+        path: "{{ expected_anchor_dir }}/ca.crt"
+      register: "ca_anchor"
+      failed_when: "not ca_anchor.stat.exists"
+
+    - name: "Server certificate is installed"
+      ansible.builtin.stat:
+        path: "{{ expected_cert_dir }}/test.example.local.crt"
+      register: "server_cert"
+      failed_when: "not server_cert.stat.exists"
+
+    - name: "Server private key is installed with 0600"
+      ansible.builtin.stat:
+        path: "{{ expected_key_dir }}/test.example.local.key"
+      register: "server_key"
+      failed_when:
+        - "not server_key.stat.exists or server_key.stat.mode != '0600'"

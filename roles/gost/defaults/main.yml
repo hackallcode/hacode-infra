@@ -1,0 +1,52 @@
+# Version of gost to install. Override per-inventory to pin a different release.
+gost_version: "3.2.4"
+
+# Architecture tag in the gost release asset name. Mapped from
+# `ansible_architecture` (x86_64 → amd64, aarch64 → arm64); override
+# directly if you need a non-default mapping.
+gost_arch: >-
+  {{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64', 'armv7l': 'armv7'}
+     .get(ansible_architecture | default('x86_64'), 'amd64') }}
+
+# yamllint disable-line rule:line-length
+gost_download_url: "https://github.com/go-gost/gost/releases/download/v{{ gost_version }}/gost_{{ gost_version }}_linux_{{ gost_arch }}.tar.gz"
+
+gost_bin_path: "/usr/local/bin/gost"
+
+# Default CIDRs that bypass a `default: true` instance's catch-all REDIRECT
+# (private LAN / loopback / link-local / multicast - traffic that should
+# never leave the host through a SOCKS proxy). Override per-instance with
+# `exclude_cidrs`.
+gost_default_exclude_cidrs:
+  - "10.0.0.0/8"
+  - "127.0.0.0/8"
+  - "169.254.0.0/16"
+  - "172.16.0.0/12"
+  - "192.168.0.0/16"
+
+# Source CIDR for PREROUTING-chain rules so traffic originating from
+# container networks gets the same treatment as outbound from the host.
+gost_docker_cidr: "172.16.0.0/12"
+
+# List of gost instances on this host. Each entry produces a systemd unit
+# `<name>.service` plus its own firewall rules. Add as many as you need;
+# the role does no special-casing for one-vs-many or selective-vs-default.
+#
+# Schema:
+#   name           systemd unit basename (no .service suffix)
+#   listen_port    local TCP port for transparent REDIRECT capture
+#   socks_ip       upstream SOCKS5 host
+#   socks_port     upstream SOCKS5 port
+#   socks_user     optional SOCKS5 username (auth via `user:pass@host:port`)
+#   socks_pass     optional SOCKS5 password
+#   redirects      list of `{ip, state?}` - selectively REDIRECT these
+#                  IPs/CIDRs through this gost. `state: "disabled"` removes
+#                  a previously installed rule (state defaults to "enabled").
+#   default        bool. When true, install a catch-all REDIRECT for all
+#                  remaining TCP outbound (and from gost_docker_cidr) into
+#                  this instance. CIDRs in `exclude_cidrs` (defaulting to
+#                  `gost_default_exclude_cidrs`) RETURN past the catch-all.
+#                  At most one instance per host may set `default: true`.
+#   exclude_cidrs  optional override of `gost_default_exclude_cidrs` for
+#                  this default instance.
+gost_instances: []

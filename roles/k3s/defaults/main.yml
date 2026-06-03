@@ -1,0 +1,94 @@
+# "server" -> install the k3s control plane on this host.
+# "agent"  -> install the k3s agent and join the cluster pointed to by
+#             k3s_url. Operators calling specific subroles via `tasks_from:`
+#             can ignore this.
+k3s_role: "server"
+
+k3s_install_url: "https://get.k3s.io"
+k3s_channel: "stable" # used when k3s_version is empty
+k3s_version: "" # pin a specific version (e.g. "v1.32.0+k3s1"); empty -> follow k3s_channel
+k3s_token: "" # shared cluster token; must be set in inventory
+
+k3s_server_args: [] # extra flags passed to `k3s server` (after --cluster-init / --server)
+k3s_agent_args: [] # extra flags passed to `k3s agent`
+k3s_tls_san_extra: [] # extra SANs on top of ansible_host (e.g. ["k3s.example.com"])
+
+# IP that this node advertises to the rest of the cluster: kubelet `--node-ip`
+# on all roles, plus apiserver `--advertise-address` on servers. Defaults to
+# `ansible_host` so the address we use to reach the host is the address k3s
+# tells the cluster about — auto-detection would pick the default-route NIC
+# instead, which silently breaks multi-NIC hosts where the SSH/inventory IP
+# isn't the one on the default route. Set to "" to fall back to k3s defaults.
+k3s_node_ip: "{{ ansible_host }}"
+
+# Taint effect applied to k3s server nodes as
+# "node-role.kubernetes.io/control-plane=true:<effect>". Empty -> no taint.
+# Accepts standard k8s effects: "NoSchedule", "PreferNoSchedule", "NoExecute".
+# Default is empty because k3s single-node clusters expect workloads to run on
+# the server; set to "NoSchedule" when you have dedicated k3s_agent nodes.
+# Applied via `kubectl taint` post-install — kubelet refuses to self-assign
+# taints with restricted prefixes via --node-taint, so kubelet-flag path
+# silently breaks the server.
+k3s_control_plane_taint: ""
+
+# Per-host labels applied to the node, regardless of namespace. Default empty.
+# Applied via `kubectl label` post-install — kubelet refuses to self-assign
+# labels in the `kubernetes.io` / `k8s.io` namespaces except for a small
+# allowlist (`topology.kubernetes.io/*`, `kubelet.kubernetes.io/*`, ...), so
+# the kubelet-flag path breaks for the most common case of role labels.
+k3s_node_labels: {}
+
+# Per-host taints applied to the node, regardless of namespace. Each item is
+# a raw spec ("key=value:effect" or "key:effect"). Default empty. Applied via
+# `kubectl taint` post-install (same kubelet-flag restriction as labels).
+k3s_node_taints: []
+
+# Where the rewritten kubeconfig is saved on the controller. Filename
+# follows the cluster name so downstream roles (e.g. `k8s_addons`) can
+# locate it from `k3s_cluster_name` without per-host plumbing. The
+# directory comes from `hacode_kube_configs_dir` in the `common` role,
+# so the layout stays consistent collection-wide.
+k3s_kubeconfig_local_dir: "{{ hacode_kube_configs_dir }}"
+k3s_kubeconfig_local_file: "{{ k3s_cluster_name }}.yml"
+
+# Names used inside the saved kubeconfig (k3s puts "default" everywhere by default).
+# Override per-inventory for nicer `kubectl config get-contexts` / prompt output.
+k3s_cluster_name: "{{ hostname }}"
+k3s_user_name: "{{ k3s_cluster_name }}-admin"
+k3s_context_name: "{{ k3s_cluster_name }}"
+k3s_namespace: "" # optional context.namespace; empty -> not written into kubeconfig
+
+k3s_server_ports:
+  - "6443/tcp" # Kubernetes API
+  - "2379/tcp" # etcd client (HA)
+  - "2380/tcp" # etcd peer (HA)
+  - "8472/udp" # flannel VXLAN
+  - "10250/tcp" # kubelet metrics
+
+k3s_agent_ports:
+  - "8472/udp"
+  - "10250/tcp"
+
+# Pod / service CIDRs added as "trusted" sources in firewalld so pod-to-pod and
+# pod-to-service traffic isn't dropped on RHEL hosts that run firewalld. The
+# defaults match k3s' built-in flannel/CoreDNS defaults — override if you pass
+# `--cluster-cidr` / `--service-cidr` via k3s_server_args. Empty list -> skip.
+k3s_cluster_cidr: "10.42.0.0/16"
+k3s_service_cidr: "10.43.0.0/16"
+k3s_trusted_cidrs:
+  - "{{ k3s_cluster_cidr }}"
+  - "{{ k3s_service_cidr }}"
+
+# Kernel modules required by k3s/flannel networking. Loaded now via modprobe
+# and persisted in k3s_modules_load_file for next boot. Empty list -> skip.
+k3s_kernel_modules:
+  - "overlay"
+  - "br_netfilter"
+k3s_modules_load_file: "/etc/modules-load.d/k3s.conf"
+
+# Sysctls required by Kubernetes networking
+# (https://docs.k3s.io/installation/requirements). Empty mapping -> skip.
+k3s_sysctls:
+  net.ipv4.ip_forward: "1"
+  net.bridge.bridge-nf-call-iptables: "1"
+  net.bridge.bridge-nf-call-ip6tables: "1"

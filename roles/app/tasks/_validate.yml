@@ -1,0 +1,16 @@
+# Idempotent guard - safe to include at the top of any entrypoint.
+
+- name: "Validate app_project is set"
+  tags: ["always"]
+  ansible.builtin.assert:
+    that:
+      - "app_project is not none"
+      - "app_project | length > 0"
+    fail_msg: "Set `app_project` (kebab-case project identifier) for hacode.infra.app"
+
+- name: "Validate app_type"
+  tags: ["always"]
+  ansible.builtin.assert:
+    that:
+      - "app_type in ['docker', 'node_js', 'static']"
+    fail_msg: "app_type must be one of: docker | node_js | static (got '{{ app_type }}')"

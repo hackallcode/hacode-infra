@@ -1,0 +1,7 @@
+- name: "Set Raspberry config"
+  tags: ["raspberry"]
+  ansible.builtin.blockinfile:
+    path: "/boot/firmware/config.txt"
+    insertafter: "EOF"
+    block: "{{ lookup('ansible.builtin.file', 'raspberry/config.txt') }}"
+  when: "is_raspberry_os"

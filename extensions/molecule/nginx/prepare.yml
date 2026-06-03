@@ -1,0 +1,32 @@
+- name: "Prepare: enable extras repo + pip on RHEL; refresh apt on Debian"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Install EPEL + pip + firewalld stack on RHEL family"
+      # - epel-release: provides nginx on AlmaLinux / Rocky
+      # - python3-pip: passlib install
+      # - firewalld + python3-firewall: the role uses ansible.posix.firewalld
+      ansible.builtin.package:
+        name:
+          - "epel-release"
+          - "python3-pip"
+          - "python3-setuptools"
+          - "firewalld"
+          - "python3-firewall"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Start firewalld on RHEL family"
+      ansible.builtin.systemd:
+        name: "firewalld"
+        state: "started"
+        enabled: true
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Refresh apt cache on Debian family"
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 600
+      when: "ansible_os_family == 'Debian'"

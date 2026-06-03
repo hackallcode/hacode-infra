@@ -1,0 +1,6 @@
+- name: "Stop gitlab runner"
+  ansible.builtin.systemd:
+    name: "gitlab-runner"
+    state: "stopped"
+    enabled: false
+  when: "not ansible_check_mode"

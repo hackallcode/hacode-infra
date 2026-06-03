@@ -1,0 +1,29 @@
+profile: "production"
+
+exclude_paths:
+  - ".github/"
+  - "tests/output/"
+  - "collections/"
+  # `.collection-root/` is a self-referential symlink shim used by the
+  # Makefile so ansible/molecule can discover the collection from cwd —
+  # walking it loops forever.
+  - ".collection-root/"
+  # `.ansible/` caches a copy of installed collections when molecule
+  # populates ANSIBLE_HOME; lint should not re-scan that.
+  - ".ansible/"
+
+skip_list:
+  # We use ansible.builtin.* explicitly; allow shortcuts in includes.
+  - "fqcn[action-core]"
+  # Role-level vars are documented in README; prefixing every var is noisy.
+  - "var-naming[no-role-prefix]"
+  # `import_tasks`/`include_tasks` lines don't need a redundant `name:` —
+  # the included file's first task already carries the descriptive name.
+  - "name[missing]"
+  # Some task names embed loop-vars (`Generate '{{ wg_client.name }}' key`)
+  # for log readability; production profile flags any Jinja in `name`.
+  - "name[template]"
+
+warn_list:
+  - "experimental"
+  - "no-changed-when"

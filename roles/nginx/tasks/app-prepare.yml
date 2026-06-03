@@ -1,0 +1,10 @@
+- tags: ["app-prepare"]
+  when: "app_domains | length > 0"
+  block:
+    - name: "Create base config on local machine (scaffold only - force: false)"
+      ansible.builtin.template:
+        src: "app.conf.j2"
+        dest: "../configs/nginx/{{ hostname }}/{{ app_domains[0] }}.conf"
+        mode: "0644"
+        force: false
+      delegate_to: "localhost"

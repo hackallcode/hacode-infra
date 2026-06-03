@@ -1,0 +1,46 @@
+- name: "Verify: php role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Resolve php-fpm service unit"
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          systemctl list-unit-files 'php*-fpm.service' --no-legend --type=service
+          | awk '{print $1}' | head -n1
+        executable: "/bin/bash"
+      register: "php_unit"
+      changed_when: false
+
+    - name: "Resolve pool config file"
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          if [ -f /etc/php-fpm.d/www.conf ]; then
+            echo /etc/php-fpm.d/www.conf;
+          else
+            find /etc/php -name www.conf -path '*/fpm/*' 2>/dev/null | head -n1;
+          fi
+        executable: "/bin/bash"
+      register: "php_pool"
+      changed_when: false
+
+    - name: "Php binary is installed"
+      ansible.builtin.command: "php --version"
+      register: "php_version"
+      changed_when: false
+      failed_when: "php_version.rc != 0"
+
+    - name: "Php-fpm service is enabled"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-enabled {{ php_unit.stdout | trim }}"
+      register: "phpfpm_enabled"
+      changed_when: false
+      failed_when: "phpfpm_enabled.stdout.strip() != 'enabled'"
+
+    - name: "PHP-FPM pool runs under the configured user"
+      ansible.builtin.command: "grep -E '^user' {{ php_pool.stdout | trim }}"
+      register: "phpfpm_user_cfg"
+      changed_when: false
+      failed_when: "'user = php' not in phpfpm_user_cfg.stdout"

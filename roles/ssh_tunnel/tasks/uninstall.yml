@@ -1,0 +1,20 @@
+- name: "Stop ssh-tunnel services"
+  ansible.builtin.systemd:
+    name: "{{ tunnel.name }}"
+    state: "stopped"
+    enabled: false
+  loop: "{{ ssh_tunnels }}"
+  loop_control:
+    loop_var: "tunnel"
+    label: "{{ tunnel.name }}"
+  failed_when: false
+
+- name: "Remove ssh-tunnel service files"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ tunnel.name }}.service"
+    state: "absent"
+  loop: "{{ ssh_tunnels }}"
+  loop_control:
+    loop_var: "tunnel"
+    label: "{{ tunnel.name }}"
+  notify: "Reload systemd"

@@ -1,0 +1,36 @@
+- name: "Remove '{{ wg_client.name }}' private key"
+  tags: ["clients-delete"]
+  ansible.builtin.file:
+    path: "/etc/wireguard/keys/{{ wg_client.name }}"
+    state: "absent"
+
+- name: "Remove '{{ wg_client.name }}' public key"
+  tags: ["clients-delete"]
+  ansible.builtin.file:
+    path: "/etc/wireguard/keys/{{ wg_client.name }}.pub"
+    state: "absent"
+
+- name: "Remove '{{ wg_client.name }}' config"
+  tags: ["clients-delete"]
+  ansible.builtin.file:
+    path: "/etc/wireguard/configs/wg0_{{ wg_client.name }}.conf"
+    state: "absent"
+
+- name: "Update WireGuard config"
+  tags: ["clients-delete"]
+  ansible.builtin.blockinfile:
+    path: "/etc/wireguard/wg0.conf"
+    marker: "{mark}"
+    marker_begin: "# {{ wg_client.name }} config begin"
+    marker_end: "# {{ wg_client.name }} config end"
+    state: "absent"
+  register: "config_res"
+
+- name: "Reload WireGuard peers"
+  tags: ["clients-delete"]
+  ansible.builtin.shell:
+    cmd: "/bin/wg syncconf wg0 <(/bin/wg-quick strip wg0)"
+  args:
+    executable: "/bin/bash"
+  when: "config_res is changed or (force | default(false) | bool)"
+  changed_when: true

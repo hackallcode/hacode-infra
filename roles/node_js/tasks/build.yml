@@ -1,0 +1,60 @@
+- name: "Ensure host-side npm + node_modules cache dirs exist"
+  tags: ["build"]
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "directory"
+    mode: "0755"
+  loop:
+    - "{{ node_js_npm_cache_dir }}"
+    - "{{ node_js_node_modules_dir }}"
+
+- name: "Build node.js bundle in an ephemeral container"
+  tags: ["build"]
+  community.docker.docker_container:
+    name: "{{ app_project }}-npm-build"
+    image: "node:{{ node_js_version }}"
+    pull: "missing"
+    platform: "linux/amd64"
+    recreate: true
+    detach: false
+    working_dir: "/usr/src/app"
+    volumes:
+      - "{{ app_content_dir }}:/usr/src/app"
+      - "{{ node_js_npm_cache_dir }}:/root/.npm"
+      - "{{ node_js_node_modules_dir }}:/usr/src/app/node_modules"
+    entrypoint: ["sh", "-c"]
+    command_handling: "correct"
+    command:
+      - >-
+        set -eu;
+        LOCK_HASH=$(sha256sum package-lock.json | awk '{print $1}');
+        STAMP=node_modules/.installed-from;
+        if [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$LOCK_HASH" ]; then
+          echo "deps up to date (lock sha256=$LOCK_HASH), skipping npm ci";
+        else
+          npm ci --prefer-offline --no-audit --no-fund;
+          mkdir -p node_modules;
+          echo "$LOCK_HASH" > "$STAMP";
+        fi;
+        {{
+          node_js_build_command | join(' ')
+            if (node_js_build_command is sequence and node_js_build_command is not string)
+            else node_js_build_command
+        }}
+  register: "build_res"
+  when: "not ansible_check_mode"
+
+- name: "Show build output"
+  tags: ["build"]
+  ansible.builtin.debug:
+    msg: "{{ build_res.container.Output if build_res.container is defined else 'no output' }}"
+  when:
+    - "not ansible_check_mode"
+    - "build_res is failed"
+
+- name: "Remove build container"
+  tags: ["build"]
+  community.docker.docker_container:
+    name: "{{ app_project }}-npm-build"
+    state: "absent"
+  when: "not ansible_check_mode"

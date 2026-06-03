@@ -1,0 +1,25 @@
+- name: "Verify: gost role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Gost binary is installed and executable"
+      ansible.builtin.stat:
+        path: "/usr/local/bin/gost"
+      register: "gost_bin"
+      failed_when:
+        - "not gost_bin.stat.exists"
+        - "not gost_bin.stat.executable"
+
+    - name: "Per-instance unit is present"
+      ansible.builtin.stat:
+        path: "/etc/systemd/system/gost-test.service"
+      register: "gost_unit"
+      failed_when: "not gost_unit.stat.exists"
+
+    - name: "Per-instance service is enabled"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-enabled gost-test.service"
+      register: "gost_enabled"
+      changed_when: false
+      failed_when: "gost_enabled.stdout.strip() != 'enabled'"

@@ -1,0 +1,19 @@
+# Idempotent guard - safe to include at the top of any entrypoint.
+# `_k8s_addons_enabled_flags` is the union of every per-addon `_enabled`
+# flag; extend the list when adding a new addon so the kubeconfig assert
+# stays load-bearing as the role grows.
+
+- name: "Validate kubeconfig is set when any addon is enabled"
+  tags: ["always"]
+  vars:
+    _k8s_addons_enabled_flags:
+      - "{{ k8s_addons_headlamp_enabled | default(false) | bool }}"
+      - "{{ k8s_addons_ingress_nginx_enabled | default(false) | bool }}"
+  ansible.builtin.assert:
+    that: "(k8s_addons_kubeconfig | length) > 0"
+    fail_msg: >-
+      Set `k8s_addons_kubeconfig` to the kubeconfig path on the controller,
+      or put the host in scope of `k3s_cluster_name` (e.g. add `k8s_addons`
+      to the same inventory group as `hacode.infra.k3s`) so the path
+      auto-derives to `{{ hacode_kube_configs_dir }}/<cluster>.yml`.
+  when: "_k8s_addons_enabled_flags | select | list | length > 0"

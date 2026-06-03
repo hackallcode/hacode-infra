@@ -1,0 +1,40 @@
+- name: "Check cert on server"
+  ansible.builtin.stat:
+    path: "{{ cert_remote_ca_cert_path }}"
+  register: "remote_cert"
+
+- name: "Download cert from server"
+  ansible.builtin.fetch:
+    src: "{{ cert_remote_ca_cert_path }}"
+    dest: "{{ cert_ca_cert_path }}"
+    flat: true
+  when:
+    - "not force"
+    - "remote_cert.stat.exists | default(false)"
+
+- ansible.builtin.include_tasks: "ca_create.yml"
+  when: "force or not remote_cert.stat.exists"
+
+- name: "Ensure CA dir exist"
+  ansible.builtin.file:
+    path: "{{ cert_remote_anchor_dir }}"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  when: "force or not remote_cert.stat.exists"
+
+- name: "Upload CA cert"
+  ansible.builtin.copy:
+    src: "{{ cert_ca_cert_path }}"
+    dest: "{{ cert_remote_ca_cert_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    force: "{{ force }}"
+  when: "force or not remote_cert.stat.exists"
+
+- name: "Update system trust store"
+  ansible.builtin.command: "{{ cert_update_trust_cmd }}"
+  changed_when: true
+  when: "force or not remote_cert.stat.exists"

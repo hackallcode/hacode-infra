@@ -1,0 +1,16 @@
+# Format: <relative path> <rule name>
+# One violation per line; comments allowed.
+
+# `ansible.mysql` and `community.mysql` are byte-for-byte identical
+# (`ansible.mysql` is Red Hat's re-vendored fork). ansible-lint picks
+# whichever is "first" as canonical; on machines with both installed it
+# prefers `ansible.mysql`. The collection's published galaxy dep is
+# `community.mysql`, so we keep that name everywhere.
+roles/maria_db/tasks/add-db.yml fqcn[canonical]
+roles/maria_db/tasks/add-user.yml fqcn[canonical]
+roles/maria_db/tasks/backup-db.yml fqcn[canonical]
+roles/maria_db/tasks/delete-db.yml fqcn[canonical]
+roles/maria_db/tasks/delete-user.yml fqcn[canonical]
+roles/maria_db/tasks/restore-db.yml fqcn[canonical]
+roles/maria_db/tasks/install.yml fqcn[canonical]
+extensions/molecule/maria_db/verify.yml fqcn[canonical]

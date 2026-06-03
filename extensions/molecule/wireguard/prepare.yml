@@ -1,0 +1,30 @@
+- name: "Prepare: EPEL + firewalld stack + procps on RHEL family"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Install EPEL + firewalld + python3-firewall + procps-ng on RHEL family"
+      # procps-ng provides /usr/sbin/sysctl, which the role's sysctl tasks
+      # invoke. The minimal AlmaLinux / Rocky images don't ship it.
+      ansible.builtin.package:
+        name:
+          - "epel-release"
+          - "firewalld"
+          - "python3-firewall"
+          - "procps-ng"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Start firewalld on RHEL family"
+      ansible.builtin.systemd:
+        name: "firewalld"
+        state: "started"
+        enabled: true
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Refresh apt cache on Debian family"
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 600
+      when: "ansible_os_family == 'Debian'"

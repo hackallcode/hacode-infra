@@ -1,0 +1,9 @@
+- name: "Download configs of WireGuard clients"
+  tags: ["clients-download"]
+  ansible.builtin.include_tasks:
+    file: "server-client-download.yml"
+    apply:
+      tags: ["clients-download"]
+  loop: "{{ wg_clients }}"
+  loop_control:
+    loop_var: "wg_client"

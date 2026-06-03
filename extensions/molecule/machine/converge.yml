@@ -1,0 +1,7 @@
+- name: "Converge: machine role (lightweight subset)"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: "hacode.infra.machine"

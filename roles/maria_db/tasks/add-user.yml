@@ -1,0 +1,14 @@
+- name: "Create a new user"
+  tags: ["add-user"]
+  community.mysql.mysql_user:
+    login_host: "127.0.0.1"
+    login_port: "{{ maria_db_port }}"
+    login_user: "root"
+    login_password: "{{ maria_db_root_password }}"
+    state: "present"
+    host: "%"
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+    priv: "{{ item.privileges }}"
+    column_case_sensitive: false
+  loop: "{{ maria_db_users }}"

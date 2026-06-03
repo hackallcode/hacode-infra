@@ -1,0 +1,25 @@
+- name: "Verify: gitlab_runner role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Gitlab-runner binary is installed"
+      ansible.builtin.stat:
+        path: "/usr/local/bin/gitlab-runner"
+      register: "gr_bin"
+      failed_when:
+        - "not gr_bin.stat.exists"
+        - "not gr_bin.stat.executable"
+
+    - name: "Gitlab-runner user exists"
+      ansible.builtin.command: "id gitlab-runner"
+      register: "gr_user"
+      changed_when: false
+      failed_when: "gr_user.rc != 0"
+
+    - name: "Concurrent setting is applied"
+      ansible.builtin.command: "grep -E '^concurrent' /etc/gitlab-runner/config.toml"
+      register: "gr_concurrent"
+      changed_when: false
+      failed_when: "'= 4' not in gr_concurrent.stdout"

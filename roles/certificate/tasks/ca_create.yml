@@ -1,0 +1,61 @@
+- name: "Create directory for CA cert"
+  ansible.builtin.file:
+    path: "{{ cert_dir }}"
+    state: "directory"
+    mode: "0700"
+  delegate_to: "localhost"
+  become: false
+  run_once: true
+
+- name: "Create directory for CA private key (parent of cert_ca_key_path)"
+  ansible.builtin.file:
+    path: "{{ cert_ca_key_path | dirname }}"
+    state: "directory"
+    mode: "0700"
+  delegate_to: "localhost"
+  become: false
+  run_once: true
+
+- name: "Generate CA private key"
+  community.crypto.openssl_privatekey:
+    path: "{{ cert_ca_key_path }}"
+    mode: "0600"
+  check_mode: false
+  delegate_to: "localhost"
+  become: false
+  run_once: true
+
+- name: "Generate CA CSR with proper CA extensions"
+  community.crypto.openssl_csr:
+    path: "{{ cert_ca_csr_path }}"
+    privatekey_path: "{{ cert_ca_key_path }}"
+    common_name: "{{ cert_subject_org }} Root CA"
+    organization_name: "{{ cert_subject_org }}"
+    organizational_unit_name: "{{ cert_subject_ou }}"
+    country_name: "{{ cert_subject_country }}"
+    locality_name: "{{ cert_subject_locality }}"
+    basic_constraints:
+      - "CA:TRUE"
+      - "pathlen:0"
+    basic_constraints_critical: true
+    key_usage:
+      - "keyCertSign"
+      - "cRLSign"
+    key_usage_critical: true
+    create_subject_key_identifier: true
+  check_mode: false
+  delegate_to: "localhost"
+  become: false
+  run_once: true
+
+- name: "Self-sign CA certificate (v3)"
+  community.crypto.x509_certificate:
+    path: "{{ cert_ca_cert_path }}"
+    privatekey_path: "{{ cert_ca_key_path }}"
+    csr_path: "{{ cert_ca_csr_path }}"
+    provider: "selfsigned"
+    mode: "0644"
+  check_mode: false
+  delegate_to: "localhost"
+  become: false
+  run_once: true

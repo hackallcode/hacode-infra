@@ -1,0 +1,24 @@
+- name: "Verify: node_js role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Build artifact exists"
+      ansible.builtin.stat:
+        path: "/opt/molecule-node/built.txt"
+      register: "built_stat"
+      failed_when: "not built_stat.stat.exists"
+
+    - name: "Lock-hash stamp written to persistent node_modules cache"
+      ansible.builtin.stat:
+        path: "/var/cache/npm-build/molecule-node-node-modules/.installed-from"
+      register: "stamp_stat"
+      failed_when: "not stamp_stat.stat.exists"
+
+    - name: "Build container removed at end of role"
+      ansible.builtin.command:
+        cmd: "docker ps -a --format {% raw %}'{{.Names}}'{% endraw %} --filter name=^molecule-node-npm-build$"
+      register: "build_container_left"
+      changed_when: false
+      failed_when: "(build_container_left.stdout | trim | length) > 0"

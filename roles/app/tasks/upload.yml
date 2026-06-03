@@ -1,0 +1,213 @@
+- ansible.builtin.import_tasks: "_validate.yml"
+
+- name: "Gather os_family (firewall gating)"
+  tags: ["upload"]
+  ansible.builtin.setup:
+    gather_subset: ["min"]
+    filter: ["ansible_os_family"]
+  when: "ansible_os_family is not defined"
+
+- name: "Check that source dir exists on controller"
+  tags: ["upload"]
+  ansible.builtin.stat:
+    path: "{{ app_source_dir }}"
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: "app_source_stat"
+  delegate_to: "localhost"
+  become: false
+
+- name: "Build rsync exclude args"
+  tags: ["upload"]
+  ansible.builtin.set_fact:
+    _app_rsync_excludes: >-
+      {{ _app_rsync_excludes | default([])
+         + ['--exclude=' ~ ((item if item is string else item.path) | quote)] }}
+  loop: "{{ app_global_exclude + app_exclude_paths + app_data_paths + app_templates }}"
+  loop_control:
+    label: "{{ item if item is string else item.path }}"
+  when: "app_source_stat.stat.exists"
+
+- name: "Sync sources to remote"
+  tags: ["upload"]
+  ansible.posix.synchronize:
+    src: "{{ app_source_dir }}/"
+    dest: "{{ app_content_dir }}/"
+    archive: false
+    recursive: true
+    links: true
+    perms: false
+    times: true
+    delete: "{{ app_sync_delete | default(false) | bool }}"
+    rsync_opts: "{{ [
+        '--chown=' ~ app_dir_owner ~ ':' ~ app_dir_group,
+        '--chmod=u=rwX,g=rX,o=',
+        '--numeric-ids',
+        '--rsh=' ~ (hacode_sync_rsh | quote),
+      ] + (_app_rsync_excludes | default([])) }}"
+  when: "app_source_stat.stat.exists"
+  register: "app_sync_res"
+
+- name: "Re-apply content dir ownership after rsync"
+  tags: ["upload"]
+  ansible.builtin.file:
+    path: "{{ app_content_dir }}"
+    state: "directory"
+    owner: "{{ app_dir_owner }}"
+    group: "{{ app_dir_group }}"
+    mode: "{{ app_content_dir_mode }}"
+    recurse: false
+  when:
+    - "app_source_stat.stat.exists"
+    - "app_sync_res is changed"
+
+- name: "Check per-host overlay dir on controller"
+  tags: ["upload"]
+  ansible.builtin.stat:
+    path: "{{ app_overlay_source_dir }}"
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: "app_overlay_stat"
+  delegate_to: "localhost"
+  become: false
+  when: "app_overlay_source_dir | length > 0"
+
+- name: "Overlay per-host files"
+  tags: ["upload"]
+  ansible.builtin.copy:
+    src: "{{ app_overlay_source_dir }}/"
+    dest: "{{ app_content_dir }}/"
+    owner: "{{ app_dir_owner }}"
+    group: "{{ app_dir_group }}"
+    mode: "0640"
+  when:
+    - "app_overlay_source_dir | length > 0"
+    - "app_overlay_stat.stat.exists | default(false)"
+  register: "app_overlay_res"
+
+- name: "Render project templates"
+  tags: ["upload"]
+  ansible.builtin.template:
+    src: "{{ app_templates_src_dir }}/{{ (item if item is string else item.path) }}.j2"
+    dest: "{{ app_content_dir }}/{{ (item if item is string else item.path) }}"
+    owner: "{{ app_dir_owner if item is string else (item.owner | default(app_dir_owner)) }}"
+    group: "{{ app_dir_group if item is string else (item.group | default(app_dir_group)) }}"
+    mode: "{{ '0640' if item is string else (item.mode | default('0640')) }}"
+  loop: "{{ app_templates }}"
+  loop_control:
+    label: "{{ item if item is string else item.path }}"
+  register: "app_template_res"
+
+- name: "Ensure certificates dir exists"
+  tags: ["upload"]
+  ansible.builtin.file:
+    path: "{{ app_content_dir }}/certs"
+    state: "directory"
+    owner: "{{ app_certs_owner }}"
+    group: "{{ app_certs_group }}"
+    mode: "0700"
+  when: "app_certificates | length > 0"
+
+- name: "Copy certificates from controller"
+  tags: ["upload"]
+  ansible.builtin.copy:
+    src: "{{ app_cert_src_dir }}/{{ item }}"
+    dest: "{{ app_content_dir }}/certs/{{ item | basename }}"
+    owner: "{{ app_certs_owner }}"
+    group: "{{ app_certs_group }}"
+    mode: "0600"
+    force: true
+  loop: "{{ app_certificates }}"
+  register: "app_certs_res"
+
+- name: "Apply data-path permissions"
+  tags: ["upload"]
+  ansible.builtin.file:
+    path: "{{ app_content_dir }}/{{ item.path }}"
+    state: "{{ item.state | default('file') }}"
+    owner: "{{ item.owner | default(omit) }}"
+    group: "{{ item.group | default(omit) }}"
+    mode: "{{ item.mode | default(omit) }}"
+    recurse: "{{ item.recurse | default(false) }}"
+  loop: "{{ app_data_permissions }}"
+  register: "app_perms_res"
+
+- name: "Mark sources as changed (drives docker rebuild downstream)"
+  tags: ["upload"]
+  ansible.builtin.set_fact:
+    sources_changed: >-
+      {{ (force | default(false) | bool)
+         or (app_sync_res is changed)
+         or (app_overlay_res is changed)
+         or (app_template_res is changed)
+         or (app_certs_res is changed)
+         or (app_perms_res is changed) }}
+
+- name: "Deploy docker app"
+  tags: ["upload"]
+  vars:
+    docker_remote_dir: "{{ app_content_dir | dirname }}"
+    docker_dest: "{{ app_content_dir | basename }}"
+    docker_compose_owner: "{{ app_dir_owner }}"
+    docker_compose_group: "{{ app_dir_group }}"
+  ansible.builtin.include_role:
+    name: "hacode.infra.docker"
+    tasks_from: "compose"
+    apply:
+      tags: ["upload"]
+  when: "app_type == 'docker'"
+
+- name: "Run post-deploy services (one-shot containers via `compose run --rm`)"
+  tags: ["upload", "post-deploy"]
+  ansible.builtin.command:
+    cmd: "docker compose -p {{ app_project | quote }} run --rm {{ item | quote }}"
+    chdir: "{{ app_content_dir }}"
+  loop: "{{ app_post_deploy_services }}"
+  loop_control:
+    label: "{{ item }}"
+  changed_when: true
+  when:
+    - "app_type == 'docker'"
+    - "not (app_disabled | bool)"
+    - "not ansible_check_mode"
+    - "app_post_deploy_services | length > 0"
+    - "(sources_changed | default(true)) or (force | default(false) | bool)"
+
+- name: "Build node_js app"
+  tags: ["upload"]
+  ansible.builtin.include_role:
+    name: "hacode.infra.node_js"
+    tasks_from: "build"
+    apply:
+      tags: ["upload"]
+  when:
+    - "app_type == 'node_js'"
+    - "(sources_changed | default(true)) or (force | default(false) | bool)"
+
+- name: "Open app ports in firewall (no domain - direct exposure)"
+  tags: ["upload"]
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    state: "enabled"
+    permanent: true
+    immediate: true
+  loop: "{{ app_ports }}"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "app_ports | length > 0"
+    - "app_domains | length == 0"
+
+- name: "Close app ports in firewall (domain present - nginx proxies)"
+  tags: ["upload"]
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    state: "disabled"
+    permanent: true
+    immediate: true
+  loop: "{{ app_ports }}"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "app_ports | length > 0"
+    - "app_domains | length > 0"

@@ -1,0 +1,11 @@
+- ansible.builtin.import_tasks: "_validate.yml"
+
+- name: "Install Headlamp"
+  tags: ["headlamp"]
+  ansible.builtin.include_tasks: "headlamp-install.yml"
+  when: "k8s_addons_headlamp_enabled | default(false) | bool"
+
+- name: "Install Ingress-NGINX"
+  tags: ["ingress-nginx"]
+  ansible.builtin.include_tasks: "ingress-nginx-install.yml"
+  when: "k8s_addons_ingress_nginx_enabled | default(false) | bool"

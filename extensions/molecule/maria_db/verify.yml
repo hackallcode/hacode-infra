@@ -1,0 +1,62 @@
+- name: "Verify: maria_db role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Compose project directory exists"
+      ansible.builtin.stat:
+        path: "/opt/molecule-mariadb"
+      register: "compose_dir"
+      failed_when: "not compose_dir.stat.isdir"
+
+    - name: "Compose.yaml was rendered"
+      ansible.builtin.stat:
+        path: "/opt/molecule-mariadb/compose.yaml"
+      register: "compose_file"
+      failed_when: "not compose_file.stat.exists"
+
+    - name: "MariaDB container exists"
+      ansible.builtin.command:
+        argv:
+          - "docker"
+          - "ps"
+          - "-a"
+          - "--filter"
+          - "name=^molecule-mariadb$"
+          - "--format"
+          - "{% raw %}{{.Names}}{% endraw %}"
+      register: "container_list"
+      changed_when: false
+      failed_when: "'molecule-mariadb' not in container_list.stdout"
+
+    - name: "Default flow created the requested databases"
+      community.mysql.mysql_db:
+        login_host: "127.0.0.1"
+        login_port: 3306
+        login_user: "root"
+        login_password: "moleculeRootPw"
+        name: "{{ item }}"
+        state: "present"
+      check_mode: true
+      register: "db_check"
+      failed_when: "db_check.changed"
+      loop:
+        - "molecule_db_a"
+        - "molecule_db_b"
+
+    - name: "Default flow created the requested user"
+      community.mysql.mysql_user:
+        login_host: "127.0.0.1"
+        login_port: 3306
+        login_user: "root"
+        login_password: "moleculeRootPw"
+        name: "molecule_app"
+        host: "%"
+        state: "present"
+        password: "moleculeAppPw"
+        priv: "molecule_db_a.*:ALL/molecule_db_b.*:SELECT"
+        column_case_sensitive: false
+      check_mode: true
+      register: "user_check"
+      failed_when: "user_check.changed"

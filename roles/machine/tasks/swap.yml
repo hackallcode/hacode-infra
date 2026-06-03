@@ -1,0 +1,143 @@
+- name: "Check if swap file already exists"
+  tags: ["swap"]
+  ansible.builtin.stat:
+    path: "{{ swap_file_path }}"
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: "swap_file_stat"
+
+- name: "Create swap file"
+  tags: ["swap"]
+  ansible.builtin.command: "fallocate -l {{ swap_file_size }} {{ swap_file_path }}"
+  when: "not swap_file_stat.stat.exists"
+  changed_when: "not swap_file_stat.stat.exists"
+
+- name: "Set correct permissions on swap file"
+  tags: ["swap"]
+  ansible.builtin.file:
+    path: "{{ swap_file_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+
+- name: "Make swap on the file"
+  tags: ["swap"]
+  ansible.builtin.command: "mkswap {{ swap_file_path }}"
+  when: "not swap_file_stat.stat.exists"
+  changed_when: "not swap_file_stat.stat.exists"
+
+- name: "Enable swap"
+  tags: ["swap"]
+  ansible.builtin.command: "swapon {{ swap_file_path }}"
+  register: "swapon_result"
+  failed_when: "swapon_result.rc not in [0, 255]"
+  changed_when: "swapon_result.rc == 0"
+
+- name: "Ensure swap entry present in /etc/fstab"
+  tags: ["swap"]
+  ansible.posix.mount:
+    name: "none"
+    src: "{{ swap_file_path }}"
+    fstype: "swap"
+    opts: "sw"
+    state: "present"
+
+# --- Migrate from old LVM swap partition (/dev/dm-1) to /swapfile ---
+
+- name: "Detect swap partition"
+  tags: ["swap"]
+  ansible.builtin.stat:
+    path: "/dev/dm-1"
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: "swap_partition_info"
+
+- name: "Disable swap partition"
+  tags: ["swap"]
+  ansible.builtin.command: "swapoff /dev/dm-1"
+  register: "swapoff_partition_result"
+  failed_when: false
+  changed_when: "swapoff_partition_result.rc == 0"
+  when:
+    - "swap_partition_info.stat.exists"
+    - "swap_migrate_legacy_dm1 | bool"
+
+- name: "Remove swap partition from fstab"
+  tags: ["swap"]
+  ansible.posix.mount:
+    path: "none"
+    src: "/dev/dm-1"
+    fstype: "swap"
+    state: "absent"
+  when:
+    - "swap_partition_info.stat.exists"
+    - "swap_migrate_legacy_dm1 | bool"
+
+- name: "Detect VG/LV for /dev/dm-1"
+  tags: ["swap"]
+  ansible.builtin.command: "dmsetup info -c --noheadings -o name /dev/dm-1"
+  register: "dm_name"
+  changed_when: false
+  when:
+    - "swap_partition_info.stat.exists"
+    - "swap_migrate_legacy_dm1 | bool"
+
+- name: "Parse VG/LV for swap partition"
+  tags: ["swap"]
+  ansible.builtin.set_fact:
+    swap_vg: "{{ (dm_name.stdout.split('-'))[0] | trim }}"
+    swap_lv: "{{ (dm_name.stdout.split('-'))[1] | trim }}"
+  when:
+    - "swap_partition_info.stat.exists"
+    - "swap_migrate_legacy_dm1 | bool"
+
+- name: "Remove swap LVM LV"
+  tags: ["swap"]
+  community.general.lvol:
+    vg: "{{ swap_vg }}"
+    lv: "{{ swap_lv }}"
+    state: "absent"
+    force: true
+  when:
+    - "swap_partition_info.stat.exists"
+    - "swap_migrate_legacy_dm1 | bool"
+
+- name: "Find root device"
+  tags: ["swap"]
+  ansible.builtin.command: "findmnt -no SOURCE /"
+  register: "root_src"
+  changed_when: false
+  when:
+    - "swap_partition_info.stat.exists"
+    - "swap_migrate_legacy_dm1 | bool"
+
+- name: "Detect VG/LV for root device"
+  tags: ["swap"]
+  ansible.builtin.command: "dmsetup info -c --noheadings -o name {{ root_src.stdout | trim }}"
+  register: "dm_name"
+  changed_when: false
+  when:
+    - "swap_partition_info.stat.exists"
+    - "swap_migrate_legacy_dm1 | bool"
+
+- name: "Parse VG/LV for root partition"
+  tags: ["swap"]
+  ansible.builtin.set_fact:
+    root_vg: "{{ (dm_name.stdout.split('-'))[0] | trim }}"
+    root_lv: "{{ (dm_name.stdout.split('-'))[1] | trim }}"
+  when:
+    - "swap_partition_info.stat.exists"
+    - "swap_migrate_legacy_dm1 | bool"
+
+- name: "Extend root LV"
+  tags: ["swap"]
+  community.general.lvol:
+    vg: "{{ root_vg }}"
+    lv: "{{ root_lv }}"
+    size: "+100%FREE"
+    resizefs: true
+  when:
+    - "swap_partition_info.stat.exists"
+    - "swap_migrate_legacy_dm1 | bool"

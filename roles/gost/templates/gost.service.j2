@@ -1,0 +1,11 @@
+[Unit]
+Description=Gost transparent proxy redirector ({{ instance.name }})
+After=network.target
+
+[Service]
+EnvironmentFile=/etc/gost/{{ instance.name }}.env
+ExecStart={{ gost_bin_path }} -L redir://:{{ instance.listen_port }} -F ${GOST_FORWARDER}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

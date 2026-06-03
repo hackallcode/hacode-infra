@@ -1,0 +1,10 @@
+- name: "Gather OS family"
+  ansible.builtin.setup:
+    gather_subset: ["min"]
+    filter: ["ansible_os_family"]
+
+- name: "Load OS-specific trust-store paths"
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- ansible.builtin.import_tasks: "ca.yml"
+- ansible.builtin.import_tasks: "hostnames.yml"

@@ -1,0 +1,14 @@
+- ansible.builtin.import_tasks: "_validate.yml"
+
+- name: "Start docker compose stack"
+  tags: ["start"]
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_content_dir }}"
+    project_name: "{{ app_project }}"
+    state: "present"
+    wait: "{{ docker_compose_wait | default(true) | bool }}"
+    wait_timeout: "{{ docker_compose_wait_timeout | default(60) | int }}"
+  when:
+    - "app_type == 'docker'"
+    - "not (app_disabled | bool)"
+    - "not ansible_check_mode"

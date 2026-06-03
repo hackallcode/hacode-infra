@@ -1,0 +1,55 @@
+- name: "Gather OS family"
+  tags: ["package"]
+  ansible.builtin.setup:
+    gather_subset: ["min"]
+    filter: ["ansible_os_family", "ansible_distribution"]
+
+- name: "Load OS-specific vars"
+  tags: ["package"]
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: "Refresh apt cache (Debian)"
+  tags: ["package"]
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Install packages"
+  tags: ["package"]
+  ansible.builtin.package:
+    name: "{{ php_packages }}"
+    state: "present"
+  register: "php_pkg"
+
+- name: "Resolve php-fpm service unit (Debian uses phpX.Y-fpm)"
+  tags: ["package"]
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      systemctl list-unit-files 'php*-fpm.service' --no-legend --type=service
+      | awk '{print $1}' | head -n1
+    executable: "/bin/bash"
+  register: "php_fpm_service_detect"
+  changed_when: false
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Set php-fpm service / pool path facts (Debian)"
+  tags: ["package"]
+  vars:
+    _detected_unit: "{{ php_fpm_service_detect.stdout | trim }}"
+    _ver: "{{ _detected_unit | regex_replace('^php([0-9.]+)-fpm\\.service$', '\\1') }}"
+  ansible.builtin.set_fact:
+    php_fpm_service: "{{ _detected_unit | regex_replace('\\.service$', '') }}"
+    php_fpm_pool_conf: "/etc/php/{{ _ver }}/fpm/pool.d/www.conf"
+    php_session_dir: "/var/lib/php/sessions"
+  when:
+    - "ansible_os_family == 'Debian'"
+    - "php_fpm_service_detect.stdout | length > 0"
+
+- name: "Enable PHP-FPM on boot (deferred start: configure.yml owns first start)"
+  tags: ["package"]
+  ansible.builtin.systemd:
+    name: "{{ php_fpm_service }}"
+    enabled: true
+    daemon_reload: true

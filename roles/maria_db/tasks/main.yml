@@ -1,0 +1,7 @@
+- ansible.builtin.import_tasks: "install.yml"
+
+- ansible.builtin.import_tasks: "add-db.yml"
+  when: "(maria_db_databases | default([])) | length > 0"
+
+- ansible.builtin.import_tasks: "add-user.yml"
+  when: "(maria_db_users | default([])) | length > 0"

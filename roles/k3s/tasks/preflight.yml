@@ -1,0 +1,76 @@
+- name: "Gather minimal facts (role branches on ansible_os_family)"
+  tags: ["always"]
+  ansible.builtin.setup:
+    gather_subset: "min"
+  when: "ansible_facts.os_family is not defined"
+
+- name: "Check whether curl is already on PATH"
+  tags: ["install"]
+  ansible.builtin.shell:
+    cmd: "command -v curl"
+    executable: "/bin/bash"
+  register: "k3s_curl_check"
+  changed_when: false
+  failed_when: false
+
+- name: "Install curl (Debian) if missing"
+  tags: ["install"]
+  ansible.builtin.apt:
+    name: "curl"
+    state: "present"
+    update_cache: true
+    cache_valid_time: 3600
+  when:
+    - "k3s_curl_check.rc != 0"
+    - "ansible_os_family == 'Debian'"
+
+- name: "Install curl (RHEL) if missing; allow erasing curl-minimal"
+  tags: ["install"]
+  ansible.builtin.command: "dnf install -y --allowerasing curl"
+  register: "k3s_curl_install_rhel"
+  changed_when: >-
+    'Installed:' in k3s_curl_install_rhel.stdout
+    or 'Upgraded:' in k3s_curl_install_rhel.stdout
+    or 'Replaced:' in k3s_curl_install_rhel.stdout
+  when:
+    - "k3s_curl_check.rc != 0"
+    - "ansible_os_family == 'RedHat'"
+
+- name: "Ensure systemd-modules-load drop-in directory exists"
+  tags: ["install"]
+  ansible.builtin.file:
+    path: "{{ k3s_modules_load_file | dirname }}"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  when: "k3s_kernel_modules | length > 0"
+
+- name: "Persist k3s kernel modules across reboots"
+  tags: ["install"]
+  ansible.builtin.copy:
+    dest: "{{ k3s_modules_load_file }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    content: "{{ k3s_kernel_modules | join('\n') }}\n"
+  when: "k3s_kernel_modules | length > 0"
+
+- name: "Load k3s kernel modules"
+  tags: ["install"]
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: "present"
+  loop: "{{ k3s_kernel_modules }}"
+  when: "k3s_kernel_modules | length > 0"
+
+- name: "Apply k3s sysctls"
+  tags: ["install"]
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    state: "present"
+    reload: true
+  loop: "{{ k3s_sysctls | dict2items }}"
+  when: "k3s_sysctls | length > 0"

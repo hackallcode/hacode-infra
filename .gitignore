@@ -1,0 +1,18 @@
+*.tar.gz
+*.retry
+.DS_Store
+.idea/
+.vscode/
+*.pyc
+__pycache__/
+.facts_cache/
+tests/output/
+collections/
+.cache/
+.molecule/
+extensions/molecule/*/.molecule/
+.claude/
+# Makefile-created symlink shim that lets ansible/molecule discover the
+# collection from cwd.
+.collection-root/
+.ansible

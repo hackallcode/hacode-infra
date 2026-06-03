@@ -1,0 +1,51 @@
+rule_files:
+  - ../node-cpu.yml
+
+evaluation_interval: 1m
+
+tests:
+  # idle растёт по 3 сек/мин = rate 0.05 = 5% idle = 95% занят → critical
+  - interval: 1m
+    input_series:
+      - series: 'node_cpu_seconds_total{job="node",instance_name="testhost",cpu="0",mode="idle"}'
+        values: "0+3x20"
+      - series: 'node_cpu_seconds_total{job="node",instance_name="testhost",cpu="1",mode="idle"}'
+        values: "0+3x20"
+
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: CpuUtilizationWarning
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "CPU utilization is more than 80%"
+              description: "CPU utilization on testhost is 95.00%"
+      - eval_time: 7m
+        alertname: CpuUtilizationCritical
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "CPU utilization is more than 90%"
+              description: "CPU utilization on testhost is 95.00%"
+
+  # idle ≈ 50 сек/мин → rate ≈ 0.833 → 16.7% занят → ни один не срабатывает
+  - interval: 1m
+    input_series:
+      - series: 'node_cpu_seconds_total{job="node",instance_name="testhost",cpu="0",mode="idle"}'
+        values: "0+50x20"
+      - series: 'node_cpu_seconds_total{job="node",instance_name="testhost",cpu="1",mode="idle"}'
+        values: "0+50x20"
+
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: CpuUtilizationWarning
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: CpuUtilizationCritical
+        exp_alerts: []

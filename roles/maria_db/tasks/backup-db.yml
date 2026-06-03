@@ -1,0 +1,29 @@
+- name: "Get backup name for {{ db_name }}"
+  tags: ["backup"]
+  ansible.builtin.set_fact:
+    backup_name: "{{ ansible_date_time.date.replace('-', '') }}_{{ db_name }}.sql.bz2"
+
+- name: "Backup database {{ db_name }}"
+  tags: ["backup"]
+  community.mysql.mysql_db:
+    login_host: "127.0.0.1"
+    login_port: "{{ maria_db_port }}"
+    login_user: "root"
+    login_password: "{{ maria_db_root_password }}"
+    state: "dump"
+    name: "{{ db_name }}"
+    target: "/opt/backups/maria_db/{{ backup_name }}"
+    dump_extra_args: "--column-statistics=0"
+
+- name: "Fetch backup of {{ db_name }}"
+  tags: ["backup"]
+  ansible.builtin.fetch:
+    src: "/opt/backups/maria_db/{{ backup_name }}"
+    dest: "../../backups/maria_db/{{ backup_name }}"
+    flat: true
+
+- name: "Remove backup of {{ db_name }} from remote"
+  tags: ["backup"]
+  ansible.builtin.file:
+    path: "/opt/backups/maria_db/{{ backup_name }}"
+    state: "absent"

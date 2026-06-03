@@ -1,0 +1,21 @@
+- name: "Probe existing gitlab-runner registrations"
+  ansible.builtin.command:
+    cmd: "/usr/local/bin/gitlab-runner list"
+  register: "runner_list_res"
+  changed_when: false
+  failed_when: false
+
+- name: "Unregister gitlab runner"
+  ansible.builtin.command:
+    argv:
+      - "/usr/local/bin/gitlab-runner"
+      - "unregister"
+      - "-n"
+      - "{{ runner_name }}"
+  register: "runner_unregister_res"
+  changed_when: "'Unregistering' in runner_unregister_res.stderr"
+  throttle: 1
+  notify: "Restart gitlab runner"
+  when: >-
+    (runner_list_res.stdout | default('')
+      | regex_search('(?m)^' ~ (runner_name | regex_escape) ~ '(\\s|$)')) is not none

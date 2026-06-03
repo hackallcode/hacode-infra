@@ -1,0 +1,93 @@
+# Mock /usr/bin/certbot must survive molecule's idempotence rerun:
+# `certonly` writes a self-signed fullchain.pem so the role's openssl
+# validity check skips the second issue; `revoke` records past domains
+# and prints "already been revoked" on the second call.
+
+- name: "Converge: certbot role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Install mode: run the role default entrypoint"
+      ansible.builtin.import_role:
+        name: "hacode.infra.certbot"
+
+    - name: "Replace /usr/bin/certbot with a mock for cert operations"
+      ansible.builtin.copy:
+        dest: "/usr/bin/certbot"
+        mode: "0755"
+        owner: "root"
+        group: "root"
+        content: |
+          #!/usr/bin/env bash
+          {
+            date -Iseconds
+            printf 'certbot %s\n' "$*"
+          } >>/var/log/certbot-mock.log
+
+          action=$1; shift || true
+          domain=
+          while [ $# -gt 0 ]; do
+            if [ "$1" = "--cert-name" ]; then domain=$2; shift 2; continue; fi
+            shift
+          done
+
+          case "$action" in
+            certonly)
+              live=/etc/letsencrypt/live/$domain
+              mkdir -p "$live"
+              openssl req -x509 -newkey rsa:2048 -days 365 -nodes \
+                -subj "/CN=$domain" \
+                -keyout "$live/privkey.pem" \
+                -out    "$live/fullchain.pem" >/dev/null 2>&1
+              echo 'Successfully received certificate.'
+              ;;
+            revoke)
+              state=/var/lib/certbot-mock-revoked
+              mkdir -p "$state"
+              if [ -f "$state/$domain" ]; then
+                echo 'Certificate has already been revoked.'
+              else
+                touch "$state/$domain"
+                echo 'Revoke complete.'
+              fi
+              ;;
+          esac
+          exit 0
+
+    - name: "Get-certificate mode (default: nginx + LE prod)"
+      ansible.builtin.include_role:
+        name: "hacode.infra.certbot"
+        tasks_from: "certificate-get"
+      vars:
+        app_cert: true
+        app_domains: ["molecule.example.test"]
+
+    - name: "Delete-certificate mode (default: nginx + LE prod)"
+      ansible.builtin.include_role:
+        name: "hacode.infra.certbot"
+        tasks_from: "certificate-delete"
+      vars:
+        app_cert: true
+        app_domains: ["molecule.example.test"]
+
+    - name: "Get-certificate mode (webroot + LE staging)"
+      ansible.builtin.include_role:
+        name: "hacode.infra.certbot"
+        tasks_from: "certificate-get"
+      vars:
+        app_cert: true
+        app_domains: ["staging.molecule.example.test"]
+        certbot_authenticator: "webroot"
+        certbot_webroot_path: "/var/www/molecule"
+        certbot_staging: true
+
+    - name: "Delete-certificate mode (LE staging)"
+      ansible.builtin.include_role:
+        name: "hacode.infra.certbot"
+        tasks_from: "certificate-delete"
+      vars:
+        app_cert: true
+        app_domains: ["staging.molecule.example.test"]
+        certbot_staging: true

@@ -1,0 +1,51 @@
+# Shared base config for every scenario under extensions/molecule/. Molecule
+# auto-loads this file because it lives at the collection-default location
+# (per `molecule --help`: "in collections at 'extensions/molecule/config.yml'").
+# Per-scenario molecule.yml deep-merges on top.
+#
+# `platforms` and `driver` are NOT defined here — molecule 26 doesn't merge
+# those reliably from the base config across all scenarios, so each
+# molecule.yml carries its own 6-OS matrix and `driver: docker`.
+
+dependency:
+  name: "galaxy"
+  options:
+    requirements-file: "${MOLECULE_PROJECT_DIRECTORY}/../requirements.yml"
+
+provisioner:
+  name: "ansible"
+  config_options:
+    defaults:
+      callbacks_enabled: "profile_tasks"
+      # `community.general.yaml` was removed in community.general 12.
+      # `result_format=yaml` on the built-in default callback is the
+      # supported replacement.
+      stdout_callback: "ansible.builtin.default"
+      result_format: "yaml"
+      gathering: "smart"
+      fact_caching: "memory"
+  options:
+    D: true
+  env:
+    ANSIBLE_FORCE_COLOR: "true"
+  inventory:
+    group_vars:
+      all:
+        ansible_python_interpreter: "auto_silent"
+
+verifier:
+  name: "ansible"
+
+scenario:
+  # Molecule 26 dropped the `lint` step; yamllint + ansible-lint run as a
+  # dedicated CI job earlier in the workflow.
+  test_sequence:
+    - "dependency"
+    - "destroy"
+    - "syntax"
+    - "create"
+    - "prepare"
+    - "converge"
+    - "idempotence"
+    - "verify"
+    - "destroy"

@@ -1,0 +1,21 @@
+- name: "Converge: k3s role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Run the k3s role"
+      block:
+        - name: "Include k3s role"
+          ansible.builtin.include_role:
+            name: "hacode.infra.k3s"
+      rescue:
+        - name: "Surface kubelet logs (nested cgroups can break startup)"
+          ansible.builtin.command: "journalctl -u k3s --no-pager -n 200"
+          register: "k3s_journal"
+          changed_when: false
+          failed_when: false
+
+        - name: "Print journal tail"
+          ansible.builtin.debug:
+            var: "k3s_journal.stdout_lines"

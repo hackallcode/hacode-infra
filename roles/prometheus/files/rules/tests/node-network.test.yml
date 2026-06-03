@@ -1,0 +1,71 @@
+rule_files:
+  - ../node-network.yml
+
+evaluation_interval: 5m
+
+tests:
+  # Растёт rx/tx по ~833 МБ/ч ≈ 20 ГБ/день, на rx + tx → ~40 ГБ за сутки > 35 ГБ
+  # Аннотацию description не проверяем — формат humanize1024 хрупкий.
+  - interval: 5m
+    input_series:
+      - series: 'node_network_receive_bytes_total{job="node",instance_name="testhost",device="eth0"}'
+        values: "0+69444444x300"
+      - series: 'node_network_transmit_bytes_total{job="node",instance_name="testhost",device="eth0"}'
+        values: "0+69444444x300"
+
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: NodeTrafficUsage1Day
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              instance_name: testhost
+            exp_annotations:
+              summary: "Traffic usage over 1 day exceeded 35 GB"
+              description: "testhost used 37.25GiB of traffic over the last 24 hours."
+
+  # Loopback и docker интерфейсы исключены — не срабатывает
+  - interval: 5m
+    input_series:
+      - series: 'node_network_receive_bytes_total{job="node",instance_name="testhost",device="lo"}'
+        values: "0+69444444x300"
+      - series: 'node_network_transmit_bytes_total{job="node",instance_name="testhost",device="lo"}'
+        values: "0+69444444x300"
+
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: NodeTrafficUsage1Day
+        exp_alerts: []
+
+  # conntrack 800/1000 = 80% > 75% → срабатывает
+  - interval: 30s
+    input_series:
+      - series: 'node_nf_conntrack_entries{job="node",instance_name="testhost"}'
+        values: "800x10"
+      - series: 'node_nf_conntrack_entries_limit{job="node",instance_name="testhost"}'
+        values: "1000x10"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: NodeHighNumberConntrackEntriesUsed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "Number of conntrack are getting close to the limit"
+              description: "80% of conntrack entries are used"
+
+  # conntrack 500/1000 = 50% → не срабатывает
+  - interval: 30s
+    input_series:
+      - series: 'node_nf_conntrack_entries{job="node",instance_name="testhost"}'
+        values: "500x10"
+      - series: 'node_nf_conntrack_entries_limit{job="node",instance_name="testhost"}'
+        values: "1000x10"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: NodeHighNumberConntrackEntriesUsed
+        exp_alerts: []

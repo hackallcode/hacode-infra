@@ -1,0 +1,167 @@
+# ===== Required inputs =====
+# app_project (required)
+#   Kebab-case identifier. Used as the default content_dir basename and
+#   docker compose project name.
+app_project:
+
+# ===== Source layout (controller side) =====
+# app_src_name     name of the project's source directory under the source
+#                  root. Defaults to `app_project`; override when several
+#                  hosts share the same source tree but get different
+#                  compose project names / remote dirs (e.g. `app_project:
+#                  qdrant-1` reading from `app_src_name: qdrant`).
+app_src_name: "{{ app_project }}"
+
+# app_source_dir   absolute path on the controller holding the project's
+#                  source tree. Synced to {{ app_content_dir }} on the
+#                  remote. If the path does not exist locally, the sync is
+#                  skipped (handy for bring-your-own-content workflows).
+app_source_dir: "{{ playbook_dir }}/sources/{{ app_src_name }}"
+
+# ===== Remote layout =====
+app_content_dir: "/opt/{{ app_project }}"
+
+# Service user that owns the app's file tree on disk. `root` keeps default
+# behavior (no extra user). Set to a name to provision a no-login system
+# user and chown the project tree to it. `app_dir_owner` and `app_dir_group`
+# derive from this; override them individually if owner and group should
+# differ (e.g. spilo-style uid 101 + group 103).
+app_owner: "root"
+app_dir_owner: "{{ app_owner }}"
+app_dir_group: "{{ app_owner }}"
+
+# Mode applied to `app_content_dir` after rsync. Default 0750 lets the group
+# (typically the docker group on dev) read the project tree without becoming
+# owner. Tighten to "u=rwX,g=,o=" (0700) on shared hosts where group access
+# is undesired.
+app_content_dir_mode: "u=rwX,g=rX,o="
+
+# Wipe the existing project dir and tear the compose stack down before
+# deploying. Useful for clean redeploys; default is incremental (preserves
+# named volumes / data dirs).
+app_cleanup: false
+
+# Required when app_cleanup=true and either an app_data_paths entry or
+# any bind mount exists under app_content_dir — prevents accidental wipe
+# of live data.
+app_cleanup_destructive: false
+
+# Pass `--delete` to rsync when syncing sources. Default false because
+# enabling it without comprehensive `app_data_paths` exclusions wipes
+# runtime data on the remote. Turn on only when you know all data
+# locations are listed in `app_data_paths` / `app_exclude_paths`.
+app_sync_delete: false
+
+# `hacode_sync_rsh` (used as custom --rsh for synchronize) is inherited
+# from the `common` role; override it there or per-inventory.
+
+# ===== Deployment type =====
+# One of: docker | node_js | static
+#   docker  -> includes hacode.infra.docker tasks_from=compose; expects compose
+#              files (compose.yaml / Dockerfile / ...) inside app_source_dir.
+#   node_js -> includes hacode.infra.node_js tasks_from=build; runs the build
+#              command on the remote against the synced sources.
+#   static  -> just sync files; no service supervision.
+app_type: "docker"
+
+# ===== Public exposure =====
+# When app_domains is non-empty the firewall closes app_ports (assumed an nginx
+# vhost will proxy to the app via localhost). When app_domains is empty the
+# ports are opened in firewalld.
+app_domains: []
+app_ports: [] # ["8080/tcp"]
+
+# ===== Per-host overlay =====
+# Optional directory on the controller whose contents are copied on top of
+# the synced source tree. Useful when several hosts share the same source
+# dir but need a small per-host file delta (e.g. nginx vhost). Skipped when
+# the dir doesn't exist locally.
+app_overlay_source_dir: "{{ playbook_dir }}/files/{{ app_src_name }}/{{ inventory_hostname }}"
+
+# ===== Certificates =====
+# Certificate file basenames (relative to app_cert_src_dir) copied into
+# `{{ app_content_dir }}/certs/<basename>` on the remote with mode 0600.
+# Pairs with hacode.infra.certificate's `cert_dir` layout (CA at the root,
+# per-host certs under `issued/`).
+app_certificates: []
+app_cert_src_dir: "{{ cert_dir | default(hacode_output_dir + '/certs') }}"
+
+# Owner/group of `{{ app_content_dir }}/certs/` and copied cert files.
+# Default to app_dir_owner/group; override when certs are consumed by a
+# container user that's not app_dir_owner (e.g. spilo runs postgres as
+# uid 101 inside the container regardless of the host's owner of the
+# project dir).
+app_certs_owner: "{{ app_dir_owner }}"
+app_certs_group: "{{ app_dir_group }}"
+
+# ===== Data permissions =====
+# Apply chmod/chown to specific paths inside the project tree after sync.
+# Each entry mirrors ansible.builtin.file:
+#   - path: relative to app_content_dir (required)
+#     state: file | directory | touch (default: file)
+#     owner / group / mode / recurse (all optional)
+app_data_permissions: []
+
+# ===== Templates =====
+# Per-project Jinja templates rendered into app_content_dir. Two forms:
+#   - "<basename>"               # path is the same in src/dest, default mode/owner/group
+#   - {path: "<basename>", mode: "0644", owner: "101", group: "103"}
+# Source: {{ app_templates_src_dir }}/<basename>.j2 (defaults to the
+# project's source tree so templates ship with the code).
+# Per-item owner/group override app_dir_owner/app_dir_group — set when the
+# rendered file is consumed by a non-app_dir_owner uid inside its container.
+app_templates: []
+app_templates_src_dir: "{{ app_source_dir }}"
+
+# Set to true to leave the service stopped after deploy (still syncs files).
+app_disabled: false
+
+# Compose service names to run as one-shot containers AFTER the main
+# `docker compose up --wait` succeeds (i.e. main services are running
+# and any healthchecks passed). Each name is executed via
+# `docker compose run --rm <name>`, so the service is created fresh,
+# runs to completion, and is removed. Exit != 0 fails the play.
+#
+# Mark these services with `profiles: [post-deploy]` (or any profile
+# name) in compose.yaml so they're skipped from the main `up` —
+# `docker compose run` activates the needed profile automatically.
+#
+# Pre-deploy doesn't need a counterpart here: use compose's native
+# `depends_on: { <svc>: { condition: service_completed_successfully } }`
+# in compose.yaml to gate the main services on a one-shot migrator.
+#
+# Gated on `sources_changed | force` so it doesn't run on every play —
+# set `force: true` (collection-wide) to re-run unconditionally.
+#
+# Typical use: smoke tests, cache warm-up, external webhook
+# notifications, post-migration verifications.
+app_post_deploy_services: []
+
+# ===== Sync exclude lists =====
+# Paths excluded from rsync but kept on the remote between deploys. Typical use:
+# DBs / uploaded files that should survive a redeploy. Backed up by tasks_from=backup.
+app_data_paths: []
+# Paths excluded from rsync AND not backed up. Use for build artifacts, caches.
+app_exclude_paths: []
+# Curated exclude list applied automatically (always merged with the above).
+# Override in inventory if you want a different baseline.
+app_global_exclude_common:
+  - "log"
+  - ".git"
+  - "__pycache__"
+  - ".DS_Store"
+  - ".idea"
+  - "certs"
+app_global_exclude_by_type:
+  node_js:
+    - "node_modules"
+    - "build"
+  docker: []
+  static: []
+app_global_exclude: >-
+  {{ app_global_exclude_common + app_global_exclude_by_type.get(app_type, []) }}
+
+# ===== Backups =====
+# Where to put archived data dirs on the controller after the backup task runs.
+app_backup_local_dir: "{{ playbook_dir }}/backups/app"
+app_backup_remote_dir: "/opt/backups/app"

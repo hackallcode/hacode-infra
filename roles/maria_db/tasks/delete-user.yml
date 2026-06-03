@@ -1,0 +1,20 @@
+- name: "Check for variables"
+  tags: ["delete-user"]
+  ansible.builtin.assert:
+    that:
+      - "maria_db_user is not none"
+      - "maria_db_user != ''"
+    fail_msg: "maria_db_user variable is required"
+    success_msg: "All required parameters passed"
+
+- name: "Delete user"
+  tags: ["delete-user"]
+  community.mysql.mysql_user:
+    login_host: "127.0.0.1"
+    login_port: "{{ maria_db_port }}"
+    login_user: "root"
+    login_password: "{{ maria_db_root_password }}"
+    state: "absent"
+    host_all: true
+    name: "{{ maria_db_user }}"
+    column_case_sensitive: false

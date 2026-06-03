@@ -1,0 +1,25 @@
+groups:
+  - name: "node_reboot"
+    rules:
+      - alert: "RebootRequired"
+        expr: "node_reboot_required > 0"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: "{{ $labels.instance_name }} requires a reboot."
+
+      - alert: "NodeReboot"
+        expr: "time() - node_boot_time_seconds < 300"
+        for: "1m"
+        labels:
+          severity: "critical"
+        annotations:
+          summary: "Reboot detected"
+          description: "Reboot detected on {{ $labels.instance_name }}.\nSystem started {{ $value }} seconds ago."
+
+      - alert: "NodeMigration"
+        expr: "changes(node_boot_time_seconds[20m]) > 0 and (time() - node_boot_time_seconds) > 1260"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: "Migration detected on {{ $labels.instance_name }}."

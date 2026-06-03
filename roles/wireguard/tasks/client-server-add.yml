@@ -1,0 +1,23 @@
+- name: "Copy WireGuard server config"
+  tags: ["servers-add"]
+  ansible.builtin.copy:
+    src: "{{ wg_server.config }}"
+    dest: "/etc/wireguard/{{ wg_server.name }}.conf"
+    owner: "root"
+    group: "root"
+    mode: "u=rwX,g=rX,o="
+  register: "_wg_client_config_res"
+
+- name: "Enable WireGuard connection on boot"
+  tags: ["servers-add"]
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ wg_server.name }}"
+    state: "started"
+    enabled: true
+
+- name: "Restart WireGuard connection"
+  tags: ["servers-add"]
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ wg_server.name }}"
+    state: "restarted"
+  when: "_wg_client_config_res is changed or (force | default(false) | bool)"

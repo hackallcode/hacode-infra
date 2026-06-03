@@ -1,0 +1,39 @@
+# Each task notifies the role-local `Reload firewalld` handler; callers
+# that `include_role tasks_from: firewall_dns` need it in scope (machine
+# role ships one).
+
+- name: "Allow DNS service in firewall zone"
+  tags: ["firewall", "dns"]
+  ansible.posix.firewalld:
+    service: "dns"
+    permanent: true
+    state: "enabled"
+  notify: "Reload firewalld"
+
+- name: "Ensure per-source-IP DNS hashlimit (direct rule)"
+  tags: ["firewall", "dns"]
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      args="{{ item.family }} filter INPUT 0 -p {{ item.proto }} --dport 53
+            -m hashlimit
+            --hashlimit-name dns-flood-{{ item.family }}-{{ item.proto }}
+            --hashlimit-mode srcip
+            --hashlimit-above {{ firewall_dns_rate_limit }}
+            --hashlimit-burst {{ firewall_dns_rate_burst }}
+            --hashlimit-htable-expire 60000
+            -j DROP"
+      firewall-cmd --permanent --direct --query-rule $args >/dev/null 2>&1 && exit 0
+      firewall-cmd --permanent --direct --add-rule $args >/dev/null
+      echo CHANGED
+    executable: "/bin/bash"
+  loop:
+    - {family: "ipv4", proto: "udp"}
+    - {family: "ipv4", proto: "tcp"}
+    - {family: "ipv6", proto: "udp"}
+    - {family: "ipv6", proto: "tcp"}
+  loop_control:
+    label: "{{ item.family }}/{{ item.proto }}"
+  register: "fw_dns_direct"
+  changed_when: "'CHANGED' in fw_dns_direct.stdout"
+  notify: "Reload firewalld"

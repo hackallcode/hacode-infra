@@ -1,0 +1,40 @@
+- name: "Verify: ssh_tunnel role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  vars:
+    expected_units:
+      - "ci-forward-only"
+      - "ci-reverse-only"
+
+  tasks:
+    - name: "Service unit files are rendered"
+      ansible.builtin.stat:
+        path: "/etc/systemd/system/{{ item }}.service"
+      register: "unit_stat"
+      failed_when: "not unit_stat.stat.exists"
+      loop: "{{ expected_units }}"
+
+    - name: "Forward-only unit binds -D and not -R"
+      ansible.builtin.command: "grep '^ExecStart=' /etc/systemd/system/ci-forward-only.service"
+      register: "fwd_exec"
+      changed_when: false
+      failed_when:
+        - "'-D 0.0.0.0:18080' not in fwd_exec.stdout"
+        - "'-R ' in fwd_exec.stdout"
+
+    - name: "Reverse-only unit binds -R and not -D"
+      ansible.builtin.command: "grep '^ExecStart=' /etc/systemd/system/ci-reverse-only.service"
+      register: "rev_exec"
+      changed_when: false
+      failed_when:
+        - "'-R 0.0.0.0:18081' not in rev_exec.stdout"
+        - "'-D ' in rev_exec.stdout"
+
+    - name: "Units are enabled"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-enabled {{ item }}.service"
+      register: "enabled_check"
+      changed_when: false
+      failed_when: "enabled_check.stdout.strip() != 'enabled'"
+      loop: "{{ expected_units }}"

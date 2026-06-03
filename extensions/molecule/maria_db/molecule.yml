@@ -1,0 +1,68 @@
+# maria_db scenario: the role deploys MariaDB via docker compose, so the
+# scenario first installs docker via the docker role in prepare, then runs
+# the maria_db role. Client package names are picked from
+# vars/{{ ansible_os_family }}.yml (mysql + mariadb-devel on RHEL,
+# mariadb-client + libmariadb-dev on Debian).
+
+driver:
+  name: "docker"
+
+platforms:
+  - name: "almalinux10"
+    image: "almalinux:10"
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "rocky10"
+    image: "geerlingguy/docker-rockylinux10-ansible:latest"
+    pre_build_image: true
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2204"
+    image: "geerlingguy/docker-ubuntu2204-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2404"
+    image: "geerlingguy/docker-ubuntu2404-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+
+provisioner:
+  name: "ansible"
+  inventory:
+    group_vars:
+      all:
+        maria_db_dest_name: "molecule-mariadb"
+        maria_db_root_password: "moleculeRootPw"
+        maria_db_port: 3306
+        # The role's default compose template also binds the MariaDB
+        # port to the docker bridge IP (172.17.0.1) so other host-side
+        # containers can reach it. That IP doesn't exist inside our
+        # nested-docker test setup — disable the second binding here.
+        maria_db_docker_bridge_ip: ""
+        # Exercise the new default-flow path: main.yml should iterate
+        # add-db + add-user when these lists are non-empty.
+        maria_db_databases:
+          - "molecule_db_a"
+          - "molecule_db_b"
+        maria_db_users:
+          - name: "molecule_app"
+            password: "moleculeAppPw"
+            privileges: "molecule_db_a.*:ALL/molecule_db_b.*:SELECT"

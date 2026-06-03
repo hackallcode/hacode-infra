@@ -1,0 +1,7 @@
+# Default entrypoint: prepare → upload → (re)start.
+# Use task-specific entrypoints (`tasks_from: backup`, `tasks_from: delete`,
+# `tasks_from: stop` ...) for lifecycle ops.
+
+- ansible.builtin.import_tasks: "prepare.yml"
+- ansible.builtin.import_tasks: "upload.yml"
+- ansible.builtin.import_tasks: "restart.yml"

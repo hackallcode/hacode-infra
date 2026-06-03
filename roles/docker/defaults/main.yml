@@ -1,0 +1,44 @@
+# ===== docker (compose) =====
+# docker_dest        project directory name on the remote under
+#                    docker_remote_dir. Defaults to the inventory hostname;
+#                    the app role overrides it to
+#                    {{ app_content_dir | basename }}.
+# docker_remote_dir  base path on the remote where projects are placed.
+#
+# The compose entrypoint assumes the project source has already been
+# staged under docker_remote_dir/docker_dest (synced files, rendered
+# templates, certs, ...). Template rendering and file staging are the
+# caller's responsibility - in the canonical setup that's
+# hacode.infra.app, which renders templates from app_templates_src_dir.
+
+docker_remote_dir: "/opt"
+docker_dest: "{{ inventory_hostname }}"
+
+docker_compose_owner: "root"
+docker_compose_group: "root"
+
+# Override the docker-ce repository on RHEL family. When empty the role
+# fetches docker.com's official .repo file; when set, a custom .repo with
+# this baseurl is written instead. `docker_repo_gpgcheck` controls GPG
+# verification on packages from the custom mirror.
+docker_repo_baseurl: ""
+docker_repo_gpgcheck: false
+docker_repo_enabled: true
+
+# Optional system user with `docker` group membership, created after the
+# engine is installed. Useful for compose isolation when you don't want
+# `docker compose` to run as root or as a human's account. Empty -> no
+# user is created. The user is a no-login-shell system account with home
+# under /var/lib/<name>.
+docker_install_user: "docker"
+
+# Pass `--wait` to `docker compose up` / `restarted`. Compose then blocks
+# until each service is `running` (or `healthy` when a healthcheck is
+# defined) and fails the command if any container exits non-zero during
+# startup. Catches crashlooping containers (e.g. nginx with a missing
+# cert, postgres with bad perms) instead of leaving the deploy "succeeded"
+# while production is down. Set false on slow-starting stacks where the
+# default timeout is shorter than legitimate boot time and there's no
+# realistic healthcheck to wait on.
+docker_compose_wait: true
+docker_compose_wait_timeout: 60

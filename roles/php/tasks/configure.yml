@@ -1,0 +1,73 @@
+- name: "Ensure OS-specific vars are loaded (idempotent when called standalone)"
+  tags: ["user"]
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: "Create group '{{ php_group }}'"
+  tags: ["user"]
+  ansible.builtin.group:
+    name: "{{ php_group }}"
+    state: "present"
+
+- name: "Creating user '{{ php_user }}'"
+  tags: ["user"]
+  ansible.builtin.user:
+    name: "{{ php_user }}"
+    create_home: false
+    shell: "/sbin/nologin"
+    password: "!"
+    groups: "{{ php_group }}"
+    append: true
+
+- name: "Change owner of PHP sessions"
+  tags: ["user"]
+  ansible.builtin.file:
+    path: "{{ php_session_dir }}"
+    state: "directory"
+    owner: "{{ php_user }}"
+    group: "{{ php_group }}"
+    mode: "u=rwX,g=rX,o="
+
+- name: "Change PHP user in config"
+  tags: ["user"]
+  ansible.builtin.lineinfile:
+    dest: "{{ php_fpm_pool_conf }}"
+    regexp: "^user"
+    line: "user = {{ php_user }}"
+    state: "present"
+  register: "php_fpm_config_user"
+
+- name: "Change PHP group in config"
+  tags: ["user"]
+  ansible.builtin.lineinfile:
+    dest: "{{ php_fpm_pool_conf }}"
+    regexp: "^group"
+    line: "group = {{ php_group }}"
+    state: "present"
+  register: "php_fpm_config_group"
+
+- name: "Configure php-fpm listen.acl_users"
+  tags: ["user"]
+  ansible.builtin.lineinfile:
+    dest: "{{ php_fpm_pool_conf }}"
+    regexp: "^;?listen\\.acl_users"
+    line: "listen.acl_users = {{ php_listen_acl_users }}"
+    state: "{{ 'absent' if (php_listen_acl_users | length == 0) else 'present' }}"
+  register: "php_fpm_config_acl"
+
+- name: "Ensure PHP-FPM is started"
+  tags: ["user"]
+  ansible.builtin.systemd:
+    name: "{{ php_fpm_service }}"
+    state: "started"
+
+- name: "Restart PHP-FPM if config changed"
+  tags: ["user"]
+  ansible.builtin.include_tasks:
+    file: "restart.yml"
+    apply:
+      tags: ["user"]
+  when: >-
+    php_fpm_config_user is changed
+    or php_fpm_config_group is changed
+    or php_fpm_config_acl is changed
+    or (force | default(false) | bool)

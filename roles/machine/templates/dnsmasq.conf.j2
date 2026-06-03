@@ -1,0 +1,44 @@
+{# Listen scope: explicit interface NAMES when dns_server_interfaces is non-empty,
+   otherwise fall back to listen-address by IP (default_ipv4 + optional wg). #}
+{% if dns_server_interfaces | length > 0 %}
+{% for iface in dns_server_interfaces %}
+interface={{ iface }}
+{% endfor %}
+{% else %}
+listen-address={{ ansible_default_ipv4.address }}
+{% if wg_ipv4_prefix is defined %}
+listen-address={{ wg_ipv4_prefix }}.1
+{% endif %}
+{% if wg_ipv6_prefix is defined %}
+listen-address={{ wg_ipv6_prefix }}::1
+{% endif %}
+{% endif %}
+
+{% for server in (dns_server_custom_servers | default(['9.9.9.9', '8.8.8.8', '1.1.1.1'], true)) %}
+{% if server is mapping %}
+server=/{{ server.domain }}/{{ server.dns_ip }}
+{% else %}
+server={{ server }}
+{% endif %}
+{% endfor %}
+strict-order
+
+# Custom domains
+{% for entry in dns_server_custom_addresses %}
+address=/{{ entry.domain }}/{{ entry.ip }}
+{% endfor %}
+
+# Don't forward names without dots (no propagation of local hostnames upstream)
+domain-needed
+# Don't forward reverse-lookups for private IP ranges
+bogus-priv
+{% if dns_stop_rebind | default(true) | bool %}
+# Block DNS rebinding attacks (responses with private IPs from public resolvers).
+# Disable when the resolver forwards to a private upstream that legitimately
+# answers with RFC1918 addresses.
+stop-dns-rebind
+{% endif %}
+# Cap concurrent upstream queries (attacker can't make us flood upstream)
+dns-forward-max=150
+# Larger cache means fewer upstream queries and smaller amplification surface
+cache-size=10000

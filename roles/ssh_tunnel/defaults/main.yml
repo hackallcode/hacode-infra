@@ -1,0 +1,12 @@
+# List of SSH tunnels to manage as systemd units. Each entry produces a
+# `<name>.service` running `ssh -N` with the requested forward (`-D`)
+# and/or reverse (`-R`) port bindings. Both bindings are optional but at
+# least one should be provided for the tunnel to do anything useful.
+#
+# Entry schema:
+#   - name:          systemd unit base name (no `.service` suffix)
+#     remote_user:   user on the remote host
+#     remote_host:   destination (hostname or IP)
+#     forward_port:  bind 0.0.0.0:<port> as a local SOCKS forward (-D), optional
+#     reverse_port:  bind 0.0.0.0:<port> on the remote as a reverse forward (-R), optional
+ssh_tunnels: []

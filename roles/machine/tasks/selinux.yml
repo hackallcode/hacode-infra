@@ -1,0 +1,19 @@
+- name: "Check SELinux config presence"
+  tags: ["selinux"]
+  ansible.builtin.stat:
+    path: "/etc/selinux/config"
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: "selinux_config_stat"
+
+- name: "Set SELinux mode to {{ selinux_mode }}"
+  tags: ["selinux"]
+  ansible.builtin.lineinfile:
+    dest: "/etc/selinux/config"
+    regexp: "^SELINUX="
+    line: "SELINUX={{ selinux_mode }}"
+    state: "present"
+  when:
+    - "selinux_config_stat.stat.exists"
+    - "not (is_raspberry_os | default(false))"

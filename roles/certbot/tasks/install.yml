@@ -1,0 +1,80 @@
+- name: "Validate required variables"
+  tags: ["package", "account"]
+  ansible.builtin.assert:
+    that:
+      - "certbot_email is not none"
+      - "(certbot_email | string) | length > 0"
+      - "certbot_authenticator in certbot_authenticator_packages"
+    fail_msg: >-
+      certbot_email must be set and certbot_authenticator must be one of
+      {{ certbot_authenticator_packages.keys() | list }}. Override
+      certbot_authenticator_packages to add a plugin the role doesn't
+      know about yet.
+
+- name: "Resolve active ACME server URL"
+  tags: ["package", "account"]
+  ansible.builtin.set_fact:
+    certbot_active_server: >-
+      {{- certbot_server if certbot_server
+          else (certbot_le_staging_url if certbot_staging | bool
+                else certbot_le_production_url) -}}
+
+- name: "Install packages"
+  tags: ["package"]
+  vars:
+    _certbot_plugins: "{{ ([certbot_authenticator] + certbot_extra_authenticators) | unique }}"
+    _certbot_plugin_pkgs: "{{ _certbot_plugins | map('extract', certbot_authenticator_packages) | flatten | unique }}"
+  ansible.builtin.package:
+    name: "{{ ['certbot'] + _certbot_plugin_pkgs }}"
+    state: "present"
+
+- name: "Manage HTTP/HTTPS firewall rules on RHEL family"
+  when: "ansible_os_family == 'RedHat'"
+  tags: ["firewall"]
+  block:
+    - name: "Enable HTTP in firewall"
+      ansible.posix.firewalld:
+        service: "http"
+        permanent: true
+        state: "enabled"
+      register: "certbot_fw_http"
+
+    - name: "Enable HTTPS in firewall"
+      ansible.posix.firewalld:
+        service: "https"
+        permanent: true
+        state: "enabled"
+      register: "certbot_fw_https"
+
+    - name: "Reload firewall"
+      ansible.builtin.systemd:
+        name: "firewalld"
+        state: "reloaded"
+      when: "certbot_fw_http is changed or certbot_fw_https is changed or (force | default(false) | bool)"
+
+- name: "Check ACME account exists for the active server"
+  tags: ["account"]
+  ansible.builtin.find:
+    paths: "/etc/letsencrypt/accounts/{{ certbot_active_server | urlsplit('hostname') }}/directory"
+    file_type: "directory"
+    recurse: true
+  register: "acme_accounts"
+
+- name: "Create an ACME account"
+  tags: ["account"]
+  ansible.builtin.command:
+    cmd: >-
+      /usr/bin/certbot register --agree-tos
+      -m {{ certbot_email }} --non-interactive
+      --server {{ certbot_active_server }}
+  when: "acme_accounts.matched == 0"
+  changed_when: "acme_accounts.matched == 0"
+
+- name: "Renew certificates by cron"
+  tags: ["cron"]
+  ansible.builtin.cron:
+    name: "renew certificates"
+    minute: "0"
+    hour: "3"
+    job: "/usr/bin/certbot renew --quiet"
+  when: "certbot_renew_cron | bool"

@@ -1,0 +1,32 @@
+- name: "Create a directory for backups"
+  tags: ["backup"]
+  ansible.builtin.file:
+    path: "/opt/backups/maria_db/"
+    state: "directory"
+    mode: "0700"
+
+- name: "Get current time"
+  tags: ["backup"]
+  ansible.builtin.setup:
+    filter:
+      - "ansible_date_time"
+  run_once: true
+
+- name: "Backup DB"
+  tags: ["backup"]
+  ansible.builtin.include_tasks:
+    file: "backup-db.yml"
+    apply:
+      tags: ["backup"]
+  loop: >-
+    {{
+      maria_db_databases
+      if not maria_db_database
+      else (
+        [maria_db_database]
+        if maria_db_database in maria_db_databases
+        else []
+      )
+    }}
+  loop_control:
+    loop_var: "db_name"

@@ -1,0 +1,53 @@
+- name: "Generate '{{ wg_client.name }}' private key"
+  tags: ["clients-add"]
+  ansible.builtin.shell:
+    cmd: "set -o pipefail; umask 077 && wg genkey | tee {{ wg_client.name }} | wg pubkey > {{ wg_client.name }}.pub"
+    chdir: "/etc/wireguard/keys"
+    executable: "/bin/bash"
+    creates: "/etc/wireguard/keys/{{ wg_client.name }}"
+
+- name: "Get server private key"
+  tags: ["clients-add"]
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/keys/server"
+  register: "private_key_res"
+  no_log: true
+
+- name: "Set 'wg_server_private_key' fact"
+  tags: ["clients-add"]
+  ansible.builtin.set_fact:
+    wg_server_private_key: "{{ private_key_res.content | b64decode | trim }}"
+  no_log: true
+
+- name: "Get '{{ wg_client.name }}' public key"
+  tags: ["clients-add"]
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/keys/{{ wg_client.name }}.pub"
+  register: "public_key_res"
+
+- name: "Set 'client_public_key' fact"
+  tags: ["clients-add"]
+  ansible.builtin.set_fact:
+    client_public_key: "{{ public_key_res.content | b64decode | trim }}"
+
+- name: "Update WireGuard config"
+  tags: ["clients-add"]
+  ansible.builtin.blockinfile:
+    path: "/etc/wireguard/wg0.conf"
+    marker: "{mark}"
+    marker_begin: "# {{ wg_client.name }} config begin"
+    marker_end: "# {{ wg_client.name }} config end"
+    block: |
+      [Peer]
+      PublicKey = {{ client_public_key }}
+      AllowedIPs = {{ wg_ipv4_prefix }}.{{ wg_client.ip }}/32,{{ wg_ipv6_prefix }}::{{ wg_client.ip }}/128
+  register: "config_res"
+
+- name: "Reload WireGuard peers"
+  tags: ["clients-add"]
+  ansible.builtin.shell:
+    cmd: "/bin/wg syncconf wg0 <(/bin/wg-quick strip wg0)"
+  args:
+    executable: "/bin/bash"
+  when: "config_res is changed or (force | default(false) | bool)"
+  changed_when: true

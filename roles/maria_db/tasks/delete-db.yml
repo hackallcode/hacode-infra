@@ -1,0 +1,18 @@
+- name: "Check for variables"
+  tags: ["delete-db"]
+  ansible.builtin.assert:
+    that:
+      - "maria_db_database is not none"
+      - "maria_db_database != ''"
+    fail_msg: "maria_db_database variable is required"
+    success_msg: "All required parameters passed"
+
+- name: "Delete database"
+  tags: ["delete-db"]
+  community.mysql.mysql_db:
+    login_host: "127.0.0.1"
+    login_port: "{{ maria_db_port }}"
+    login_user: "root"
+    login_password: "{{ maria_db_root_password }}"
+    state: "absent"
+    name: "{{ maria_db_database }}"

@@ -1,0 +1,59 @@
+- name: "Create directory for issued certs"
+  ansible.builtin.file:
+    path: "{{ cert_issued_dir }}"
+    state: "directory"
+    mode: "0700"
+  delegate_to: "localhost"
+  become: false
+  run_once: true
+
+- name: "Ensure server private key exists (2048-bit RSA)"
+  community.crypto.openssl_privatekey:
+    path: "{{ cert_server_key_path }}"
+    size: 2048
+    mode: "0600"
+  check_mode: false
+  delegate_to: "localhost"
+  become: false
+
+- name: "Build server CSR (CN + SANs)"
+  community.crypto.openssl_csr:
+    path: "{{ cert_server_csr_path }}"
+    privatekey_path: "{{ cert_server_key_path }}"
+    common_name: "{{ cert_server_name }}"
+    subject_alt_name: "{{ cert_server_san }}"
+    key_usage:
+      - "digitalSignature"
+      - "keyEncipherment"
+    extended_key_usage:
+      - "serverAuth"
+  check_mode: false
+  delegate_to: "localhost"
+  become: false
+
+- name: "Sign server cert with our CA"
+  community.crypto.x509_certificate:
+    path: "{{ cert_server_cert_path }}"
+    csr_path: "{{ cert_server_csr_path }}"
+    provider: "ownca"
+    ownca_path: "{{ cert_ca_cert_path }}"
+    ownca_privatekey_path: "{{ cert_ca_key_path }}"
+    ownca_not_after: "+825d"
+    mode: "0644"
+  check_mode: false
+  when: "cert_server_type == 'ownca'"
+  delegate_to: "localhost"
+  become: false
+
+- name: "Create self signed server cert"
+  community.crypto.x509_certificate:
+    path: "{{ cert_server_cert_path }}"
+    csr_path: "{{ cert_server_csr_path }}"
+    provider: "selfsigned"
+    privatekey_path: "{{ cert_server_key_path }}"
+    selfsigned_not_after: "+825d"
+    mode: "0644"
+  check_mode: false
+  when: "cert_server_type == 'selfsigned'"
+  delegate_to: "localhost"
+  become: false

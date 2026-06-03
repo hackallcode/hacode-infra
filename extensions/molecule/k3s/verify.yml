@@ -1,0 +1,25 @@
+- name: "Verify: k3s role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "K3s binary is installed"
+      ansible.builtin.stat:
+        path: "/usr/local/bin/k3s"
+      register: "k3s_bin"
+      failed_when: >-
+        not k3s_bin.stat.exists
+        or not (k3s_bin.stat.executable | default(false))
+
+    - name: "K3s server config was written"
+      ansible.builtin.stat:
+        path: "/etc/rancher/k3s/config.yaml"
+      register: "k3s_cfg"
+      failed_when: "not k3s_cfg.stat.exists"
+
+    - name: "K3s systemd unit is installed"
+      ansible.builtin.stat:
+        path: "/etc/systemd/system/k3s.service"
+      register: "k3s_unit"
+      failed_when: "not k3s_unit.stat.exists"

@@ -1,0 +1,10 @@
+- name: "Create a new database"
+  tags: ["add-db"]
+  community.mysql.mysql_db:
+    login_host: "127.0.0.1"
+    login_port: "{{ maria_db_port }}"
+    login_user: "root"
+    login_password: "{{ maria_db_root_password }}"
+    state: "present"
+    name: "{{ item }}"
+  loop: "{{ maria_db_databases }}"

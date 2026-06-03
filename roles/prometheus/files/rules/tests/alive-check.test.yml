@@ -1,0 +1,32 @@
+rule_files:
+  - ../alive-check.yml
+
+evaluation_interval: 1h
+
+tests:
+  # AliveCheck срабатывает по понедельникам в 07:00 UTC.
+  # 1970-01-05 (понедельник) 07:00 UTC = 4d7h после эпохи.
+  - interval: 1h
+    input_series:
+      - series: 'up{job="node",instance_name="testhost"}'
+        values: "1x200"
+
+    alert_rule_test:
+      # Понедельник 07:00 → срабатывает
+      - eval_time: 4d7h
+        alertname: AliveCheck
+        exp_alerts:
+          - exp_labels:
+              severity: info
+            exp_annotations:
+              summary: "I'm alive!"
+
+      # Понедельник 08:00 → не срабатывает
+      - eval_time: 4d8h
+        alertname: AliveCheck
+        exp_alerts: []
+
+      # Воскресенье 07:00 → не срабатывает
+      - eval_time: 3d7h
+        alertname: AliveCheck
+        exp_alerts: []

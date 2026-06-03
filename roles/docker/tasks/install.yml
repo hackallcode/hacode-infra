@@ -1,0 +1,200 @@
+- name: "Gather OS distribution info"
+  tags: ["install"]
+  ansible.builtin.setup:
+    gather_subset:
+      - "os_family"
+      - "distribution"
+      - "distribution_release"
+      - "architecture"
+
+- name: "Add Docker GPG key on Debian/Ubuntu"
+  tags: ["install"]
+  ansible.builtin.get_url:
+    url: "https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg"
+    dest: "/etc/apt/keyrings/docker.asc"
+    mode: "0644"
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Add Docker repository on Debian/Ubuntu"
+  tags: ["install"]
+  ansible.builtin.apt_repository:
+    filename: "docker"
+    repo: >-
+      deb [
+        arch={{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}
+        signed-by=/etc/apt/keyrings/docker.asc
+      ]
+      https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }}
+      stable
+    state: "present"
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Add Docker repository on RedHat/CentOS (official)"
+  tags: ["install"]
+  check_mode: false
+  ansible.builtin.get_url:
+    url: "https://download.docker.com/linux/centos/docker-ce.repo"
+    dest: "/etc/yum.repos.d/docker-ce.repo"
+    mode: "0644"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "docker_repo_baseurl | length == 0"
+
+- name: "Add Docker repository on RedHat/CentOS (custom mirror)"
+  tags: ["install"]
+  check_mode: false
+  ansible.builtin.copy:
+    dest: "/etc/yum.repos.d/docker-ce.repo"
+    mode: "0644"
+    content: |
+      [docker-ce-stable]
+      name=Docker CE Stable - $basearch
+      baseurl={{ docker_repo_baseurl }}
+      enabled={{ '1' if (docker_repo_enabled | bool) else '0' }}
+      gpgcheck={{ '1' if (docker_repo_gpgcheck | bool) else '0' }}
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "docker_repo_baseurl | length > 0"
+
+- name: "Install Docker packages"
+  tags: ["install"]
+  ansible.builtin.package:
+    name:
+      - "docker-ce"
+      - "docker-ce-cli"
+      - "containerd.io"
+      - "docker-buildx-plugin"
+      - "docker-compose-plugin"
+    state: "present"
+
+- name: "Ensure sysctl binary is present"
+  tags: ["install"]
+  ansible.builtin.package:
+    name: "{{ 'procps-ng' if ansible_os_family == 'RedHat' else 'procps' }}"
+    state: "present"
+
+- name: "Get running kernel version (RedHat)"
+  tags: ["install"]
+  ansible.builtin.command: "uname -r"
+  register: "uname_r"
+  changed_when: false
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Install extra kernel modules package matching running kernel (RedHat) for br_netfilter, xt_addrtype, etc."
+  tags: ["install"]
+  ansible.builtin.package:
+    name: "kernel-modules-extra-{{ uname_r.stdout }}"
+    state: "present"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "'el' in uname_r.stdout"
+  register: "kme_install"
+  failed_when:
+    - "kme_install.failed | default(false)"
+    - "(kme_install.failures | default([]) | reject('search', 'No package') | list | length) > 0"
+
+- name: "Ensure /etc/modules-load.d exists"
+  tags: ["install"]
+  ansible.builtin.file:
+    path: "/etc/modules-load.d"
+    state: "directory"
+    mode: "0755"
+
+- name: "Persist kernel modules required by Docker"
+  tags: ["install"]
+  ansible.builtin.copy:
+    dest: "/etc/modules-load.d/docker.conf"
+    mode: "0644"
+    content: |
+      overlay
+      br_netfilter
+      xt_addrtype
+      xt_conntrack
+      nf_nat
+      iptable_nat
+      iptable_filter
+
+- name: "Load kernel modules required by Docker"
+  tags: ["install"]
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: "present"
+  loop:
+    - "overlay"
+    - "br_netfilter"
+    - "xt_addrtype"
+    - "xt_conntrack"
+    - "nf_nat"
+    - "iptable_nat"
+    - "iptable_filter"
+  failed_when: false
+
+- name: "Ensure /etc/sysctl.d exists"
+  tags: ["install"]
+  ansible.builtin.file:
+    path: "/etc/sysctl.d"
+    state: "directory"
+    mode: "0755"
+
+- name: "Check if bridge netfilter sysctl is available"
+  tags: ["install"]
+  ansible.builtin.stat:
+    path: "/proc/sys/net/bridge/bridge-nf-call-iptables"
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: "br_nf_sysctl"
+
+- name: "Apply bridge netfilter sysctls (only when br_netfilter is loaded)"
+  tags: ["install"]
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_file: "/etc/sysctl.d/99-docker.conf"
+    reload: true
+    state: "present"
+  loop:
+    - "net.bridge.bridge-nf-call-iptables"
+    - "net.bridge.bridge-nf-call-ip6tables"
+  when: "br_nf_sysctl.stat.exists"
+
+- name: "Enable IPv4 forwarding"
+  tags: ["install"]
+  ansible.posix.sysctl:
+    name: "net.ipv4.ip_forward"
+    value: "1"
+    sysctl_file: "/etc/sysctl.d/99-docker.conf"
+    reload: true
+    state: "present"
+
+- name: "Start and enable Docker"
+  tags: ["install"]
+  ansible.builtin.service:
+    name: "docker"
+    state: "started"
+    enabled: true
+
+# `community.docker` >= 3.5 vendors the Docker SDK code; the only runtime
+# dependency for `docker_container` / `docker_compose_v2` / etc. is the
+# `requests` Python library. On every supported distro it's the
+# `python3-requests` system package (already pulled in by dnf/apt as a
+# core dependency on virtually any host).
+- name: "Install python3-requests"
+  tags: ["install"]
+  ansible.builtin.package:
+    name: "python3-requests"
+    state: "present"
+
+- name: "Create '{{ docker_install_user }}' system user with docker group"
+  tags: ["install"]
+  ansible.builtin.user:
+    name: "{{ docker_install_user }}"
+    system: true
+    group: "docker"
+    create_home: true
+    home: "/var/lib/{{ docker_install_user }}"
+    shell: "/usr/sbin/nologin"
+    state: "present"
+  when:
+    - "docker_install_user | length > 0"
+    - "docker_install_user != 'root'"

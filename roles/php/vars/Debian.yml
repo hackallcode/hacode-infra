@@ -1,0 +1,24 @@
+# Debian-family PHP package set. The base meta-packages resolve to the
+# distro's default PHP version. JSON/PDO/OPcache are bundled into core, so
+# no separate `php-json` / `php-pdo` / `php-opcache` entries here.
+php_packages:
+  - "php"
+  - "php-fpm"
+  - "php-cli"
+  - "php-mysql"
+  - "php-gd"
+  - "php-ldap"
+  - "php-odbc"
+  - "php-pear"
+  - "php-xml"
+  - "php-mbstring"
+  - "php-snmp"
+  - "php-soap"
+  - "php-zip"
+
+# Service unit and pool-config paths are PHP-version-specific on Debian
+# (e.g. `php8.3-fpm.service`, `/etc/php/8.3/fpm/pool.d/www.conf`); resolved
+# at runtime by install.yml after package install.
+php_fpm_service: ""
+php_fpm_pool_conf: ""
+php_session_dir: ""

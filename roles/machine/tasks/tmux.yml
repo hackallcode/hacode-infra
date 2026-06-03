@@ -1,0 +1,67 @@
+- name: "Check installed tmux version"
+  tags: ["tmux"]
+  ansible.builtin.command: "/usr/local/bin/tmux -V"
+  register: "tmux_version_check"
+  changed_when: false
+  failed_when: false
+
+- name: "Build tmux {{ tmux_version }} from source"
+  tags: ["tmux"]
+  when:
+    - "tmux_version not in (tmux_version_check.stdout | default(''))"
+    - "not ansible_check_mode"
+  block:
+    - name: "Install tmux build dependencies (RedHat)"
+      ansible.builtin.package:
+        name:
+          - "libevent-devel"
+          - "ncurses-devel"
+          - "gcc"
+          - "make"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Install tmux build dependencies (Debian)"
+      ansible.builtin.package:
+        name:
+          - "libevent-dev"
+          - "libncurses-dev"
+          - "build-essential"
+          - "pkg-config"
+        state: "present"
+      when: "ansible_os_family == 'Debian'"
+
+    - name: "Download tmux source"
+      ansible.builtin.get_url:
+        url: "https://github.com/tmux/tmux/releases/download/{{ tmux_version }}/tmux-{{ tmux_version }}.tar.gz"
+        dest: "/tmp/tmux-{{ tmux_version }}.tar.gz"
+        mode: "0644"
+
+    - name: "Extract tmux source"
+      ansible.builtin.unarchive:
+        src: "/tmp/tmux-{{ tmux_version }}.tar.gz"
+        dest: "/tmp/"
+        remote_src: true
+
+    - name: "Configure tmux build"
+      ansible.builtin.command: "./configure --prefix=/usr/local"
+      args:
+        chdir: "/tmp/tmux-{{ tmux_version }}"
+        creates: "/tmp/tmux-{{ tmux_version }}/Makefile"
+
+    - name: "Build and install tmux"
+      community.general.make:
+        chdir: "/tmp/tmux-{{ tmux_version }}"
+        target: "install"
+
+- name: "Drop tmux.conf for each user"
+  tags: ["tmux"]
+  ansible.builtin.copy:
+    src: "tmux.conf"
+    dest: "{{ ('/root/.tmux.conf') if item.name == 'root' else ('/home/' ~ item.name ~ '/.tmux.conf') }}"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0644"
+  loop: "{{ machine_users + machine_extra_users }}"
+  loop_control:
+    label: "{{ item.name }}"

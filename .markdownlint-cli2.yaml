@@ -1,0 +1,23 @@
+# Match yamllint's line-length policy: 200 chars, soft cap.
+config:
+  default: true
+  MD013:
+    line_length: 120
+    code_blocks: false
+    tables: false
+    headings: false
+  # README tables in this collection carry long descriptions that don't
+  # line up with their short headers. Renderers ignore the misalignment
+  # but markdownlint's "aligned" default trips on every such row. Switch
+  # the rule to "consistent" so it only fires on inconsistencies *within*
+  # a single table.
+  MD060:
+    style: "consistent"
+  MD033: false  # no inline HTML (we don't use any; safe to leave default)
+
+# Don't walk into vendored / generated trees.
+ignores:
+  - ".collection-root/"
+  - ".ansible/"
+  - "node_modules/"
+  - "dist/"

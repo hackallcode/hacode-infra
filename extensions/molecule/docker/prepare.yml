@@ -1,0 +1,25 @@
+- name: "Prepare: keyring dir + ca-certificates (apt requires both before adding the docker repo)"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Ensure /etc/apt/keyrings exists on Debian family"
+      ansible.builtin.file:
+        path: "/etc/apt/keyrings"
+        state: "directory"
+        mode: "0755"
+      when: "ansible_os_family == 'Debian'"
+
+    - name: "Install ca-certificates on Debian family"
+      ansible.builtin.apt:
+        name: "ca-certificates"
+        state: "present"
+        update_cache: true
+      when: "ansible_os_family == 'Debian'"
+
+    - name: "Install dnf-plugins-core on RHEL family (docker-ce.repo)"
+      ansible.builtin.package:
+        name: "dnf-plugins-core"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"

@@ -1,0 +1,46 @@
+- name: "Uninstall headlamp chart"
+  tags: ["headlamp"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "headlamp"
+    release_namespace: "{{ k8s_addons_headlamp_namespace }}"
+    state: "absent"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+# Delete the cluster-scoped ClusterRoleBinding explicitly - namespace
+# deletion below only reaps namespaced resources, so the CRB would
+# otherwise linger pointing at a missing ServiceAccount.
+- name: "Delete admin ClusterRoleBinding"
+  tags: ["headlamp"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "rbac.authorization.k8s.io/v1"
+    kind: "ClusterRoleBinding"
+    name: "{{ k8s_addons_headlamp_admin_sa }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Delete headlamp namespace"
+  tags: ["headlamp"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "v1"
+    kind: "Namespace"
+    name: "{{ k8s_addons_headlamp_namespace }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Remove saved admin token file from controller"
+  tags: ["headlamp"]
+  ansible.builtin.file:
+    path: "{{ k8s_addons_headlamp_token_file }}"
+    state: "absent"
+  delegate_to: "localhost"
+  run_once: true
+  become: false

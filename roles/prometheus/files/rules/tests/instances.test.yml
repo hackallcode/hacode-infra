@@ -1,0 +1,34 @@
+rule_files:
+  - ../instances.yml
+
+evaluation_interval: 30s
+
+tests:
+  # up == 0 в течение 1 мин и больше → срабатывает InstanceDown
+  - interval: 30s
+    input_series:
+      - series: 'up{job="node",instance_name="testhost"}'
+        values: "0x20"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "Instance testhost down"
+              description: "testhost of job node has been down for more than 1 minute."
+
+  # up == 1 → не срабатывает
+  - interval: 30s
+    input_series:
+      - series: 'up{job="node",instance_name="testhost"}'
+        values: "1x20"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: InstanceDown
+        exp_alerts: []

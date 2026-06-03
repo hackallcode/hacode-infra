@@ -1,0 +1,32 @@
+- name: "Converge: ssh_tunnel role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    # The role's `enable + start` step would block trying to connect ssh
+    # to the dummy remote_host. Mask service starts in CI: ensure the
+    # `systemctl start` returns immediately by overriding ExecStart with
+    # /bin/true via a drop-in, which we do *after* the role runs (in
+    # verify). Here we just make sure ssh-client is present so the
+    # rendered unit could in principle run.
+    - name: "Ensure ssh client is installed (RHEL family)"
+      ansible.builtin.package:
+        name: "openssh-clients"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Refresh apt cache (Debian family)"
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 600
+      when: "ansible_os_family == 'Debian'"
+
+    - name: "Ensure ssh client is installed (Debian family)"
+      ansible.builtin.package:
+        name: "openssh-client"
+        state: "present"
+      when: "ansible_os_family == 'Debian'"
+
+  roles:
+    - role: "hacode.infra.ssh_tunnel"

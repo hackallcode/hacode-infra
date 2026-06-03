@@ -1,0 +1,50 @@
+- name: "Validate tunnel entries (name has no shell-meta / path-traversal)"
+  ansible.builtin.assert:
+    that:
+      - "tunnel.name is match('^[A-Za-z0-9_.-]+$')"
+      - "tunnel.remote_user is defined and (tunnel.remote_user | string | length > 0)"
+      - "tunnel.remote_host is defined and (tunnel.remote_host | string | length > 0)"
+      - >-
+        (tunnel.forward_port is not defined)
+        or ((tunnel.forward_port | int) >= 1 and (tunnel.forward_port | int) <= 65535)
+      - >-
+        (tunnel.reverse_port is not defined)
+        or ((tunnel.reverse_port | int) >= 1 and (tunnel.reverse_port | int) <= 65535)
+    fail_msg: >-
+      Invalid ssh_tunnels entry {{ tunnel }}. `name` must match [A-Za-z0-9_.-]+,
+      `remote_user`/`remote_host` must be non-empty, ports (if set) must be
+      1..65535.
+  loop: "{{ ssh_tunnels }}"
+  loop_control:
+    loop_var: "tunnel"
+    label: "{{ tunnel.name | default('(unnamed)') }}"
+
+# StrictHostKeyChecking=accept-new (TOFU) — host keys aren't known at
+# deploy time. First connect vulnerable to MITM; pre-seed known_hosts
+# manually if that's not acceptable.
+
+- name: "Generate ssh-tunnel services"
+  ansible.builtin.template:
+    src: "ssh-tunnel.service.j2"
+    dest: "/etc/systemd/system/{{ tunnel.name }}.service"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  register: "ssh_tunnel_units"
+  loop: "{{ ssh_tunnels }}"
+  loop_control:
+    loop_var: "tunnel"
+    label: "{{ tunnel.name }}"
+  notify: "Reload systemd"
+
+- name: "Flush handlers to apply systemd reload before (re)starting units"
+  ansible.builtin.meta: "flush_handlers"
+
+- name: "Enable and (re)start ssh-tunnel services"
+  ansible.builtin.systemd:
+    name: "{{ item.tunnel.name }}"
+    enabled: true
+    state: "{{ 'restarted' if (item.changed or (force | default(false) | bool)) else 'started' }}"
+  loop: "{{ ssh_tunnel_units.results }}"
+  loop_control:
+    label: "{{ item.tunnel.name }}"

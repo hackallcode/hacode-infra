@@ -1,0 +1,64 @@
+groups:
+  - name: "node_file_system"
+    rules:
+      - alert: "NodeFilesystemReadOnly"
+        expr: 'node_filesystem_readonly{job="node",fstype="ext4"} != 0'
+        labels:
+          severity: "critical"
+        annotations:
+          summary: 'Filesystem switched to read only.'
+          description: 'Filesystem on {{ $labels.device }} at {{ $labels.instance_name }} switched to read only.'
+
+      - alert: "NodeFilesystemSpaceFillingUp"
+        expr: >-
+          (
+            node_filesystem_avail_bytes{job="node",fstype!=""} / node_filesystem_size_bytes{job="node",fstype!=""} * 100 < 40
+            and
+            predict_linear(node_filesystem_avail_bytes{job="node",fstype!=""}[6h], 24*60*60) < 0
+            and
+            node_filesystem_readonly{job="node",fstype!=""} == 0
+          )
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: 'Filesystem is predicted to run out of space within the next 24 hours.'
+          description: 'Filesystem on {{ $labels.device }} at {{ $labels.instance_name }} has only {{ printf "%.2f" $value }}% available space left and is filling up.'
+
+      - alert: "NodeFilesystemSpaceFillingUp"
+        expr: >-
+          (
+            node_filesystem_avail_bytes{job="node",fstype!=""} / node_filesystem_size_bytes{job="node",fstype!=""} * 100 < 20
+            and
+            predict_linear(node_filesystem_avail_bytes{job="node",fstype!=""}[6h], 4*60*60) < 0
+            and
+            node_filesystem_readonly{job="node",fstype!=""} == 0
+          )
+        for: "5m"
+        labels:
+          severity: "critical"
+        annotations:
+          summary: 'Filesystem is predicted to run out of space within the next 4 hours.'
+          description: 'Filesystem on {{ $labels.device }} at {{ $labels.instance_name }} has only {{ printf "%.2f" $value }}% available space left and is filling up fast.'
+
+      - alert: "NodeFilesystemAlmostOutOfSpace"
+        expr: >-
+          node_filesystem_avail_bytes{job="node",fstype!=""} / node_filesystem_size_bytes{job="node",fstype!=""} * 100 < 10
+          and node_filesystem_readonly{job="node",fstype!=""} == 0
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: 'Filesystem has less than 10% space left.'
+          description: 'Filesystem on {{ $labels.device }} at {{ $labels.instance_name }} has only {{ printf "%.2f" $value }}% available space left.'
+
+      - alert: "NodeFilesystemAlmostOutOfSpace"
+        expr: >-
+          node_filesystem_avail_bytes{job="node",fstype!=""} / node_filesystem_size_bytes{job="node",fstype!=""} * 100 < 5
+          and node_filesystem_readonly{job="node",fstype!=""} == 0
+        for: "5m"
+        labels:
+          severity: "critical"
+        annotations:
+          summary: 'Filesystem has less than 5% space left.'
+          description: 'Filesystem on {{ $labels.device }} at {{ $labels.instance_name }} has only {{ printf "%.2f" $value }}% available space left.'

@@ -1,0 +1,59 @@
+# prometheus scenario: installs node_exporter, alertmanager and prometheus
+# via the upstream prometheus.prometheus collection (this role delegates
+# to those sub-roles). Opens firewall ports for each component.
+
+driver:
+  name: "docker"
+
+platforms:
+  - name: "almalinux10"
+    image: "almalinux:10"
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "rocky10"
+    image: "geerlingguy/docker-rockylinux10-ansible:latest"
+    pre_build_image: true
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2204"
+    image: "geerlingguy/docker-ubuntu2204-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2404"
+    image: "geerlingguy/docker-ubuntu2404-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+
+provisioner:
+  name: "ansible"
+  inventory:
+    group_vars:
+      all:
+        # prometheus.prometheus.alertmanager asserts at least one receiver
+        # and a route. Noop entries satisfy the assertion without sending
+        # traffic anywhere.
+        alertmanager_receivers:
+          - name: "noop"
+        alertmanager_route:
+          receiver: "noop"
+
+verifier:
+  name: "ansible"

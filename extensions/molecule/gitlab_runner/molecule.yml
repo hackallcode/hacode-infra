@@ -1,0 +1,47 @@
+# gitlab_runner scenario: exercises the install entrypoint only. The role's
+# main.yml also runs `register.yml`, which calls `gitlab-runner register -n
+# --url ... --registration-token ...` against a real GitLab instance — that
+# can't run in CI without a token.
+
+driver:
+  name: "docker"
+
+platforms:
+  - name: "almalinux10"
+    image: "almalinux:10"
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "rocky10"
+    image: "geerlingguy/docker-rockylinux10-ansible:latest"
+    pre_build_image: true
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2204"
+    image: "geerlingguy/docker-ubuntu2204-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2404"
+    image: "geerlingguy/docker-ubuntu2404-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+
+verifier:
+  name: "ansible"

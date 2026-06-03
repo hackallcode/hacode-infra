@@ -1,0 +1,10 @@
+- name: "Converge: nginx role (install only)"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Run only install.yml from the nginx role"
+      ansible.builtin.include_role:
+        name: "hacode.infra.nginx"
+        tasks_from: "install"

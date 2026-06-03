@@ -1,0 +1,46 @@
+groups:
+  - name: "node_network"
+    rules:
+      # - alert: "NodeNetworkReceiveErrs"
+      #   expr: "increase(node_network_receive_errs_total[2m]) > 10"
+      #   for: "5m"
+      #   labels:
+      #     severity: "warning"
+      #   annotations:
+      #     summary: 'Network interface is reporting many receive errors.'
+      #     description: '{{ $labels.instance_name }} interface {{ $labels.device }} has encountered {{ printf "%.0f" $value }} receive errors in the last two minutes.'
+
+      # - alert: "NodeNetworkTransmitErrs"
+      #   expr: "increase(node_network_transmit_errs_total[2m]) > 10"
+      #   for: "5m"
+      #   labels:
+      #     severity: "warning"
+      #   annotations:
+      #     summary: 'Network interface is reporting many transmit errors.'
+      #     description: '{{ $labels.instance_name }} interface {{ $labels.device }} has encountered {{ printf "%.0f" $value }} transmit errors in the last two minutes.'
+
+      - alert: "NodeTrafficUsage1Day"
+        expr: |
+          (
+            sum by (instance_name) (
+              increase(node_network_receive_bytes_total{job="node",device!~"lo|docker.*|veth.*|br-.*|virbr.*|wg.*|tun.*"}[1d])
+            )
+            +
+            sum by (instance_name) (
+              increase(node_network_transmit_bytes_total{job="node",device!~"lo|docker.*|veth.*|br-.*|virbr.*|wg.*|tun.*"}[1d])
+            )
+          ) > 35 * 1000 * 1000 * 1000
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: 'Traffic usage over 1 day exceeded 35 GB'
+          description: '{{ $labels.instance_name }} used {{ $value | humanize1024 }}B of traffic over the last 24 hours.'
+
+      - alert: "NodeHighNumberConntrackEntriesUsed"
+        expr: "(node_nf_conntrack_entries / node_nf_conntrack_entries_limit) > 0.75"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: 'Number of conntrack are getting close to the limit'
+          description: '{{ $value | humanizePercentage }} of conntrack entries are used'

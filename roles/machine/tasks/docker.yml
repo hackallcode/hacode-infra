@@ -1,0 +1,7 @@
+- name: "Install docker"
+  tags: ["docker"]
+  ansible.builtin.include_role:
+    name: "hacode.infra.docker"
+    tasks_from: "install"
+    apply:
+      tags: ["docker"]

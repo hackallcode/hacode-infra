@@ -1,0 +1,25 @@
+- name: "Resolve active ACME server URL"
+  tags: ["certificate-delete"]
+  ansible.builtin.set_fact:
+    certbot_active_server: >-
+      {{- certbot_server if certbot_server
+          else (certbot_le_staging_url if certbot_staging | bool
+                else certbot_le_production_url) -}}
+
+- name: "Delete app certificate"
+  tags: ["certificate-delete"]
+  ansible.builtin.command:
+    cmd: >-
+      /usr/bin/certbot revoke
+      --non-interactive
+      --server {{ certbot_active_server }}
+      --cert-name {{ app_domains[0] | regex_replace('^\*\.', '') }}
+  throttle: 1
+  register: "certbot_res"
+  changed_when: "'already been revoked' not in certbot_res.stdout"
+  failed_when:
+    - "certbot_res.rc != 0"
+    - "'already been revoked' not in certbot_res.stdout"
+  when:
+    - "app_cert | bool"
+    - "app_domains | length > 0"

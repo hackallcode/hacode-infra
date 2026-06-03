@@ -1,0 +1,40 @@
+- name: "Ensure destination base dir exists"
+  tags: ["compose"]
+  ansible.builtin.file:
+    path: "{{ docker_remote_dir }}"
+    state: "directory"
+    mode: "0755"
+
+- name: "Ensure project dir exists"
+  tags: ["compose"]
+  ansible.builtin.file:
+    path: "{{ docker_remote_dir }}/{{ docker_dest }}"
+    state: "directory"
+    owner: "{{ docker_compose_owner }}"
+    group: "{{ docker_compose_group }}"
+    mode: "u=rwX,g=rX,o="
+
+# Project source files (compose.yaml, app code, rendered templates, certs,
+# etc.) must already be present under {{ docker_remote_dir }}/{{ docker_dest }};
+# callers handle staging (typically via hacode.infra.app). Skipped under
+# --check because docker_compose_v2 needs a real compose.yaml on disk to
+# simulate; under check those files weren't actually staged.
+- name: "Up projects"
+  tags: ["compose"]
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker_remote_dir }}/{{ docker_dest }}"
+    project_name: "{{ docker_dest }}"
+    state: "present"
+    pull: "missing"
+    recreate: "auto"
+    build: >-
+      {{ 'always'
+         if (sources_changed | default(false))
+            or (force | default(false) | bool)
+         else 'policy' }}
+    remove_orphans: true
+    wait: "{{ docker_compose_wait | default(true) | bool }}"
+    wait_timeout: "{{ docker_compose_wait_timeout | default(60) | int }}"
+  when:
+    - "not (app_disabled | default(false))"
+    - "not ansible_check_mode"

@@ -1,0 +1,163 @@
+- name: "Probe dnf Python bindings on target"
+  tags: ["package"]
+  ansible.builtin.command:
+    cmd: "{{ ansible_python_interpreter | default('/usr/bin/python3') }} -c 'import dnf'"
+  changed_when: false
+  failed_when: false
+  register: "_dnf_probe"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Assert dnf Python bindings are available"
+  tags: ["package"]
+  ansible.builtin.assert:
+    that: "_dnf_probe.rc == 0"
+    fail_msg: >-
+      Ansible's `dnf` module needs `python3-dnf` bindings for the active
+      interpreter ('{{ ansible_python_interpreter | default('/usr/bin/python3') }}').
+      Either install python3-dnf for that interpreter, or pin
+      `ansible_python_interpreter` in inventory to a Python that already
+      has the bindings (typically /usr/bin/python3 on RHEL-family).
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Import AlmaLinux GPG key"
+  tags: ["package"]
+  ansible.builtin.rpm_key:
+    key: "{{ machine_alma_gpg_key_url }}"
+    state: "present"
+  when:
+    - "ansible_distribution == 'AlmaLinux'"
+    - "machine_alma_gpg_key_url | length > 0"
+
+- name: "Install AlmaLinux repository"
+  tags: ["package"]
+  ansible.builtin.yum:
+    name:
+      - "almalinux-release"
+    state: "present"
+  when:
+    - "ansible_distribution == 'AlmaLinux'"
+    - "machine_install_alma_release | bool"
+
+- name: "Drop custom yum repositories"
+  tags: ["package"]
+  check_mode: false
+  ansible.builtin.copy:
+    dest: "/etc/yum.repos.d/{{ item.name }}.repo"
+    mode: "0644"
+    content: |
+      [{{ item.name }}]
+      name={{ item.description | default(item.name) }}
+      baseurl={{ item.baseurl }}
+      enabled={{ item.enabled | default(1) }}
+      gpgcheck={{ item.gpgcheck | default(0) }}
+  loop: "{{ machine_yum_repos }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "machine_yum_repos | length > 0"
+
+- name: "Install EPEL repo"
+  tags: ["package"]
+  check_mode: false
+  ansible.builtin.yum:
+    name:
+      - "epel-release"
+    state: "present"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "machine_install_epel | bool"
+
+- name: "Update apt cache (Debian/Ubuntu)"
+  tags: ["package"]
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Check for elrepo .repo file"
+  tags: ["package"]
+  ansible.builtin.stat:
+    path: "/etc/yum.repos.d/elrepo.repo"
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: "_elrepo_stat"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "machine_nvidia_enabled | default(false) | bool"
+
+- name: "Pin NVIDIA stack in elrepo"
+  tags: ["package"]
+  community.general.ini_file:
+    path: "/etc/yum.repos.d/elrepo.repo"
+    section: "elrepo"
+    option: "excludepkgs"
+    value: "kmod-nvidia* nvidia-*"
+    mode: "0644"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "machine_nvidia_enabled | default(false) | bool"
+    - "_elrepo_stat.stat.exists | default(false)"
+
+- name: "Upgrade all packages"  # noqa: package-latest
+  tags: ["package"]
+  ansible.builtin.package:
+    name:
+      - "*"
+    state: "latest"
+  when: "machine_upgrade_all_packages | bool"
+
+- name: "Install some new packages"
+  tags: ["package"]
+  ansible.builtin.package:
+    name: "{{ machine_base_packages }}"
+    state: "present"
+  when: "machine_base_packages | length > 0"
+
+- name: "Install RedHat-family base extras (firewalld, bind-utils)"
+  tags: ["package"]
+  ansible.builtin.package:
+    name: "{{ machine_base_packages_redhat }}"
+    state: "present"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "machine_base_packages_redhat | length > 0"
+
+- name: "Install Debian-family base extras (firewalld, dnsutils)"
+  tags: ["package"]
+  ansible.builtin.package:
+    name: "{{ machine_base_packages_debian }}"
+    state: "present"
+  when:
+    - "ansible_os_family == 'Debian'"
+    - "machine_base_packages_debian | length > 0"
+
+- name: "Install RedHat-family extras"
+  tags: ["package"]
+  ansible.builtin.package:
+    name:
+      - "util-linux-user"
+      - "yum-utils"
+      - "python3"
+      - "python3-pip"
+      - "python3-devel"
+      - "@Development Tools"
+    state: "present"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Install some Raspberry packages"
+  tags: ["package"]
+  ansible.builtin.package:
+    name:
+      - "wakeonlan"
+      - "watchdog"
+    state: "present"
+  when: "is_raspberry_os | default(false)"
+
+- name: "Install extra user-defined packages"
+  tags: ["package"]
+  ansible.builtin.package:
+    name: "{{ machine_extra_packages }}"
+    state: "present"
+  when: "machine_extra_packages | length > 0"

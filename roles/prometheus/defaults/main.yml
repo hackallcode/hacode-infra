@@ -1,0 +1,47 @@
+# node_exporter listener. Default binds on all interfaces so a remote
+# Prometheus can scrape — restrict to a VPN interface (e.g. wg0) when
+# the host is publicly reachable and you don't want metrics exposed.
+node_exporter_web_listen_ip: "0.0.0.0"
+node_exporter_web_listen_port: 9100
+
+# Alertmanager listener. Localhost-only by default — front it with
+# nginx + TLS + basic auth if you want it reachable from outside.
+alertmanager_web_listen_ip: "127.0.0.1"
+alertmanager_web_listen_port: 9093
+
+# Prometheus server listener. Localhost-only by default — same exposure
+# rule as Alertmanager.
+prometheus_web_listen_ip: "127.0.0.1"
+prometheus_web_listen_port: 9090
+
+# Metrics path Prometheus scrapes from itself; matches what other roles
+# point their `node-exporter`-style scrape configs at.
+prometheus_metrics_path: "/metrics"
+
+# Built-in scrape jobs. Prometheus self-scrape is wired up so the
+# bundled `prometheus.yml` rule file has something to evaluate.
+prometheus_scrape_default_configs:
+  - job_name: "prometheus"
+    metrics_path: "{{ prometheus_metrics_path }}"
+    static_configs:
+      - targets: ["127.0.0.1:{{ prometheus_web_listen_port }}"]
+
+# Inventory-supplied scrape jobs appended to the defaults. Same shape
+# as prometheus' `scrape_configs:` schema.
+prometheus_scrape_custom_configs: []
+
+# Built-in Alertmanager target so Prometheus has somewhere to send
+# firing alerts (the local AM instance bound above).
+prometheus_am_default_configs:
+  - static_configs:
+      - targets: ["127.0.0.1:{{ alertmanager_web_listen_port }}"]
+
+# Inventory-supplied Alertmanager targets appended to the defaults.
+prometheus_am_custom_configs: []
+
+# Extra directories with prometheus rule files (*.yml) and static targets
+# (*.yml) to ship in addition to those bundled in this role. Paths are read
+# on the controller (delegate_to localhost), so use absolute paths or paths
+# relative to the playbook's working directory.
+prometheus_extra_rule_dirs: []
+prometheus_extra_target_dirs: []

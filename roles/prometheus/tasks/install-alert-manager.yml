@@ -1,0 +1,18 @@
+- name: "Gather Facts"
+  tags: ["install"]
+  ansible.builtin.setup:
+    gather_subset:
+      - "architecture"
+  when: "ansible_architecture is not defined"
+
+- name: "Install Alert Manager"
+  tags: ["install"]
+  vars:
+    alertmanager_version: "0.32.0"
+    alertmanager_web_listen_address: "{{ alertmanager_web_listen_ip }}:{{ alertmanager_web_listen_port }}"
+    alertmanager_template_files:
+      - "roles/prometheus/templates/*.tmpl"
+  ansible.builtin.include_role:
+    name: "prometheus.prometheus.alertmanager"
+    apply:
+      tags: ["install"]

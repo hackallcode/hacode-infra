@@ -1,0 +1,22 @@
+galaxy_info:
+  role_name: "prometheus"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: "Install Prometheus server, Alertmanager and node_exporter; ship a curated set of alert rules and tests."
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+    - name: "Debian"
+      versions: ["bullseye", "bookworm"]
+  galaxy_tags:
+    - "monitoring"
+    - "prometheus"
+    - "alertmanager"
+    - "nodeexporter"
+    - "metrics"
+
+dependencies: []

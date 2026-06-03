@@ -1,0 +1,13 @@
+# System user that owns PHP-FPM master and worker processes.
+php_user: "php"
+
+# Primary group of the PHP-FPM user. Web servers (nginx, apache) are
+# added to this group so they can read application files under
+# `php_user`'s home.
+php_group: "www"
+
+# Users granted ACL access to the FPM listen socket. Comma-separated string
+# matching what php-fpm expects under `listen.acl_users` in the pool config.
+# Set to empty string ("") to disable ACL entirely — needed on filesystems
+# where the kernel doesn't support POSIX ACLs (some Docker setups, …).
+php_listen_acl_users: "apache,nginx"

@@ -1,0 +1,78 @@
+- name: "Gather facts needed by NVIDIA tasks (architecture)"
+  tags: ["nvidia"]
+  ansible.builtin.setup:
+    gather_subset: ["hardware"]
+    filter: ["ansible_architecture"]
+  when: "ansible_architecture is not defined"
+
+- name: "Fail if NVIDIA role is run on non-RedHat host"
+  tags: ["nvidia"]
+  ansible.builtin.fail:
+    msg: "NVIDIA CUDA install in this role currently supports only RHEL-family hosts."
+  when: "ansible_os_family != 'RedHat'"
+
+- name: "Add NVIDIA CUDA repo (gated)"
+  tags: ["nvidia"]
+  vars:
+    _cuda_repo_base: "https://developer.download.nvidia.com/compute/cuda/repos"
+    _cuda_rhel_ver: "rhel{{ ansible_distribution_major_version }}"
+  ansible.builtin.get_url:
+    url: "{{ _cuda_repo_base }}/{{ _cuda_rhel_ver }}/{{ ansible_architecture }}/cuda-{{ _cuda_rhel_ver }}.repo"
+    dest: "/etc/yum.repos.d/cuda-{{ _cuda_rhel_ver }}.repo"
+    mode: "0644"
+
+- name: "Disable CUDA repo for routine upgrades"
+  tags: ["nvidia"]
+  vars:
+    _cuda_rhel_ver: "rhel{{ ansible_distribution_major_version }}"
+  community.general.ini_file:
+    path: "/etc/yum.repos.d/cuda-{{ _cuda_rhel_ver }}.repo"
+    section: "cuda-{{ _cuda_rhel_ver }}-{{ ansible_architecture }}"
+    option: "enabled"
+    value: "0"
+    mode: "0644"
+  when: "not ansible_check_mode"
+
+- name: "Add nvidia-container-toolkit repo (gated)"
+  tags: ["nvidia"]
+  ansible.builtin.get_url:
+    url: "https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo"
+    dest: "/etc/yum.repos.d/nvidia-container-toolkit.repo"
+    mode: "0644"
+
+- name: "Strip orphan libnvidia-container sections (legacy)"
+  tags: ["nvidia"]
+  ansible.builtin.replace:
+    path: "/etc/yum.repos.d/nvidia-container-toolkit.repo"
+    regexp: '(?m)^\[libnvidia-container(?:-experimental)?\][^\[]*'
+    replace: ''
+  when: "not ansible_check_mode"
+
+- name: "Disable nvidia-container-toolkit repos for routine upgrades"
+  tags: ["nvidia"]
+  community.general.ini_file:
+    path: "/etc/yum.repos.d/nvidia-container-toolkit.repo"
+    section: "{{ item }}"
+    option: "enabled"
+    value: "0"
+    mode: "0644"
+  loop:
+    - "nvidia-container-toolkit"
+    - "nvidia-container-toolkit-experimental"
+  when: "not ansible_check_mode"
+
+- name: "Install CUDA {{ cuda_version }} (with driver)"
+  tags: ["nvidia"]
+  vars:
+    _cuda_rhel_ver: "rhel{{ ansible_distribution_major_version }}"
+  ansible.builtin.dnf:
+    name:
+      - "cuda-{{ cuda_version.replace('.', '-') }}"
+      - "nvidia-container-toolkit-{{ nvidia_container_toolkit_version }}-1"
+      - "libnvidia-container-tools-{{ nvidia_container_toolkit_version }}-1"
+    state: "present"
+    enablerepo:
+      - "cuda-{{ _cuda_rhel_ver }}-{{ ansible_architecture }}"
+      - "nvidia-container-toolkit"
+  notify: "Reboot after driver install"
+  when: "not ansible_check_mode"

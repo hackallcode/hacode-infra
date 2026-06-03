@@ -1,0 +1,309 @@
+# ===== Toggles =====
+# Components are opt-in/out via these booleans. Default selection covers a
+# generic Linux host; flip flags to skip a part on a given inventory.
+machine_users_enabled: true
+machine_ssh_enabled: true
+machine_system_enabled: true
+machine_swap_enabled: true
+machine_packages_enabled: true
+machine_zsh_enabled: false
+machine_firewall_enabled: true
+machine_selinux_enabled: true
+machine_raspberry_enabled: true # task is auto-skipped on non-raspberry hosts
+machine_journald_enabled: true
+machine_fail2ban_enabled: true
+machine_chrony_enabled: true
+machine_dns_enabled: false
+machine_docker_enabled: false
+machine_cockpit_enabled: false
+machine_nvidia_enabled: false
+machine_tmux_enabled: false
+machine_claude_code_enabled: false
+machine_codex_enabled: false
+machine_reboot_enabled: true
+
+# ===== Users =====
+# Bootstrap (cloud-image) user used for the very first connection. Removed at
+# the end of the run unless it is "root" or appears in machine_users.
+setup_user_name: "root"
+
+# Users to create on the host. Final list is `machine_users +
+# machine_extra_users`, so a group-level inventory can set the base
+# roster and a per-host inventory can append additions without
+# re-declaring the whole list. Each entry:
+#   - name                       (required)
+#   - ssh_authorized_keys        (optional; inline key or "\n"-joined keys)
+#   - ssh_authorized_keys_file   (optional; basename — resolves to
+#                                 `{{ machine_ssh_keys_dir }}/<name>.pub`.
+#                                 Mutually exclusive with the inline form.
+#                                 Either form acts as a complete dump of
+#                                 ~/.ssh/authorized_keys — anything not in
+#                                 the value is removed.)
+#   - password                   (optional plaintext; hashed per-host with sha512)
+#   - password_update            (optional; overrides machine_password_update —
+#                                 "on_create" | "always")
+#   - groups                     (optional list of extra groups; append-only)
+# Members of `machine_admin_group` get passwordless sudo.
+machine_users: []
+machine_extra_users: []
+
+# Directory the role searches for ssh_authorized_keys_file entries.
+# Path is resolved relative to the playbook (so `{{ playbook_dir }}` works
+# for the common layout: `playbooks/*.yml` + `configs/ssh/<user>.pub`).
+machine_ssh_keys_dir: "{{ playbook_dir }}/../configs/ssh"
+
+# sshd `MaxSessions` (multiplexed sessions per TCP connection). Default 10
+# is too tight when ansible uses ControlMaster against an inventory of many
+# host aliases pointing at the same machine.
+machine_ssh_max_sessions: 50
+
+# sshd `MaxStartups` (rate-limit on unauthenticated incoming connections).
+# Default `10:30:100` drops ~30% past the 10th concurrent unauth conn; lift
+# it for hosts that get parallel ansible/rsync invocations.
+machine_ssh_max_startups: "60:30:200"
+
+# Sudo group: a sudoers entry `90-<group>` is created and members of this
+# group can sudo. Users with this group in their `groups` list become
+# administrators. `machine_admin_nopasswd` controls whether sudo requires a
+# password (`false` -> caller's password) or runs without one (`true`).
+machine_admin_group: "wheel"
+machine_admin_nopasswd: true
+
+# Rotate root password if non-empty (hashed with sha512 + per-host seed).
+# `root_password_update` mirrors `ansible.builtin.user.update_password`:
+# "always" rehashes on every run (rotation), "on_create" only sets it if
+# root has no password set yet — useful for "seed a default password but
+# don't fight the operator if they change it on the host".
+root_password: ""
+root_password_update: "always"
+
+# How `password` is applied to entries in machine_users / machine_extra_users.
+# "on_create" (default) seeds the password once when the account is created
+# and never touches it afterwards, so an operator who changes their password
+# on the host isn't reset on the next deploy. Set to "always" to enforce the
+# inventory-provided password on every run. Per-user override is available
+# via `password_update` in the user spec.
+machine_password_update: "on_create"
+
+# ===== System / hostname =====
+hostname: "{{ inventory_hostname }}"
+
+# Extra /etc/hosts aliases pointing at ansible_host. Useful when the host
+# answers to multiple DNS names. When `server_names` is defined (shared with
+# the certificate role), its `name` attributes are picked up automatically.
+hostname_aliases: >-
+  {{ (server_names | default([]))
+     | map(attribute='name')
+     | reject('equalto', hostname)
+     | list }}
+
+locale_lang: "en_US.UTF-8"
+locale_ctype: "en_US.UTF-8"
+
+# RHEL ships locales as separate `glibc-langpack-<lang>` packages; base
+# install only carries `en`, others must be installed explicitly or
+# `/etc/locale.conf` points at a missing locale and login shells fall
+# back to C (breaks non-ASCII rendering — Russian, theme glyphs, etc.).
+# Derives from `locale_lang` by taking the leading language code.
+locale_glibc_langpack: "glibc-langpack-{{ locale_lang | regex_replace('^([a-z]+)_.*', '\\1') }}"
+
+# Append /usr/local/bin to PATH for login shells via /etc/profile.d/localbin.sh.
+# Useful when you install binaries (tmux, gost, ...) outside the distro's PATH.
+machine_localbin_in_path: true
+
+# Force getaddrinfo to prefer IPv4 (write precedence into /etc/gai.conf).
+machine_prefer_ipv4: false
+
+# ===== Swap =====
+swap_file_path: "/swapfile"
+swap_file_size: "2G"
+
+# Opt-in migration of a legacy LVM swap partition at /dev/dm-1 into the
+# new /swapfile + extend root LV with the reclaimed space. DESTRUCTIVE on
+# hosts where /dev/dm-1 happens to be an unrelated LVM volume (it will be
+# `lvremove`'d without further prompting). Off by default — flip per host
+# after confirming /dev/dm-1 really is the swap LV you want to drop.
+swap_migrate_legacy_dm1: false
+
+# ===== Packages =====
+machine_extra_packages: []
+
+# Base utility packages installed on every host. `dnsutils` and `firewalld`
+# resolve to distro-specific names via a per-family fallback list below,
+# so the operator only has to override the common list.
+machine_base_packages:
+  - "nano"
+  - "ncdu"
+  - "htop"
+  - "traceroute"
+  - "rsync"
+  - "tcpdump"
+  - "net-tools"
+  - "zsh"
+  - "curl"
+
+# Distro-conditional extras layered on top of machine_base_packages.
+# Override per inventory if you don't want firewalld/bind-utils.
+machine_base_packages_redhat:
+  - "bind-utils"
+  - "firewalld"
+machine_base_packages_debian:
+  - "dnsutils"
+  - "firewalld"
+
+# URL of the AlmaLinux GPG key imported on AlmaLinux hosts. Set to an empty
+# string to skip the import (e.g., air-gapped hosts where the key is
+# preinstalled with `almalinux-release`).
+machine_alma_gpg_key_url: >-
+  https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-{{ ansible_distribution_major_version }}
+
+# Install/refresh `almalinux-release` package on AlmaLinux hosts. Set to
+# false when the canonical AlmaLinux repos are not reachable (air-gapped,
+# in-house mirror with a different path layout) and the package is already
+# pinned via cloud image / image-build.
+machine_install_alma_release: true
+
+# Run "dnf upgrade *" on every play. Disable on air-gapped or pinned
+# environments where upgrading without a working set of repos is impossible
+# or undesirable.
+machine_upgrade_all_packages: true
+
+# Install `epel-release` to enable the EPEL repository on RHEL family.
+# Disable when you ship an in-house EPEL mirror via `machine_yum_repos`
+# (the .repo file is enough; the package isn't needed).
+machine_install_epel: true
+
+# Extra yum/dnf repositories to drop on RHEL family hosts. Each entry is
+# rendered into `/etc/yum.repos.d/<name>.repo`:
+#   - name        repo id and filename basename
+#     baseurl     baseurl= line (supports yum vars like $releasever)
+#     description optional friendly description (defaults to name)
+#     enabled     1/0 (default 1)
+#     gpgcheck    1/0 (default 0)
+machine_yum_repos: []
+
+# ===== ZSH =====
+# Files copied into each user's oh-my-zsh. Each item:
+# {from: "<file under role files/zsh/>", to: "<relative to $HOME>", force: bool}.
+# Default ships the bundled hacode theme + fragments. `aliases`/`exports`
+# are seed files (`force: false`) - landed once, then owned by the user.
+machine_zsh_files:
+  - { from: "zshrc", to: ".zshrc", force: true }
+  - { from: "hacode.zsh", to: ".oh-my-zsh/custom/hacode.zsh", force: true }
+  - { from: "hacode.zsh-theme", to: ".oh-my-zsh/custom/themes/hacode.zsh-theme", force: true }
+  - { from: "aliases", to: ".oh-my-zsh/custom/aliases.zsh", force: false }
+  - { from: "exports", to: ".oh-my-zsh/custom/exports.zsh", force: false }
+# Users that get oh-my-zsh installed. By default: root + every entry in
+# machine_users / machine_extra_users. Override to a fixed list if you need
+# finer control.
+machine_zsh_users: >-
+  {{ (['root']
+       + (machine_users | map(attribute='name') | list)
+       + (machine_extra_users | map(attribute='name') | list)) | unique }}
+
+# ===== Tmux =====
+# Compile tmux from source pinned to this version (distro packages are
+# often years behind). When `machine_tmux_enabled` is true the role builds
+# tmux into /usr/local/bin/tmux and drops a tmux.conf for each user in
+# machine_users (override by placing files/tmux.conf in the role search
+# path of your playbook).
+tmux_version: "3.5a"
+
+# ===== Firewall =====
+firewall_services: ["ssh", "dhcpv6-client"]
+firewall_ports: []
+# Per-source-IP DNS rate limit (anti-amplification). Applied as firewalld
+# direct hashlimit rules: a source IP that sustains more than this rate is
+# DROPped on port 53. Burst lets short query spikes (e.g. page loads) pass
+# without tripping the limit. Format matches iptables `hashlimit-above`.
+firewall_dns_rate_limit: "600/minute"
+firewall_dns_rate_burst: 60
+disabled_firewall_services: ["cockpit"]
+disabled_firewall_ports: []
+firewall_default_zone: "public"
+firewall_routes: [] # [{from_port: 1, to_ip: "1.1.1.1", to_port: 1, state: "enabled"}]
+firewall_masquerade: false
+# Extra zones to enable masquerade in (in addition to `firewall_default_zone`
+# when `firewall_masquerade: true`). Needed on jump hosts that DNAT inbound
+# traffic into a private subnet: cloud anti-spoofing drops packets that exit
+# the jump's internal-zone interface with the original external src IP, so
+# the internal zone (e.g. "trusted") needs masquerade too.
+firewall_masquerade_zones: []
+
+# ===== DNS =====
+# `machine_dns_enabled` installs and configures dnsmasq, but does NOT
+# touch the firewall. Set `machine_dns_public: true` to also open the
+# `dns` service zone-wide and install per-source-IP hashlimit DROP
+# rules (`firewall_dns.yml`) — public-facing resolvers. For VPN-only
+# DNS, leave `machine_dns_public: false` and let
+# `hacode.infra.wireguard.wg_dns_enabled` punch a per-subnet ACCEPT
+# at direct priority -10 so wg clients bypass the rate limit.
+machine_dns_public: false
+
+# dnsmasq listen scope: a list of interface NAMES (`dns_server_interfaces`)
+# OR fallback to `ansible_default_ipv4.address` when the list is empty.
+dns_server_interfaces: []
+
+# Address overrides. Per-entry: `{domain, ip}` ->
+# `address=/<domain>/<ip>` in dnsmasq.
+dns_server_custom_addresses: []
+
+# Upstream resolvers. Accepts two forms:
+#   - plain IP strings ("9.9.9.9") -> global upstream
+#   - dicts {domain, dns_ip} -> per-domain upstream (dnsmasq
+#     `server=/<domain>/<dns_ip>`)
+dns_server_custom_servers: []
+
+# Emit dnsmasq's `stop-dns-rebind` directive. Drops upstream responses
+# containing RFC1918 IPs - DNS-rebinding protection for public-facing
+# resolvers. Disable when forwarding to a private upstream that
+# legitimately answers with private IPs.
+dns_stop_rebind: true
+
+# ===== Chrony / NTP =====
+# Time sources rendered into /etc/chrony.conf. Use `chrony_pools` for DNS
+# round-robin upstreams (pool.ntp.org and friends) and `chrony_servers`
+# for fixed hosts. Default is the public pool.ntp.org pool — override
+# per-inventory for regional or in-network NTP.
+chrony_pools:
+  - "2.pool.ntp.org"
+chrony_servers: []
+
+# ===== Journald =====
+journald_storage: "persistent"
+journald_system_max_use: "1G"
+journald_compress: true
+
+# ===== fail2ban =====
+fail2ban_ssh_bantime: "1d"
+fail2ban_ssh_maxretry: 3
+
+# ===== SELinux =====
+selinux_mode: "permissive" # one of: enforcing | permissive | disabled
+
+# ===== Cockpit =====
+cockpit_packages: ["cockpit", "cockpit-storaged"]
+
+# Custom Cockpit certificate paths on the controller. By default these are
+# auto-derived from `cert_dir`, `cert_ca_name` and `server_names[0].name` so
+# Cockpit picks up the cert that hacode.infra.certificate just generated for
+# this host. Set to empty strings to fall back to Cockpit's self-signed cert.
+cockpit_cert_path: >-
+  {{ (cert_dir ~ '/issued/' ~ server_names[0].name ~ '.crt')
+     if (cert_dir | default('') | length > 0
+         and server_names | default([]) | length > 0)
+     else '' }}
+cockpit_ca_cert_path: >-
+  {{ (cert_dir ~ '/' ~ cert_ca_name ~ '.crt')
+     if (cert_dir | default('') | length > 0
+         and cert_ca_name | default('') | length > 0)
+     else '' }}
+cockpit_key_path: >-
+  {{ (cert_dir ~ '/issued/' ~ server_names[0].name ~ '.key')
+     if (cert_dir | default('') | length > 0
+         and server_names | default([]) | length > 0)
+     else '' }}
+
+# ===== NVIDIA / CUDA =====
+cuda_version: "12.5"
+nvidia_container_toolkit_version: "1.17.8"

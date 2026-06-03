@@ -1,0 +1,79 @@
+- name: "Stat cockpit cert/key files on controller"
+  tags: ["cockpit"]
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ cockpit_cert_path }}"
+    - "{{ cockpit_ca_cert_path }}"
+    - "{{ cockpit_key_path }}"
+  register: "_cockpit_cert_stats"
+  delegate_to: "localhost"
+  become: false
+  when:
+    - "(cockpit_cert_path | length > 0)"
+    - "(cockpit_ca_cert_path | length > 0)"
+    - "(cockpit_key_path | length > 0)"
+
+- name: "Resolve cockpit cert mode"
+  tags: ["cockpit"]
+  ansible.builtin.set_fact:
+    _cockpit_with_certs: >-
+      {{ (cockpit_cert_path | length > 0)
+         and (cockpit_ca_cert_path | length > 0)
+         and (cockpit_key_path | length > 0)
+         and (_cockpit_cert_stats.results | default([])
+              | map(attribute='stat.exists', default=false)
+              | select | list | length == 3) }}
+
+- name: "Install cockpit packages"
+  tags: ["cockpit"]
+  ansible.builtin.package:
+    name: "{{ cockpit_packages }}"
+    state: "present"
+
+- name: "Prepare fragments dir"
+  tags: ["cockpit"]
+  ansible.builtin.file:
+    path: "/etc/cockpit/ws-certs.d/.50-main"
+    state: "directory"
+    mode: "0700"
+  when: "_cockpit_with_certs | bool"
+
+- name: "Stage certificate fragments"
+  tags: ["cockpit"]
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "/etc/cockpit/ws-certs.d/.50-main/{{ item.name }}"
+    mode: "{{ item.mode | default('0644') }}"
+    force: "{{ force | default(false) | bool }}"
+  loop:
+    - name: "00-cert.pem"
+      src: "{{ cockpit_cert_path }}"
+    - name: "01-ca.pem"
+      src: "{{ cockpit_ca_cert_path }}"
+    - name: "99-key.pem"
+      src: "{{ cockpit_key_path }}"
+      mode: "0600"
+  when: "_cockpit_with_certs | bool"
+
+- name: "Assemble Cockpit cert bundle"
+  tags: ["cockpit"]
+  ansible.builtin.assemble:
+    src: "/etc/cockpit/ws-certs.d/.50-main"
+    dest: "/etc/cockpit/ws-certs.d/50-main.cert"
+    mode: "0600"
+  when: "_cockpit_with_certs | bool"
+
+- name: "Verify Cockpit sees the cert"
+  tags: ["cockpit"]
+  ansible.builtin.command: "/usr/libexec/cockpit-certificate-ensure --check"
+  changed_when: false
+  failed_when: false
+  when: "_cockpit_with_certs | bool"
+
+- name: "Start Cockpit"
+  tags: ["cockpit"]
+  ansible.builtin.systemd:
+    name: "cockpit.socket"
+    state: "started"
+    enabled: true

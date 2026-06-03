@@ -1,0 +1,10 @@
+groups:
+  - name: "prometheus"
+    rules:
+      - alert: "PrometheusConfigReloadError"
+        expr: "prometheus_config_last_reload_successful != 1"
+        labels:
+          severity: "critical"
+        annotations:
+          summary: 'Prometheus config reload error.'
+          description: 'Prometheus config reload error on {{ $labels.instance_name }}: {{ $value }}.'

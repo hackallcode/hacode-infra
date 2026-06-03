@@ -1,0 +1,8 @@
+{% for alias in app_domains[1:] %}if ($host = '{{ alias }}') {
+        return 301 $scheme://{{ app_domains[0] }}$request_uri;
+    }
+    if ($host = 'www.{{ alias }}') {
+        return 301 $scheme://{{ app_domains[0] }}$request_uri;
+    }
+{% endfor %}
+

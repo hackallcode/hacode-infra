@@ -1,0 +1,10 @@
+- name: "Create certificate for hostname"
+  ansible.builtin.include_tasks: "hostname.yml"
+  loop: >-
+    {{ server_names + (
+         [{'name': ansible_host, 'type': 'ip'}]
+         if (ansible_host is defined and ansible_host is match('^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'))
+         else []
+       ) }}
+  loop_control:
+    loop_var: "cert_entry"

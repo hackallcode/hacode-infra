@@ -1,0 +1,117 @@
+rule_files:
+  - ../node-file-system-files.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Inodes падают с 400 до 100 за 6ч (~10% свободно при оценке)
+  # predict_linear на 24ч уйдёт глубоко в минус → FillingUp должен сработать
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_files{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "1000x400"
+      - series: 'node_filesystem_files_free{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "400-0.833x360 100x40"
+      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "0x400"
+
+    alert_rule_test:
+      - eval_time: 6h10m
+        alertname: NodeFilesystemFilesFillingUp
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              fstype: ext4
+              device: /dev/sda1
+              instance_name: testhost
+            exp_annotations:
+              summary: "Filesystem is predicted to run out of inodes within the next 24 hours."
+              description: >-
+                Filesystem on /dev/sda1 at testhost has only 10.00%
+                available inodes left and is filling up.
+          - exp_labels:
+              severity: critical
+              job: node
+              fstype: ext4
+              device: /dev/sda1
+              instance_name: testhost
+            exp_annotations:
+              summary: "Filesystem is predicted to run out of inodes within the next 4 hours."
+              description: >-
+                Filesystem on /dev/sda1 at testhost has only 10.00%
+                available inodes left and is filling up fast.
+
+  # Стабильно много свободных inode → FillingUp не должен срабатывать,
+  # даже если предсказание формально отрицательное в шумных
+  # данных.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_files{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "1000x400"
+      - series: 'node_filesystem_files_free{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "800x400"
+      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "0x400"
+
+    alert_rule_test:
+      - eval_time: 6h10m
+        alertname: NodeFilesystemFilesFillingUp
+        exp_alerts: []
+
+  # Стабильно 8% inode свободно (80 из 1000) → warning срабатывает, critical нет.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_files{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "1000x20"
+      - series: 'node_filesystem_files_free{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "80x20"
+      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "0x20"
+
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: NodeFilesystemAlmostOutOfFiles
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              fstype: ext4
+              device: /dev/sda1
+              instance_name: testhost
+            exp_annotations:
+              summary: "Filesystem has less than 10% inodes left."
+              description: "Filesystem on /dev/sda1 at testhost has only 8.00% available inodes left."
+
+  # Стабильно 3% inode свободно → срабатывают warning и critical.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_files{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "1000x20"
+      - series: 'node_filesystem_files_free{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "30x20"
+      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+        values: "0x20"
+
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: NodeFilesystemAlmostOutOfFiles
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              fstype: ext4
+              device: /dev/sda1
+              instance_name: testhost
+            exp_annotations:
+              summary: "Filesystem has less than 10% inodes left."
+              description: "Filesystem on /dev/sda1 at testhost has only 3.00% available inodes left."
+          - exp_labels:
+              severity: critical
+              job: node
+              fstype: ext4
+              device: /dev/sda1
+              instance_name: testhost
+            exp_annotations:
+              summary: "Filesystem has less than 5% inodes left."
+              description: "Filesystem on /dev/sda1 at testhost has only 3.00% available inodes left."

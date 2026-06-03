@@ -1,0 +1,141 @@
+- name: "Add headlamp Helm repo"
+  tags: ["headlamp"]
+  kubernetes.core.helm_repository:
+    name: "headlamp"
+    repo_url: "https://kubernetes-sigs.github.io/headlamp/"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Validate ingress host is set when ingress is enabled"
+  tags: ["headlamp"]
+  ansible.builtin.assert:
+    that: "(k8s_addons_headlamp_ingress_host | string | length) > 0"
+    fail_msg: >-
+      `k8s_addons_headlamp_ingress_host` must be set when
+      `k8s_addons_headlamp_ingress_enabled` is true.
+  when: "k8s_addons_headlamp_ingress_enabled | bool"
+
+- name: "Install/upgrade headlamp chart"
+  tags: ["headlamp"]
+  vars:
+    # Switch Service to NodePort only when `_node_port` is explicitly set
+    # (direct access without an Ingress). Empty default → chart keeps
+    # ClusterIP and traffic flows through whatever Ingress the user wires up
+    # (either via `_ingress_*` shortcut or `_extra_values.ingress`).
+    _service: >-
+      {{ {'type': 'NodePort', 'nodePort': k8s_addons_headlamp_node_port | int}
+         if (k8s_addons_headlamp_node_port | string | length) > 0
+         else {} }}
+    _ingress: >-
+      {{ {
+           'enabled': true,
+           'ingressClassName': k8s_addons_headlamp_ingress_class_name,
+           'hosts': [{
+             'host': k8s_addons_headlamp_ingress_host,
+             'paths': [{
+               'path': k8s_addons_headlamp_ingress_path,
+               'type': 'Prefix',
+             }],
+           }],
+         }
+         if (k8s_addons_headlamp_ingress_enabled | bool)
+         else {} }}
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "headlamp"
+    chart_ref: "headlamp/headlamp"
+    chart_version: "{{ k8s_addons_headlamp_chart_version }}"
+    release_namespace: "{{ k8s_addons_headlamp_namespace }}"
+    create_namespace: true
+    wait: true
+    timeout: "{{ k8s_addons_headlamp_chart_timeout }}"
+    values: >-
+      {{
+        ({'service': _service} if (_service | length) > 0 else {})
+        | combine({'clusterRoleBinding': {'create': false}}, recursive=true)
+        | combine({'ingress': _ingress} if (_ingress | length) > 0 else {}, recursive=true)
+        | combine(k8s_addons_headlamp_extra_values, recursive=true)
+      }}
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Apply admin ServiceAccount + ClusterRoleBinding + token Secret"
+  tags: ["headlamp"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition: "{{ item }}"
+  loop:
+    - apiVersion: "v1"
+      kind: "ServiceAccount"
+      metadata:
+        name: "{{ k8s_addons_headlamp_admin_sa }}"
+        namespace: "{{ k8s_addons_headlamp_namespace }}"
+    - apiVersion: "rbac.authorization.k8s.io/v1"
+      kind: "ClusterRoleBinding"
+      metadata:
+        name: "{{ k8s_addons_headlamp_admin_sa }}"
+      roleRef:
+        apiGroup: "rbac.authorization.k8s.io"
+        kind: "ClusterRole"
+        name: "cluster-admin"
+      subjects:
+        - kind: "ServiceAccount"
+          name: "{{ k8s_addons_headlamp_admin_sa }}"
+          namespace: "{{ k8s_addons_headlamp_namespace }}"
+    - apiVersion: "v1"
+      kind: "Secret"
+      type: "kubernetes.io/service-account-token"
+      metadata:
+        name: "{{ k8s_addons_headlamp_admin_sa }}"
+        namespace: "{{ k8s_addons_headlamp_namespace }}"
+        annotations:
+          kubernetes.io/service-account.name: "{{ k8s_addons_headlamp_admin_sa }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+# token-controller populates `.data.token` asynchronously after the Secret
+# lands; poll until non-empty before saving locally. `no_log` prevents the
+# token from leaking into ansible output / CI logs.
+- name: "Wait for admin token Secret to populate"
+  tags: ["headlamp"]
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    api_version: "v1"
+    kind: "Secret"
+    name: "{{ k8s_addons_headlamp_admin_sa }}"
+    namespace: "{{ k8s_addons_headlamp_namespace }}"
+  register: "_k8s_addons_headlamp_secret"
+  retries: 60
+  delay: 5
+  until:
+    - "(_k8s_addons_headlamp_secret.resources | length) > 0"
+    - "((_k8s_addons_headlamp_secret.resources[0].data.token | default('')) | length) > 0"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+  no_log: true
+
+- name: "Ensure token-file directory exists on controller"
+  tags: ["headlamp"]
+  ansible.builtin.file:
+    path: "{{ k8s_addons_headlamp_token_file | dirname }}"
+    state: "directory"
+    mode: "0700"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Save admin token on controller"
+  tags: ["headlamp"]
+  ansible.builtin.copy:
+    content: "{{ _k8s_addons_headlamp_secret.resources[0].data.token | b64decode }}\n"
+    dest: "{{ k8s_addons_headlamp_token_file }}"
+    mode: "0600"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+  no_log: true

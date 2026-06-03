@@ -1,0 +1,69 @@
+rule_files:
+  - ../node-ram.yml
+
+evaluation_interval: 30s
+
+tests:
+  # Доступно 50 MB при общем 8 GB → оба алерта должны сработать
+  - interval: 30s
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{job="node",instance_name="testhost"}'
+        values: "52428800x20"
+      - series: 'node_memory_MemTotal_bytes{job="node",instance_name="testhost"}'
+        values: "8589934592x20"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: LowRamMb
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "Less than 100 MB available memory"
+              description: "50.00 MB of memory available on testhost."
+
+      - eval_time: 2m
+        alertname: LowRamPercent
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "Less than 10 percent available memory"
+              description: "0.61% of memory available on testhost."
+
+  # Доступно 4 GB из 8 GB → оба алерта молчат
+  - interval: 30s
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{job="node",instance_name="testhost"}'
+        values: "4294967296x20"
+      - series: 'node_memory_MemTotal_bytes{job="node",instance_name="testhost"}'
+        values: "8589934592x20"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: LowRamMb
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: LowRamPercent
+        exp_alerts: []
+
+  # OOM kill за последнюю минуту → срабатывает OomKillDetected
+  - interval: 30s
+    input_series:
+      - series: 'node_vmstat_oom_kill{job="node",instance_name="testhost"}'
+        values: "0+1x20"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: OomKillDetected
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "OOM kill detected 2 times on testhost."

@@ -1,0 +1,64 @@
+- ansible.builtin.import_tasks: "users.yml"
+  when: "machine_users_enabled | bool"
+
+- ansible.builtin.import_tasks: "ssh.yml"
+  when: "machine_ssh_enabled | bool"
+
+- ansible.builtin.import_tasks: "system.yml"
+  when: "machine_system_enabled | bool"
+
+- ansible.builtin.import_tasks: "swap.yml"
+  when: "machine_swap_enabled | bool"
+
+- ansible.builtin.import_tasks: "packages.yml"
+  when: "machine_packages_enabled | bool"
+
+- ansible.builtin.import_tasks: "zsh.yml"
+  when: "machine_zsh_enabled | bool"
+
+# firewalld is the only supported firewall backend here; skip on Debian/Ubuntu
+# where ufw/nftables are the conventional choice. Set `machine_firewall_enabled:
+# false` per inventory to opt out explicitly on RHEL too.
+- ansible.builtin.import_tasks: "firewall.yml"
+  when:
+    - "machine_firewall_enabled | bool"
+    - "ansible_os_family == 'RedHat'"
+
+- ansible.builtin.import_tasks: "selinux.yml"
+  when: "machine_selinux_enabled | bool"
+
+- ansible.builtin.import_tasks: "raspberry.yml"
+  when: "machine_raspberry_enabled | bool"
+
+- ansible.builtin.import_tasks: "journald.yml"
+  when: "machine_journald_enabled | bool"
+
+- ansible.builtin.import_tasks: "fail2ban.yml"
+  when: "machine_fail2ban_enabled | bool"
+
+- ansible.builtin.import_tasks: "chrony.yml"
+  when: "machine_chrony_enabled | bool"
+
+- ansible.builtin.import_tasks: "dns.yml"
+  when: "machine_dns_enabled | bool"
+
+- ansible.builtin.import_tasks: "docker.yml"
+  when: "machine_docker_enabled | bool"
+
+- ansible.builtin.import_tasks: "cockpit.yml"
+  when: "machine_cockpit_enabled | bool"
+
+- ansible.builtin.import_tasks: "nvidia.yml"
+  when: "machine_nvidia_enabled | bool"
+
+- ansible.builtin.import_tasks: "tmux.yml"
+  when: "machine_tmux_enabled | bool"
+
+- ansible.builtin.import_tasks: "claude_code.yml"
+  when: "machine_claude_code_enabled | bool"
+
+- ansible.builtin.import_tasks: "codex.yml"
+  when: "machine_codex_enabled | bool"
+
+- ansible.builtin.import_tasks: "reboot.yml"
+  when: "machine_reboot_enabled | bool"

@@ -1,0 +1,88 @@
+- name: "Start and enable firewalld"
+  tags: ["firewall"]
+  ansible.builtin.systemd:
+    name: "firewalld"
+    state: "started"
+    enabled: true
+
+- name: "Enable services in firewall"
+  tags: ["firewall"]
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    state: "enabled"
+  loop: "{{ firewall_services }}"
+  notify: "Reload firewalld"
+
+- name: "Enable ports in firewall"
+  tags: ["firewall"]
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    state: "enabled"
+  loop: "{{ firewall_ports }}"
+  notify: "Reload firewalld"
+
+- name: "Disable services in firewall"
+  tags: ["firewall"]
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    state: "disabled"
+  loop: "{{ disabled_firewall_services }}"
+  notify: "Reload firewalld"
+
+- name: "Disable ports in firewall"
+  tags: ["firewall"]
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    state: "disabled"
+  loop: "{{ disabled_firewall_ports }}"
+  notify: "Reload firewalld"
+
+- name: "Configure public DNS firewall (accept + per-source-IP hashlimit)"
+  ansible.builtin.import_tasks: "firewall_dns.yml"
+  when: "machine_dns_public | bool"
+
+- name: "Forward user routes"
+  tags: ["firewall"]
+  ansible.posix.firewalld:
+    zone: "{{ firewall_default_zone }}"
+    port_forward:
+      - proto: "tcp"
+        port: "{{ item.from_port }}"
+        toaddr: "{{ item.to_ip }}"
+        toport: "{{ item.to_port }}"
+    state: "{{ item.state | default('enabled') }}"
+    permanent: true
+  loop: "{{ firewall_routes }}"
+  notify: "Reload firewalld"
+  when: "firewall_routes | length > 0"
+
+- name: "Enable masquerade"
+  tags: ["firewall"]
+  ansible.posix.firewalld:
+    zone: "{{ firewall_default_zone }}"
+    masquerade: true
+    state: "enabled"
+    permanent: true
+  notify: "Reload firewalld"
+  when: "firewall_masquerade | bool"
+
+- name: "Enable masquerade in extra zones"
+  tags: ["firewall"]
+  ansible.posix.firewalld:
+    zone: "{{ item }}"
+    masquerade: true
+    state: "enabled"
+    permanent: true
+  loop: "{{ firewall_masquerade_zones }}"
+  notify: "Reload firewalld"
+
+- name: "Force firewall reload when `force` is set"
+  tags: ["firewall"]
+  ansible.builtin.systemd:
+    name: "firewalld"
+    state: "reloaded"
+  when: "force | default(false) | bool"

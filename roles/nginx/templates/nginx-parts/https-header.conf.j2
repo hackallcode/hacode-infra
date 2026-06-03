@@ -1,0 +1,5 @@
+{% include 'nginx-parts/http-header.conf.j2' %}
+    ssl_certificate /etc/letsencrypt/live/{{ app_domains[0] }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ app_domains[0] }}/privkey.pem;
+    include /etc/nginx/default.d/letsencrypt.conf;
+

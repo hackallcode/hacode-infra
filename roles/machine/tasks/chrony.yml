@@ -1,0 +1,22 @@
+- name: "Install chrony"
+  tags: ["chrony", "package"]
+  ansible.builtin.package:
+    name: "chrony"
+    state: "present"
+
+- name: "Render chrony config"
+  tags: ["chrony"]
+  ansible.builtin.template:
+    src: "chrony.conf.j2"
+    dest: "{{ '/etc/chrony/chrony.conf' if ansible_os_family == 'Debian' else '/etc/chrony.conf' }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  register: "chrony_config"
+
+- name: "Enable and (re)start chronyd"
+  tags: ["chrony"]
+  ansible.builtin.systemd:
+    name: "{{ 'chrony' if ansible_os_family == 'Debian' else 'chronyd' }}"
+    state: "{{ 'restarted' if (chrony_config is changed or (force | default(false) | bool)) else 'started' }}"
+    enabled: true

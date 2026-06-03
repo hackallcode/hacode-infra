@@ -1,0 +1,4 @@
+# EL8 still ships the legacy `mysql` meta-package; `mariadb` conflicts with
+# any existing `mysql` install (both own /usr/bin/mysql).
+maria_db_client_packages:
+  - "mysql"

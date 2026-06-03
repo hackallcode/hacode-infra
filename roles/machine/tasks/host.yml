@@ -1,0 +1,7 @@
+# Convenience alias: bootstrap a host's identity in one call.
+# Equivalent to running users + ssh + system in order. Available as
+# `tasks_from: host` for inventories that prefer the combined entrypoint.
+
+- ansible.builtin.import_tasks: "users.yml"
+- ansible.builtin.import_tasks: "ssh.yml"
+- ansible.builtin.import_tasks: "system.yml"

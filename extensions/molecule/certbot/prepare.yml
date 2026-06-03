@@ -1,0 +1,48 @@
+- name: "Prepare: EPEL + firewalld stack on RHEL; cron on Debian"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Install EPEL + firewalld + python3-firewall + openssl on RHEL family"
+      ansible.builtin.package:
+        name:
+          - "epel-release"
+          - "firewalld"
+          - "python3-firewall"
+          - "cronie"
+          - "openssl"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Start firewalld on RHEL family"
+      ansible.builtin.systemd:
+        name: "firewalld"
+        state: "started"
+        enabled: true
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Refresh apt cache + install cron + openssl on Debian"
+      ansible.builtin.apt:
+        name:
+          - "cron"
+          - "openssl"
+        state: "present"
+        update_cache: true
+        cache_valid_time: 600
+      when: "ansible_os_family == 'Debian'"
+
+    # The role registers an ACME account against the active server when
+    # none is present. A non-empty accounts directory under the matching
+    # server hostname short-circuits that step. Cover both the LE prod
+    # and LE staging hostnames because the converge below also exercises
+    # `certbot_staging: true`.
+    - name: "Pre-create fake ACME account directories"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: "directory"
+        mode: "0700"
+        recurse: true
+      loop:
+        - "/etc/letsencrypt/accounts/acme-v02.api.letsencrypt.org/directory/molecule"
+        - "/etc/letsencrypt/accounts/acme-staging-v02.api.letsencrypt.org/directory/molecule"

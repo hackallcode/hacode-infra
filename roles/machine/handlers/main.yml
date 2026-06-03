@@ -1,0 +1,8 @@
+- name: "Reload firewalld"
+  ansible.builtin.systemd:
+    name: "firewalld"
+    state: "reloaded"
+
+- name: "Reboot after driver install"
+  ansible.builtin.reboot:
+    msg: "Rebooting to load NVIDIA driver"

@@ -1,0 +1,52 @@
+- name: "Get server public key"
+  tags: ["clients-download"]
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/keys/server.pub"
+  register: "public_key_res"
+
+- name: "Set 'server_public_key' fact"
+  tags: ["clients-download"]
+  ansible.builtin.set_fact:
+    server_public_key: "{{ public_key_res.content | b64decode | trim }}"
+
+- name: "Get '{{ wg_client.name }}' private key"
+  tags: ["clients-download"]
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/keys/{{ wg_client.name }}"
+  register: "private_key_res"
+  no_log: true
+
+- name: "Set 'client_private_key' fact"
+  tags: ["clients-download"]
+  ansible.builtin.set_fact:
+    client_private_key: "{{ private_key_res.content | b64decode | trim }}"
+  no_log: true
+
+- name: "Set 'wg_file_name' fact"
+  tags: ["clients-download"]
+  ansible.builtin.set_fact:
+    wg_file_name: "{{ wg_client.name }}{{ '_local' if (local_net_only | default(False)) else '' }}.conf"
+
+- name: "Create a directory for WireGuard configs"
+  tags: ["clients-download"]
+  ansible.builtin.file:
+    path: "/etc/wireguard/configs"
+    state: "directory"
+    mode: "0700"
+
+- name: "Create '{{ wg_file_name }}' config"
+  tags: ["clients-download"]
+  ansible.builtin.template:
+    dest: "/etc/wireguard/configs/wg0_{{ wg_file_name }}"
+    src: "wg-client-wg0.conf.j2"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+  no_log: true
+
+- name: "Download '{{ wg_file_name }}' config"
+  tags: ["clients-download"]
+  ansible.builtin.fetch:
+    src: "/etc/wireguard/configs/wg0_{{ wg_file_name }}"
+    dest: "{{ wg_client_configs_local_dir }}/{{ inventory_hostname }}_{{ wg_file_name }}"
+    flat: true

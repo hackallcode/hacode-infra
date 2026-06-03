@@ -1,0 +1,60 @@
+- name: "Create a directory for WireGuard"
+  tags: ["configure"]
+  ansible.builtin.file:
+    path: "/etc/wireguard/keys"
+    state: "directory"
+    mode: "0700"
+
+- name: "Generate private key"
+  tags: ["configure"]
+  ansible.builtin.shell:
+    cmd: "set -o pipefail; umask 077 && wg genkey | tee server | wg pubkey > server.pub"
+    chdir: "/etc/wireguard/keys"
+    executable: "/bin/bash"
+    creates: "/etc/wireguard/keys/server"
+
+- name: "Slurp the private key off disk"
+  tags: ["configure"]
+  ansible.builtin.slurp:
+    src: "/etc/wireguard/keys/server"
+  register: "private_key_res"
+  no_log: true
+
+- name: "Set 'wg_server_private_key' fact"
+  tags: ["configure"]
+  ansible.builtin.set_fact:
+    wg_server_private_key: "{{ private_key_res.content | b64decode | trim }}"
+  no_log: true
+
+- name: "Create WireGuard config"
+  tags: ["configure"]
+  ansible.builtin.blockinfile:
+    path: "/etc/wireguard/wg0.conf"
+    create: true
+    marker: "{mark}"
+    marker_begin: "# server config begin"
+    marker_end: "# server config end"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+    block: |
+      [Interface]
+      Address = {{ wg_ipv4_prefix }}.1/24,{{ wg_ipv6_prefix }}::1/64
+      ListenPort = {{ wg_port | default(1194) }}
+      PrivateKey = {{ wg_server_private_key }}
+      {{ wg_post_config | default('') }}
+  register: "config_res"
+
+- name: "Enable WireGuard on boot"
+  tags: ["configure"]
+  ansible.builtin.systemd:
+    name: "wg-quick@wg0"
+    state: "started"
+    enabled: true
+
+- name: "Restart WireGuard"
+  tags: ["configure"]
+  ansible.builtin.systemd:
+    name: "wg-quick@wg0"
+    state: "restarted"
+  when: "config_res is changed or (force | default(false) | bool)"

@@ -1,0 +1,72 @@
+# The docker.service.d override below restores deprecated `--link` env vars
+# that Docker 29+ no longer injects by default. The override is meaningless
+# unless docker is actually installed and managed by systemd on this host —
+# gate every step on the service unit's presence so this role stays usable
+# on hosts where docker is provisioned separately (or not yet provisioned).
+- name: "Detect docker.service unit"
+  ansible.builtin.stat:
+    path: "/usr/lib/systemd/system/docker.service"
+  register: "_gitlab_runner_docker_unit"
+
+- name: "Ensure docker.service.d override dir"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/docker.service.d"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  when: "_gitlab_runner_docker_unit.stat.exists"
+
+- name: "Restore deprecated DinD link env vars for Docker 29+"
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/docker.service.d/keep-deprecated-link-env.conf"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    content: |
+      [Service]
+      Environment="DOCKER_KEEP_DEPRECATED_LEGACY_LINKS_ENV_VARS=1"
+  when: "_gitlab_runner_docker_unit.stat.exists"
+  notify:
+    - "Reload systemd"
+    - "Restart docker"
+
+- name: "Apply pending docker override (flush handlers before install/start)"
+  ansible.builtin.meta: "flush_handlers"
+
+- name: "Download GitLab runner binary"
+  ansible.builtin.get_url:
+    url: "{{ runner_download_url }}"
+    dest: "/usr/local/bin/gitlab-runner"
+    mode: "0755"
+  throttle: 1
+  register: "runner_dl"
+
+- name: "Creating user 'gitlab-runner'"
+  ansible.builtin.user:
+    name: "gitlab-runner"
+    comment: "GitLab Runner"
+    shell: "/bin/bash"
+  throttle: 1
+
+- name: "Install gitlab runner"
+  ansible.builtin.command:
+    cmd: "/usr/local/bin/gitlab-runner install --user=gitlab-runner --working-directory=/home/gitlab-runner"
+  register: "install_res"
+  changed_when:
+    - "'already exists' not in install_res.stderr"
+  failed_when:
+    - "install_res.rc != 0"
+    - "'already exists' not in install_res.stderr"
+  throttle: 1
+
+- name: "Set concurrent in config"
+  ansible.builtin.lineinfile:
+    dest: "/etc/gitlab-runner/config.toml"
+    regexp: "^concurrent"
+    line: "concurrent = {{ runner_concurrent }}"
+    insertbefore: "BOF"
+    state: "present"
+  when: "not ansible_check_mode"
+
+- ansible.builtin.import_tasks: "start.yml"

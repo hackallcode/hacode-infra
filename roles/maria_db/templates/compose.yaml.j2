@@ -1,0 +1,21 @@
+services:
+  maria-db:
+    container_name: "{{ maria_db_dest_name }}"
+    image: "mariadb:{{ maria_db_version }}"
+    restart: "unless-stopped"
+    environment:
+      MARIADB_ROOT_PASSWORD_FILE: "/run/secrets/mariadb_root_password"
+    secrets:
+      - "mariadb_root_password"
+    ports:
+      - "127.0.0.1:{{ maria_db_port }}:3306"
+{% set _bridge_ip = maria_db_docker_bridge_ip | default('172.17.0.1') %}
+{% if _bridge_ip %}
+      - "{{ _bridge_ip }}:{{ maria_db_port }}:3306"
+{% endif %}
+    volumes:
+      - "./data:/var/lib/mysql"
+
+secrets:
+  mariadb_root_password:
+    file: "./mariadb_root_password"

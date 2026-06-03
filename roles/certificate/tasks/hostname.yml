@@ -1,0 +1,94 @@
+- name: "Check key on server"
+  ansible.builtin.stat:
+    path: "{{ cert_remote_key_path }}"
+  register: "remote_key"
+
+- name: "Check cert on server"
+  ansible.builtin.stat:
+    path: "{{ cert_remote_cert_path }}"
+  register: "remote_cert"
+
+- name: "Download key/cert from server"
+  ansible.builtin.fetch:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    flat: true
+  loop:
+    - src: "{{ cert_remote_key_path }}"
+      dest: "{{ cert_server_key_path }}"
+    - src: "{{ cert_remote_cert_path }}"
+      dest: "{{ cert_server_cert_path }}"
+  when:
+    - "not force"
+    - "remote_key.stat.exists | default(false)"
+    - "remote_cert.stat.exists | default(false)"
+
+- ansible.builtin.include_tasks: "hostname_create.yml"
+  when: "force or not remote_key.stat.exists or not remote_cert.stat.exists"
+
+- name: "Check generated server cert exists locally"
+  ansible.builtin.stat:
+    path: "{{ cert_server_cert_path }}"
+  register: "_local_server_cert"
+  delegate_to: "localhost"
+  become: false
+
+- name: "Validate keystore password before generating PKCS12"
+  ansible.builtin.assert:
+    that:
+      - "cert_keystore_password is not none"
+      - "(cert_keystore_password | string) | length > 0"
+    fail_msg: >-
+      cert_keystore_password must be set when generating a PKCS12 keystore.
+      Define it in inventory/group_vars (consider Ansible Vault).
+  when: "_local_server_cert.stat.exists"
+  delegate_to: "localhost"
+  become: false
+
+- name: "Generate keystore (PKCS12)"
+  community.crypto.openssl_pkcs12:
+    friendly_name: "{{ cert_entry.name }}"
+    path: "{{ cert_keystore_path }}"
+    privatekey_path: "{{ cert_server_key_path }}"
+    certificate_path: "{{ cert_server_cert_path }}"
+    passphrase: "{{ cert_keystore_password }}"
+    mode: "0600"
+    state: "present"
+  check_mode: false
+  when: "_local_server_cert.stat.exists"
+  delegate_to: "localhost"
+  become: false
+
+- name: "Ensure system TLS dirs exist"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ cert_remote_cert_dir }}"
+      mode: "0755"
+    - path: "{{ cert_remote_key_dir }}"
+      mode: "0700"
+  when: "force or not remote_key.stat.exists or not remote_cert.stat.exists"
+
+- name: "Upload server key"
+  ansible.builtin.copy:
+    src: "{{ cert_server_key_path }}"
+    dest: "{{ cert_remote_key_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+    force: "{{ force }}"
+  when: "force or not remote_key.stat.exists or not remote_cert.stat.exists"
+
+- name: "Upload server cert"
+  ansible.builtin.copy:
+    src: "{{ cert_server_cert_path }}"
+    dest: "{{ cert_remote_cert_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    force: "{{ force }}"
+  when: "force or not remote_key.stat.exists or not remote_cert.stat.exists"

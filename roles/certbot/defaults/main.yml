@@ -1,0 +1,74 @@
+app_cert: true
+
+# Required — ACME account email; registration notifications land here.
+certbot_email: ""
+
+certbot_renew_cron: true
+
+# One of nginx, apache, webroot, standalone, dns-cloudflare, dns-route53,
+# dns-google, dns-rfc2136, dns-digitalocean. Drives plugin-package install
+# and the `--<plugin>` flag. Extend `certbot_authenticator_packages` to
+# teach the role about a new plugin.
+certbot_authenticator: "nginx"
+
+# Install plugin packages for plugins beyond `certbot_authenticator`. Use
+# when a single machine issues certs via multiple plugins (nginx for
+# site A, dns-cloudflare for site B): one role import installs both up
+# front, then per-cert calls swap authenticator freely.
+certbot_extra_authenticators: []
+
+# Use LE staging instead of prod — `--test-cert` on certonly, staging
+# server URL for register/revoke. Avoids LE's prod rate limits.
+certbot_staging: false
+
+# Full ACME flow against the staging server, but the issued cert is
+# thrown away. End-to-end validation without burning a real cert.
+certbot_dry_run: false
+
+# Override the ACME server URL. Empty = LE prod (or LE staging when
+# `certbot_staging: true`). Set explicitly for ZeroSSL, Buypass, or
+# internal Boulder/Pebble.
+certbot_server: ""
+
+# Used when `certbot_authenticator: webroot`.
+certbot_webroot_path: "/var/www/html"
+
+# Passed via `--<plugin>-credentials`. Required by most `dns-*` plugins
+# (Cloudflare API token, Route53 keys, …).
+certbot_credentials_file: ""
+
+# pre/post run on every issue or renewal; deploy runs only when a cert
+# was actually issued/renewed. Stored per-cert by `certonly`, so the
+# renew cron picks them up without re-passing.
+certbot_pre_hook: ""
+certbot_post_hook: ""
+certbot_deploy_hook: ""
+
+# Raw flags appended to every `certonly`. Escape hatch for plugin
+# options the role doesn't model directly.
+certbot_extra_args: []
+
+# Domains for `certificate-get` / `certificate-delete`. The first entry
+# is also `--cert-name` (the certbot lineage id). When `certbot_add_www`
+# is true, each non-wildcard entry is duplicated with a `www.` SAN —
+# turn it off for wildcards or hand-curated SAN lists.
+app_domains: []
+certbot_add_www: true
+
+# Plugin → distro package list. `standalone` and `webroot` are built
+# into certbot itself, hence empty. Override (per-host or per-OS) to
+# rename packages or teach the role new plugins.
+certbot_authenticator_packages:
+  nginx: ["python3-certbot-nginx"]
+  apache: ["python3-certbot-apache"]
+  webroot: []
+  standalone: []
+  dns-cloudflare: ["python3-certbot-dns-cloudflare"]
+  dns-route53: ["python3-certbot-dns-route53"]
+  dns-google: ["python3-certbot-dns-google"]
+  dns-rfc2136: ["python3-certbot-dns-rfc2136"]
+  dns-digitalocean: ["python3-certbot-dns-digitalocean"]
+
+# Exposed as vars so an intranet proxy / internal mirror can override.
+certbot_le_production_url: "https://acme-v02.api.letsencrypt.org/directory"
+certbot_le_staging_url: "https://acme-staging-v02.api.letsencrypt.org/directory"

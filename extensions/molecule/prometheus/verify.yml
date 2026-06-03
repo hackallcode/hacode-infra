@@ -1,0 +1,29 @@
+- name: "Verify: prometheus role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Node_exporter service is enabled"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-enabled node_exporter.service"
+      register: "ne_enabled"
+      changed_when: false
+      failed_when: "ne_enabled.stdout.strip() != 'enabled'"
+
+    - name: "Alertmanager service is enabled"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-enabled alertmanager.service"
+      register: "am_enabled"
+      changed_when: false
+      failed_when: "am_enabled.stdout.strip() != 'enabled'"
+
+    - name: "Prometheus service is enabled"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-enabled prometheus.service"
+      register: "p_enabled"
+      changed_when: false
+      failed_when: "p_enabled.stdout.strip() != 'enabled'"
+
+    - name: "Prometheus config exists"
+      ansible.builtin.stat:
+        path: "/etc/prometheus/prometheus.yml"
+      register: "p_config"
+      failed_when: "not p_config.stat.exists"

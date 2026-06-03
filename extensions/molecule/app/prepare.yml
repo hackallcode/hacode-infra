@@ -1,0 +1,33 @@
+- name: "Prepare: create a throw-away source tree on the controller"
+  hosts: "localhost"
+  gather_facts: false
+
+  tasks:
+    - name: "Ensure source dir exists"
+      ansible.builtin.file:
+        path: "/tmp/molecule-source"
+        state: "directory"
+        mode: "0755"
+
+    - name: "Write a marker file"
+      ansible.builtin.copy:
+        dest: "/tmp/molecule-source/index.html"
+        content: "molecule\n"
+        mode: "0644"
+
+- name: "Prepare: install rsync on the targets"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Refresh apt cache (Debian)"
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 600
+      when: "ansible_os_family == 'Debian'"
+
+    - name: "Install rsync"
+      ansible.builtin.package:
+        name: "rsync"
+        state: "present"

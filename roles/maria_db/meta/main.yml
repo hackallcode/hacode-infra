@@ -1,0 +1,21 @@
+galaxy_info:
+  role_name: "maria_db"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: "Run MariaDB in Docker compose; manage databases, users and backup/restore via mysqldump."
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+    - name: "Debian"
+      versions: ["bullseye", "bookworm"]
+  galaxy_tags:
+    - "database"
+    - "mariadb"
+    - "mysql"
+    - "docker"
+
+dependencies: []

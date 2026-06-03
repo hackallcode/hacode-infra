@@ -1,0 +1,65 @@
+rule_files:
+  - ../node-clock.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Положительный offset > 0.05 и растёт → NodeClockSkewDetected (warning, for 10m)
+  - interval: 1m
+    input_series:
+      - series: 'node_timex_offset_seconds{job="node",instance_name="testhost"}'
+        values: "0.06+0.001x30"
+
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: NodeClockSkewDetected
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "Clock skew detected."
+              description: >-
+                Clock on testhost is out of sync by more than 300s.
+                Ensure NTP is configured correctly on this host.
+
+  # offset стабилен около нуля → не срабатывает
+  - interval: 1m
+    input_series:
+      - series: 'node_timex_offset_seconds{job="node",instance_name="testhost"}'
+        values: "0.001x30"
+
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: NodeClockSkewDetected
+        exp_alerts: []
+
+  # node_timex_sync_status == 0 длительно → NodeClockNotSynchronising
+  - interval: 1m
+    input_series:
+      - series: 'node_timex_sync_status{job="node",instance_name="testhost"}'
+        values: "0x30"
+
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: NodeClockNotSynchronising
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "Clock not synchronising."
+              description: "Clock on testhost is not synchronising. Ensure NTP is configured on this host."
+
+  # sync_status == 1 → не срабатывает
+  - interval: 1m
+    input_series:
+      - series: 'node_timex_sync_status{job="node",instance_name="testhost"}'
+        values: "1x30"
+
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: NodeClockNotSynchronising
+        exp_alerts: []

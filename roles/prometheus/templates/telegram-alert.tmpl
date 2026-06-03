@@ -1,0 +1,29 @@
+{{ define "telegram.default.message" }}
+{{- range .Alerts }}
+{{ if eq .Status "resolved" }}
+{{- if eq .Labels.severity "critical" }}
+&#9989; <b>Resolved Firing</b>
+{{- else if eq .Labels.severity "warning" }}
+&#9989; <b>Resolved Warning</b>
+{{- else }}
+&#9989; <b>Resolved Info</b>
+{{- end }}
+{{- else }}
+{{- if eq .Labels.severity "critical" }}
+&#128293; <b>Firing</b>
+{{- else if eq .Labels.severity "warning" }}
+&#9888; <b>Warning</b>
+{{- else }}
+&#8505; <b>Info</b>
+{{- end }}
+{{- end }}
+{{- if .Annotations.summary }}
+
+{{ .Annotations.summary }}
+{{- end }}
+{{- if .Annotations.description }}
+
+{{ .Annotations.description }}
+{{- end }}
+{{- end }}
+{{- end }}

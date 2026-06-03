@@ -1,0 +1,90 @@
+- ansible.builtin.import_tasks: "_validate.yml"
+
+- name: "Ensure '{{ app_owner }}' system user exists"
+  tags: ["prepare"]
+  ansible.builtin.user:
+    name: "{{ app_owner }}"
+    system: true
+    create_home: true
+    home: "/var/lib/{{ app_owner }}"
+    shell: "/usr/sbin/nologin"
+    state: "present"
+  when: "app_owner != 'root'"
+
+- name: "Tear down compose stack before cleanup"
+  tags: ["prepare"]
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_content_dir }}"
+    project_name: "{{ app_project }}"
+    state: "absent"
+    remove_orphans: true
+  failed_when: false
+  when:
+    - "app_cleanup | bool"
+    - "not ansible_check_mode"
+
+- name: "Detect persistent data paths before wipe"
+  tags: ["prepare"]
+  ansible.builtin.stat:
+    path: "{{ app_content_dir }}/{{ item if item is string else item.path }}"
+  loop: "{{ app_data_paths }}"
+  loop_control:
+    label: "{{ item if item is string else item.path }}"
+  register: "_app_data_path_stats"
+  when:
+    - "app_cleanup | bool"
+    - "app_data_paths | length > 0"
+
+- name: "Detect bind mounts under app_content_dir"
+  tags: ["prepare"]
+  ansible.builtin.command:
+    cmd: "findmnt -nR -o TARGET {{ app_content_dir }}"
+  register: "_app_content_mounts"
+  changed_when: false
+  failed_when: false
+  when: "app_cleanup | bool"
+
+- name: "Refuse to wipe content dir while protected data is present"
+  tags: ["prepare"]
+  vars:
+    _hit_data_paths: >-
+      {{ _app_data_path_stats.results | default([])
+         | selectattr('stat.exists')
+         | map(attribute='item')
+         | map('string') | list }}
+    _hit_mounts: >-
+      {{ (_app_content_mounts.stdout_lines | default([]))
+         | reject('equalto', app_content_dir) | list }}
+  ansible.builtin.assert:
+    that:
+      - >-
+        (app_cleanup_destructive | default(false) | bool)
+        or (_hit_data_paths | length == 0)
+      - >-
+        (app_cleanup_destructive | default(false) | bool)
+        or (_hit_mounts | length == 0)
+    fail_msg: >-
+      Refusing to wipe {{ app_content_dir }} —
+      {% if _hit_data_paths | length > 0 -%}
+      app_data_paths present on disk: [{{ _hit_data_paths | join(', ') }}].{%- endif %}
+      {% if _hit_mounts | length > 0 -%}
+      Live bind mounts inside the dir: [{{ _hit_mounts | join(', ') }}].{%- endif %}
+      Set `app_cleanup_destructive: true` to confirm data loss, or unmount
+      / remove the relevant entries from `app_data_paths` first.
+  when: "app_cleanup | bool"
+
+- name: "Wipe project dir for clean redeploy"
+  tags: ["prepare"]
+  ansible.builtin.file:
+    path: "{{ app_content_dir }}"
+    state: "absent"
+  when: "app_cleanup | bool"
+
+- name: "Ensure content dir exists"
+  tags: ["prepare"]
+  ansible.builtin.file:
+    path: "{{ app_content_dir }}"
+    state: "directory"
+    owner: "{{ app_dir_owner }}"
+    group: "{{ app_dir_group }}"
+    mode: "{{ app_content_dir_mode }}"

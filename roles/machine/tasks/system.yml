@@ -1,0 +1,107 @@
+- name: "Get some Ansible variables"
+  tags: ["always"]
+  ansible.builtin.setup:
+    gather_subset: ["min", "network", "virtual"]
+    filter:
+      - "ansible_os_family"
+      - "ansible_distribution"
+      - "ansible_distribution_major_version"
+      - "ansible_default_ipv4"
+      - "ansible_virtualization_type"
+
+- name: "Check Raspberry repository"
+  tags: ["always"]
+  ansible.builtin.stat:
+    path: "/etc/apt/sources.list.d/raspi.list"
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: "raspi_repo"
+
+- name: "Set Raspberry OS"
+  tags: ["always"]
+  ansible.builtin.set_fact:
+    is_raspberry_os: "{{ raspi_repo.stat.exists }}"
+
+- name: "Install glibc langpack for `{{ locale_lang }}` (RHEL family)"
+  tags: ["locale"]
+  ansible.builtin.package:
+    name: "{{ locale_glibc_langpack }}"
+    state: "present"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Install locales package (Debian family)"
+  tags: ["locale"]
+  ansible.builtin.package:
+    name: "locales"
+    state: "present"
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Generate locale `{{ locale_lang }}` (Debian family)"
+  tags: ["locale"]
+  community.general.locale_gen:
+    name: "{{ locale_lang }}"
+    state: "present"
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Set locale (systemd locale.conf — RHEL family)"
+  tags: ["locale"]
+  ansible.builtin.copy:
+    content: |
+      LANG="{{ locale_lang }}"
+      LC_CTYPE="{{ locale_ctype }}"
+    dest: "/etc/locale.conf"
+    mode: "0644"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Set locale (Debian default/locale)"
+  tags: ["locale"]
+  ansible.builtin.copy:
+    content: |
+      LANG="{{ locale_lang }}"
+      LC_CTYPE="{{ locale_ctype }}"
+    dest: "/etc/default/locale"
+    mode: "0644"
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Set a hostname"
+  tags: ["hostname"]
+  ansible.builtin.hostname:
+    name: "{{ hostname }}"
+  when: "ansible_virtualization_type | default('') not in ['docker', 'container', 'oci', 'lxc', 'podman']"
+
+- name: "Set hostname and aliases in /etc/hosts"
+  tags: ["hostname"]
+  ansible.builtin.lineinfile:
+    dest: "/etc/hosts"
+    regexp: "^{{ ansible_host }}\\s"
+    line: >-
+      {{ ansible_host }}
+      {{ ([hostname] + (hostname_aliases | default([]))) | unique | join(' ') }}
+    state: "present"
+  when: "ansible_virtualization_type | default('') not in ['docker', 'container', 'oci', 'lxc', 'podman']"
+
+- name: "Remove welcome message"
+  tags: ["motd"]
+  ansible.builtin.copy:
+    content: ""
+    dest: "/etc/motd"
+    mode: "0644"
+
+- name: "Ensure /usr/local/bin is in PATH for login shells"
+  tags: ["path"]
+  ansible.builtin.copy:
+    dest: "/etc/profile.d/localbin.sh"
+    mode: "0644"
+    content: 'export PATH="/usr/local/bin:$PATH"'
+  when: "machine_localbin_in_path | bool"
+
+- name: "Prefer IPv4 in glibc getaddrinfo (/etc/gai.conf)"
+  tags: ["network"]
+  ansible.builtin.lineinfile:
+    path: "/etc/gai.conf"
+    regexp: '^\s*precedence\s+::ffff:0:0/96\b'
+    line: "precedence ::ffff:0:0/96  100"
+    state: "{{ 'present' if (machine_prefer_ipv4 | bool) else 'absent' }}"
+    create: true
+    mode: "0644"

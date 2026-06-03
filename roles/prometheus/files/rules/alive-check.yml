@@ -1,0 +1,12 @@
+groups:
+  - name: "alive_check"
+    rules:
+      - alert: "AliveCheck"
+        expr: >-
+          (day_of_week(time() + vector(0)) == 1) and
+          (hour(time() + vector(0)) == 7) and
+          (minute(time() + vector(0)) == 0)
+        labels:
+          severity: "info"
+        annotations:
+          summary: "I'm alive!"

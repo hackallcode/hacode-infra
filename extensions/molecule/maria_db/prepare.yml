@@ -1,0 +1,45 @@
+- name: "Prepare: install docker on the target (maria_db deploys via compose)"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Install dnf-plugins-core for docker-ce.repo (RHEL)"
+      ansible.builtin.package:
+        name: "dnf-plugins-core"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Ensure /etc/apt/keyrings exists (Debian)"
+      ansible.builtin.file:
+        path: "/etc/apt/keyrings"
+        state: "directory"
+        mode: "0755"
+      when: "ansible_os_family == 'Debian'"
+
+    - name: "Install ca-certificates (Debian)"
+      ansible.builtin.apt:
+        name: "ca-certificates"
+        state: "present"
+        update_cache: true
+      when: "ansible_os_family == 'Debian'"
+
+    # Docker-in-Docker on Docker Desktop's linuxkit kernel can't use the
+    # default overlay2 storage driver (whiteout file conversion fails).
+    # Force vfs — slower but works in nested containers.
+    - name: "Ensure docker config dir exists"
+      ansible.builtin.file:
+        path: "/etc/docker"
+        state: "directory"
+        mode: "0755"
+
+    - name: "Configure dockerd to use vfs storage (nested-container friendly)"
+      ansible.builtin.copy:
+        dest: "/etc/docker/daemon.json"
+        mode: "0644"
+        content: |
+          {"storage-driver": "vfs"}
+
+    - name: "Install the docker role"
+      ansible.builtin.include_role:
+        name: "hacode.infra.docker"

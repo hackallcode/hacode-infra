@@ -1,0 +1,82 @@
+- name: "Resolve active ACME server URL"
+  tags: ["certificate-get"]
+  ansible.builtin.set_fact:
+    certbot_active_server: >-
+      {{ certbot_server if certbot_server
+         else (certbot_le_staging_url if certbot_staging | bool
+               else certbot_le_production_url) }}
+  when:
+    - "app_cert | bool"
+    - "app_domains | length > 0"
+
+# Lineage dir is named after `--cert-name` (= app_domains[0]) with any
+# leading `*.` stripped — certbot doesn't keep asterisks on disk.
+- name: "Check existing certificate validity (skip certbot if valid > 30 days)"
+  tags: ["certificate-get"]
+  ansible.builtin.command:
+    cmd: >-
+      openssl x509
+      -in /etc/letsencrypt/live/{{ app_domains[0] | regex_replace('^\*\.', '') }}/fullchain.pem
+      -checkend 2592000 -noout
+  register: "cert_valid_check"
+  failed_when: false
+  changed_when: false
+  when:
+    - "app_cert | bool"
+    - "app_domains | length > 0"
+    - "not (certbot_dry_run | bool)"
+
+- name: "Reset per-cert -d argv accumulator"
+  tags: ["certificate-get"]
+  ansible.builtin.set_fact:
+    _certbot_d_argv: []
+  when:
+    - "app_cert | bool"
+    - "app_domains | length > 0"
+
+- name: "Build -d argv list (skip www. SAN for wildcards)"
+  tags: ["certificate-get"]
+  ansible.builtin.set_fact:
+    _certbot_d_argv: >-
+      {{ _certbot_d_argv + ['-d', item]
+         + (['-d', 'www.' ~ item]
+            if (certbot_add_www | bool) and not item.startswith('*.') else []) }}
+  loop: "{{ app_domains }}"
+  when:
+    - "app_cert | bool"
+    - "app_domains | length > 0"
+
+- name: "Get app certificate"
+  tags: ["certificate-get"]
+  vars:
+    _cert_name: "{{ app_domains[0] | regex_replace('^\\*\\.', '') }}"
+    _plugin_argv: >-
+      {{ (['--webroot-path', certbot_webroot_path]
+          if certbot_authenticator == 'webroot' else [])
+         + (['--' ~ certbot_authenticator ~ '-credentials', certbot_credentials_file]
+            if (certbot_authenticator is search('^dns-')) and certbot_credentials_file else []) }}
+    _flag_argv: >-
+      {{ (['--test-cert'] if certbot_staging | bool else [])
+         + (['--dry-run'] if certbot_dry_run | bool else []) }}
+    _hook_argv: >-
+      {{ (['--pre-hook', certbot_pre_hook] if certbot_pre_hook else [])
+         + (['--post-hook', certbot_post_hook] if certbot_post_hook else [])
+         + (['--deploy-hook', certbot_deploy_hook] if certbot_deploy_hook else []) }}
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/bin/certbot', 'certonly',
+          '--' ~ certbot_authenticator, '--non-interactive']
+         + _plugin_argv
+         + ['--server', certbot_active_server]
+         + _flag_argv
+         + _hook_argv
+         + (certbot_extra_args | list)
+         + ['--cert-name', _cert_name]
+         + _certbot_d_argv }}
+  throttle: 1
+  register: "certbot_res"
+  changed_when: "'Successfully received' in certbot_res.stdout or 'dry run was successful' in certbot_res.stdout"
+  when:
+    - "app_cert | bool"
+    - "app_domains | length > 0"
+    - "(certbot_dry_run | bool) or (cert_valid_check.rc | default(1)) != 0 or (force | default(false) | bool)"

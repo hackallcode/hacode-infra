@@ -1,0 +1,21 @@
+galaxy_info:
+  role_name: "gost"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: "Install go-gost tunneling tool as a systemd service; configurable listener spec and remote endpoint."
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+    - name: "Debian"
+      versions: ["bullseye", "bookworm"]
+  galaxy_tags:
+    - "networking"
+    - "proxy"
+    - "tunnel"
+    - "gost"
+
+dependencies: []

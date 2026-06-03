@@ -1,0 +1,10 @@
+- name: "Converge: gitlab_runner role (install only)"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Run install.yml from the gitlab_runner role"
+      ansible.builtin.include_role:
+        name: "hacode.infra.gitlab_runner"
+        tasks_from: "install"

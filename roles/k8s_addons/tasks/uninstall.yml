@@ -1,0 +1,19 @@
+# Uninstall entrypoint. Runs unconditionally so the user can tear an
+# addon down without first re-asserting its `_enabled` flag - the only
+# gate is per-addon tags.
+
+- name: "Validate kubeconfig is set for uninstall"
+  tags: ["always"]
+  ansible.builtin.assert:
+    that: "(k8s_addons_kubeconfig | length) > 0"
+    fail_msg: >-
+      Set `k8s_addons_kubeconfig` (or define `k3s_cluster_name` in scope
+      so the default resolves) to uninstall any addon.
+
+- name: "Uninstall Headlamp"
+  tags: ["headlamp"]
+  ansible.builtin.include_tasks: "headlamp-uninstall.yml"
+
+- name: "Uninstall Ingress-NGINX"
+  tags: ["ingress-nginx"]
+  ansible.builtin.include_tasks: "ingress-nginx-uninstall.yml"

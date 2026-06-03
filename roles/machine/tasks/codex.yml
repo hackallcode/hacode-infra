@@ -1,0 +1,24 @@
+# Install OpenAI's Codex CLI globally via npm. Self-contained: ensures
+# nodejs + npm are present before invoking the npm module.
+
+- name: "Enable Node.js 20 module stream (RHEL)"
+  tags: ["codex"]
+  ansible.builtin.command: "dnf module enable -y nodejs:20"
+  args:
+    creates: "/etc/dnf/modules.d/nodejs.module"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Install Node.js + npm"
+  tags: ["codex"]
+  ansible.builtin.package:
+    name:
+      - "nodejs"
+      - "npm"
+    state: "present"
+
+- name: "Install Codex CLI"  # noqa: package-latest
+  tags: ["codex"]
+  community.general.npm:
+    name: "@openai/codex"
+    global: true
+    state: "latest"

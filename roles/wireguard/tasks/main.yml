@@ -1,0 +1,21 @@
+- name: "Validate wg_role"
+  ansible.builtin.assert:
+    that:
+      - "wg_role in ['server', 'client']"
+    fail_msg: >-
+      wg_role must be either 'server' or 'client' (got: {{ wg_role | default('<unset>') }}).
+      Set it in inventory/group_vars, or call a specific tasks_from entrypoint directly.
+
+- name: "Run server-side flow"
+  when: "wg_role == 'server'"
+  block:
+    - ansible.builtin.import_tasks: "server-install.yml"
+    - ansible.builtin.import_tasks: "server-configure.yml"
+    - ansible.builtin.import_tasks: "server-clients-add.yml"
+    - ansible.builtin.import_tasks: "server-clients-download.yml"
+
+- name: "Run client-side flow"
+  when: "wg_role == 'client'"
+  block:
+    - ansible.builtin.import_tasks: "client-install.yml"
+    - ansible.builtin.import_tasks: "client-servers-add.yml"

@@ -1,0 +1,27 @@
+# Compose project name + on-disk directory under /opt. Defaults to the
+# inventory hostname (underscores → dashes — compose disallows `_`).
+maria_db_dest_name: "{{ inventory_hostname | replace('_', '-') }}"
+
+# Docker image tag for `mariadb`. Pin per environment to avoid surprises.
+maria_db_version: "latest"
+
+# Host port forwarded to the container's MariaDB :3306.
+maria_db_port: 3306
+
+# Databases to create after install. Empty → skip the add-db step.
+maria_db_databases: []
+
+# Users to create after install. Each entry: { name, password, privileges }.
+# `privileges` follows the community.mysql.mysql_user `priv` syntax
+# (`db.*:ALL`, `db.table:SELECT,INSERT`, …).
+maria_db_users: []
+
+# Single-db / single-user shorthand consumed by backup / restore /
+# delete-db / delete-user entrypoints. Empty by default; set explicitly
+# by playbooks calling those `tasks_from:` operations.
+maria_db_database: ""
+maria_db_user: ""
+
+# Required — MariaDB root password. No default; set via Ansible Vault
+# or inventory. The role asserts it's non-empty before installing.
+maria_db_root_password: ""

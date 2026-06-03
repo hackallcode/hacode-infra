@@ -1,0 +1,22 @@
+galaxy_info:
+  role_name: "certbot"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: >-
+    Install certbot and issue Let's Encrypt certificates for one or more
+    domains; supports webroot via nginx.
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+    - name: "Debian"
+      versions: ["bullseye", "bookworm"]
+  galaxy_tags:
+    - "tls"
+    - "letsencrypt"
+    - "certbot"
+
+dependencies: []

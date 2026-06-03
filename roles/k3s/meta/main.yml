@@ -1,0 +1,23 @@
+galaxy_info:
+  role_name: "k3s"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: >-
+    Install and configure k3s servers and agents; fetch kubeconfig to
+    the controller and rewrite cluster/user/context names.
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+    - name: "Debian"
+      versions: ["bullseye", "bookworm"]
+  galaxy_tags:
+    - "kubernetes"
+    - "k3s"
+    - "cluster"
+
+dependencies:
+  - role: "hacode.infra.common"

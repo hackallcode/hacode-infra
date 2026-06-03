@@ -1,0 +1,26 @@
+- ansible.builtin.import_tasks: "_validate.yml"
+
+- name: "Restart docker compose stack"
+  tags: ["restart"]
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_content_dir }}"
+    project_name: "{{ app_project }}"
+    state: "restarted"
+    wait: "{{ docker_compose_wait | default(true) | bool }}"
+    wait_timeout: "{{ docker_compose_wait_timeout | default(60) | int }}"
+  when:
+    - "app_type == 'docker'"
+    - "not (app_disabled | bool)"
+    - "(sources_changed | default(true)) or (force | default(false) | bool)"
+    - "not ansible_check_mode"
+
+- name: "Stop docker compose stack (app_disabled=true)"
+  tags: ["restart"]
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_content_dir }}"
+    project_name: "{{ app_project }}"
+    state: "stopped"
+  when:
+    - "app_type == 'docker'"
+    - "app_disabled | bool"
+    - "not ansible_check_mode"

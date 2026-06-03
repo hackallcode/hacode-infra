@@ -1,0 +1,9 @@
+- name: "Delete clients from WireGuard"
+  tags: ["clients-delete"]
+  ansible.builtin.include_tasks:
+    file: "server-client-delete.yml"
+    apply:
+      tags: ["clients-delete"]
+  loop: "{{ wg_clients }}"
+  loop_control:
+    loop_var: "wg_client"

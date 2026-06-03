@@ -1,0 +1,45 @@
+# Switch between the server-side and client-side flows when the role is
+# called via its default entrypoint (roles/wireguard/tasks/main.yml).
+# Use "server" on the hub that accepts peers, "client" on each peer.
+# Operators calling specific subroles via `tasks_from:` can ignore this.
+wg_role: "server"
+
+# When true, the wireguard server also runs a DNS resolver for its VPN
+# clients. dnsmasq install is delegated to `hacode.infra.machine`
+# (`tasks_from: dns`); VPN-only port 53 accept is installed as a direct
+# rule at priority -10 so it bypasses the per-source-IP hashlimit DROP
+# that `machine_dns_public` would put at priority 0. The operator picks
+# the listen interfaces via `dns_server_interfaces` (e.g. `["wg0"]`).
+wg_dns_enabled: false
+
+# Where client wg-config files generated on the server are fetched to on
+# the controller.
+wg_client_configs_local_dir: "{{ hacode_output_dir }}/wg_configs"
+
+# UDP port the server listens on.
+wg_port: 1194
+
+# IPv4 /24 prefix for the VPN subnet. Server is `.1`, clients pick `.ip`
+# from their entry in `wg_clients`. Override per inventory if running
+# multiple VPNs that must not collide.
+wg_ipv4_prefix: "10.13.13"
+
+# IPv6 ULA prefix for the VPN subnet (/64). Server is `::1`, clients pick
+# `::ip` from their entry. Override for multi-VPN deployments.
+wg_ipv6_prefix: "fd42:13:13"
+
+# Extra lines appended to the server's `[Interface]` block (e.g.
+# PostUp / PostDown nft rules). Free-form string.
+wg_post_config: ""
+
+# Peers the server provisions. Each entry:
+#   - name (required)
+#   - ip   (host octet within wg_ipv4_prefix / wg_ipv6_prefix)
+# Populated by inventory; empty by default — server still configures
+# itself, just without peers.
+wg_clients: []
+
+# Servers the client connects to (used in `wg_role: client` flow).
+# Inventory-supplied list; each entry is a parsed wg config produced by
+# the server's `server-client-download` task.
+wg_servers: []

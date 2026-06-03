@@ -1,0 +1,34 @@
+- ansible.builtin.import_tasks: "_validate.yml"
+
+- ansible.builtin.import_tasks: "stop.yml"
+
+- name: "Down docker compose stack (volumes + orphans)"
+  tags: ["delete"]
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_content_dir }}"
+    project_name: "{{ app_project }}"
+    state: "absent"
+    remove_orphans: true
+    remove_volumes: true
+  when:
+    - "app_type == 'docker'"
+    - "not ansible_check_mode"
+
+- name: "Delete content directory"
+  tags: ["delete"]
+  ansible.builtin.file:
+    path: "{{ app_content_dir }}"
+    state: "absent"
+
+- name: "Close app ports left over in firewall"
+  tags: ["delete"]
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    state: "disabled"
+    permanent: true
+    immediate: true
+  loop: "{{ app_ports }}"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "app_ports | length > 0"
+  failed_when: false

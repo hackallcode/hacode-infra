@@ -1,0 +1,173 @@
+# Multi-user provisioning. `_machine_users_all` is the authoritative list:
+#   - name                       (required)
+#   - ssh_authorized_keys        (optional inline key/keys; dumped exclusively)
+#   - ssh_authorized_keys_file   (optional; basename resolved to
+#                                 `{{ machine_ssh_keys_dir }}/<name>.pub`,
+#                                 loaded on the controller. Mutually
+#                                 exclusive with the inline form.)
+#   - password                   (optional plaintext, hashed sha512 with a per-host seed)
+#   - password_update            (optional; "on_create" | "always" — overrides
+#                                 machine_password_update. Default "on_create"
+#                                 seeds the password at user creation and
+#                                 never touches it afterwards.)
+#   - groups                     (optional extra groups; appended)
+# Users with `machine_admin_group` in their groups get sudo via the group
+# sudoers entry below; `machine_admin_nopasswd` toggles password-less sudo.
+
+- name: "Compose the final user roster (machine_users + machine_extra_users)"
+  tags: ["always"]
+  ansible.builtin.set_fact:
+    _machine_users_all: "{{ machine_users + machine_extra_users }}"
+
+- name: "Probe '{{ ansible_user | default('') }}' user remote access"
+  tags: ["always"]
+  ansible.builtin.command: "true"
+  ignore_unreachable: true
+  register: "access_check"
+  changed_when: false
+
+- name: "Fall back to setup user '{{ setup_user_name }}' while bootstrapping"
+  tags: ["always"]
+  ansible.builtin.set_fact:
+    ansible_user: "{{ setup_user_name }}"
+  when: "(access_check.unreachable | default(false)) | bool"
+
+- name: "Change root password"
+  tags: ["root_user"]
+  ansible.builtin.user:
+    name: "root"
+    update_password: "{{ root_password_update }}"
+    password: >-
+      {{ root_password | string
+         | password_hash('sha512', 65534 | random(seed=inventory_hostname ~ 'root') | string) }}
+  when: "root_password | length > 0"
+
+- name: "Create admin sudo group '{{ machine_admin_group }}'"
+  tags: ["custom_user"]
+  ansible.builtin.group:
+    name: "{{ machine_admin_group }}"
+    state: "present"
+
+- name: "Allow '{{ machine_admin_group }}' sudo"
+  tags: ["custom_user"]
+  community.general.sudoers:
+    name: "90-{{ machine_admin_group }}"
+    group: "{{ machine_admin_group }}"
+    runas: "ALL"
+    commands: "ALL"
+    nopassword: "{{ machine_admin_nopasswd | bool }}"
+    state: "present"
+
+- name: "Create extra groups referenced by _machine_users_all"
+  tags: ["custom_user"]
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: "present"
+  loop: >-
+    {{ _machine_users_all
+       | map(attribute='groups', default=[])
+       | flatten | unique | list }}
+
+- name: "Create users"
+  tags: ["custom_user"]
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    update_password: "{{ item.password_update | default(machine_password_update) }}"
+    password: >-
+      {{ (item.password | string
+           | password_hash('sha512', 65534 | random(seed=inventory_hostname ~ item.name) | string))
+         if (item.password | default('') | length > 0) else omit }}
+    groups: "{{ item.groups | default([]) }}"
+    append: true
+  loop: "{{ _machine_users_all }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Authorize SSH keys for users"
+  tags: ["custom_user"]
+  ansible.posix.authorized_key:
+    user: "{{ item.name }}"
+    state: "present"
+    key: "{{ _user_key }}"
+    exclusive: true
+    path: >-
+      {{ ('/root/.ssh/authorized_keys') if item.name == 'root'
+         else ('/home/' ~ item.name ~ '/.ssh/authorized_keys') }}
+    manage_dir: true
+  loop: "{{ _machine_users_all }}"
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    _user_key_path: "{{ machine_ssh_keys_dir }}/{{ item.ssh_authorized_keys_file | default(item.name) }}.pub"
+    _user_key_from_file: "{{ lookup('file', _user_key_path, errors='ignore') | default('', true) | trim }}"
+    _user_key: "{{ item.ssh_authorized_keys | default(_user_key_from_file, true) }}"
+  when: "_user_key | length > 0"
+
+- name: "Remove stock cloud-init sudoers"
+  tags: ["custom_user"]
+  community.general.sudoers:
+    name: "90-cloud-init-users"
+    state: "absent"
+
+- name: "Remove stock 90-wheel sudoers"
+  tags: ["custom_user"]
+  community.general.sudoers:
+    name: "90-wheel"
+    state: "absent"
+  when: "machine_admin_group != 'wheel'"
+
+- name: "Strip trailing whitespace after default '#includedir /etc/sudoers.d'"
+  tags: ["custom_user"]
+  ansible.builtin.replace:
+    path: "/etc/sudoers"
+    regexp: '(?m)^(#includedir[ \t]+/etc/sudoers\.d[^\n]*)\s*\Z'
+    replace: '\1\n'
+    validate: "visudo -cf %s"
+
+- name: "Resolve setup user removal flag"
+  tags: ["always"]
+  ansible.builtin.set_fact:
+    setup_user_remove: >-
+      {{ setup_user_name | default('') | length > 0
+         and setup_user_name != 'root'
+         and (setup_user_name not in (_machine_users_all | map(attribute='name') | list)) }}
+
+- name: "Revert ansible_user to controller default ($USER on the controller)"
+  tags: ["always"]
+  ansible.builtin.set_fact:
+    ansible_user: null
+  when:
+    - "(access_check.unreachable | default(false)) | bool"
+    - "setup_user_remove | bool"
+
+- name: "Kill processes belonging to setup user '{{ setup_user_name }}'"
+  tags: ["setup_user_cleanup"]
+  ansible.builtin.command:
+    cmd: "pkill -KILL -u {{ setup_user_name }}"
+  register: "kill_setup"
+  changed_when: "kill_setup.rc == 0"
+  failed_when: false
+  when: "setup_user_remove | bool"
+
+- name: "Remove setup user '{{ setup_user_name }}' from sudoers"
+  tags: ["setup_user_cleanup"]
+  community.general.sudoers:
+    name: "{{ setup_user_name }}"
+    state: "absent"
+  when: "setup_user_remove | bool"
+
+- name: "Remove setup user '{{ setup_user_name }}'"
+  tags: ["setup_user_cleanup"]
+  ansible.builtin.user:
+    name: "{{ setup_user_name }}"
+    state: "absent"
+    remove: true
+    force: true
+  when: "setup_user_remove | bool"
+
+- name: "Remove setup user '{{ setup_user_name }}' group"
+  tags: ["setup_user_cleanup"]
+  ansible.builtin.group:
+    name: "{{ setup_user_name }}"
+    state: "absent"
+  when: "setup_user_remove | bool"

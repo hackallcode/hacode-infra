@@ -1,0 +1,81 @@
+- name: "Install dnsmasq package (Debian)"
+  tags: ["dns", "package"]
+  ansible.builtin.apt:
+    name: "dnsmasq"
+    state: "present"
+    policy_rc_d: 101 # block auto-start during install
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Install dnsmasq package (RedHat)"
+  tags: ["dns", "package"]
+  ansible.builtin.package:
+    name: "dnsmasq"
+    state: "present"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Stop and disable standalone dnsmasq.service"
+  tags: ["dns"]
+  ansible.builtin.systemd:
+    name: "dnsmasq.service"
+    state: "stopped"
+    enabled: false
+  failed_when: false
+
+- name: "Generate custom DNS address mappings"
+  tags: ["dns"]
+  ansible.builtin.template:
+    src: "dnsmasq.conf.j2"
+    dest: "/etc/NetworkManager/dnsmasq.d/custom.conf"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  register: "dns_mappings"
+
+- name: "Configure NetworkManager to use dnsmasq"
+  tags: ["dns"]
+  community.general.ini_file:
+    path: "/etc/NetworkManager/NetworkManager.conf"
+    section: "main"
+    option: "dns"
+    value: "dnsmasq"
+    mode: "0644"
+  register: "dns_nm_config"
+
+- name: "Create symlink to NM resolv.conf"
+  tags: ["dns"]
+  ansible.builtin.file:
+    src: "/run/NetworkManager/resolv.conf"
+    path: "/etc/resolv.conf"
+    state: "link"
+    force: true
+  register: "dns_resolv_link"
+
+- name: "Enable network manager"
+  tags: ["dns"]
+  ansible.builtin.systemd:
+    name: "NetworkManager"
+    state: "started"
+    enabled: true
+
+- name: "Restart network manager"
+  tags: ["dns"]
+  ansible.builtin.systemd:
+    name: "NetworkManager"
+    state: "restarted"
+  when: >-
+    dns_mappings is changed
+    or dns_nm_config is changed
+    or dns_resolv_link is changed
+    or (force | default(false) | bool)
+
+- name: "Wait for dnsmasq DNS to respond"
+  tags: ["dns"]
+  ansible.builtin.wait_for:
+    host: "127.0.0.1"
+    port: 53
+    timeout: 30
+  when: >-
+    dns_mappings is changed
+    or dns_nm_config is changed
+    or dns_resolv_link is changed
+    or (force | default(false) | bool)

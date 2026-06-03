@@ -1,0 +1,5 @@
+# `mariadb-client` provides the CLI on Debian. `libmariadb-dev` (the
+# devel headers) is no longer needed since the role installs the
+# packaged python3-pymysql instead of building PyMySQL via pip.
+maria_db_client_packages:
+  - "mariadb-client"

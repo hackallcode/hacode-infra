@@ -1,0 +1,23 @@
+- name: "Verify: nginx role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Nginx binary is installed"
+      ansible.builtin.stat:
+        path: "/usr/sbin/nginx"
+      register: "nginx_bin"
+      failed_when: "not nginx_bin.stat.exists"
+
+    - name: "Nginx service is enabled"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-enabled nginx.service"
+      register: "nginx_enabled"
+      changed_when: false
+      failed_when: "nginx_enabled.stdout.strip() != 'enabled'"
+
+    - name: "Www directory exists"
+      ansible.builtin.stat:
+        path: "/var/www"
+      register: "www_dir"
+      failed_when: "not www_dir.stat.isdir"

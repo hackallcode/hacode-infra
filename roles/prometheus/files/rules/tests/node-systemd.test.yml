@@ -1,0 +1,48 @@
+rule_files:
+  - ../node-systemd.yml
+
+evaluation_interval: 30s
+
+tests:
+  # state="failed" на пользовательском сервисе → срабатывает
+  - interval: 30s
+    input_series:
+      - series: 'node_systemd_unit_state{job="node",instance_name="testhost",name="myservice.service",state="failed"}'
+        values: "1x10"
+
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: SystemdServiceCrashed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance_name: testhost
+              name: myservice.service
+              state: failed
+            exp_annotations:
+              summary: "Systemd service crashed."
+              description: "Systemd service myservice.service crashed on testhost."
+
+  # state="failed" на dnf-makecache → НЕ срабатывает (исключение в expr)
+  - interval: 30s
+    input_series:
+      # yamllint disable-line rule:line-length
+      - series: 'node_systemd_unit_state{job="node",instance_name="testhost",name="dnf-makecache.service",state="failed"}'
+        values: "1x10"
+
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: SystemdServiceCrashed
+        exp_alerts: []
+
+  # state="active" → не срабатывает
+  - interval: 30s
+    input_series:
+      - series: 'node_systemd_unit_state{job="node",instance_name="testhost",name="myservice.service",state="active"}'
+        values: "1x10"
+
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: SystemdServiceCrashed
+        exp_alerts: []

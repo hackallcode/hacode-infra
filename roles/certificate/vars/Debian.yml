@@ -1,0 +1,5 @@
+# Debian trust-store layout (consumed by certificate/tasks/ca.yml).
+cert_remote_anchor_dir: "/usr/local/share/ca-certificates"
+cert_remote_cert_dir: "/etc/ssl/certs"
+cert_remote_key_dir: "/etc/ssl/private"
+cert_update_trust_cmd: "update-ca-certificates"

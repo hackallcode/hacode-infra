@@ -1,0 +1,15 @@
+- tags: ["app-delete"]
+  when: "app_domains | length > 0"
+  block:
+    - name: "Delete config"
+      ansible.builtin.file:
+        path: "/etc/nginx/conf.d/{{ app_domains[0] }}.conf"
+        state: "absent"
+      register: "nginx_config"
+
+    - name: "Reload nginx if config changed"
+      ansible.builtin.include_tasks:
+        file: "reload.yml"
+        apply:
+          tags: ["app-delete"]
+      when: "nginx_config is changed or (force | default(false) | bool)"

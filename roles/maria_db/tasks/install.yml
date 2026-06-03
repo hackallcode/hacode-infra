@@ -1,0 +1,100 @@
+- name: "Validate required variables"
+  tags: ["install"]
+  ansible.builtin.assert:
+    that:
+      - "maria_db_root_password is not none"
+      - "(maria_db_root_password | string) | length > 0"
+    fail_msg: >-
+      maria_db_root_password must be set (got null/empty). Define it in
+      inventory/group_vars (consider Ansible Vault).
+
+- name: "Gather OS family and major version"
+  tags: ["install"]
+  ansible.builtin.setup:
+    gather_subset: ["min"]
+    filter: ["ansible_os_family", "ansible_distribution_major_version"]
+
+- name: "Load OS-specific client package names"
+  tags: ["install"]
+  ansible.builtin.include_vars: "{{ item }}"
+  with_first_found:
+    - "{{ ansible_os_family }}-{{ ansible_distribution_major_version }}.yml"
+    - "{{ ansible_os_family }}.yml"
+
+- name: "Refresh apt cache (Debian)"
+  tags: ["install"]
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Ensure compose project dir exists"
+  tags: ["install"]
+  ansible.builtin.file:
+    path: "/opt/{{ maria_db_dest_name }}"
+    state: "directory"
+    mode: "0755"
+
+- name: "Render Docker secret file with MARIADB root password"
+  tags: ["install"]
+  ansible.builtin.template:
+    src: "mariadb_root_password.j2"
+    dest: "/opt/{{ maria_db_dest_name }}/mariadb_root_password"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+  no_log: true
+
+- name: "Render compose.yaml"
+  tags: ["install"]
+  ansible.builtin.template:
+    src: "compose.yaml.j2"
+    dest: "/opt/{{ maria_db_dest_name }}/compose.yaml"
+    mode: "0640"
+
+- name: "Up compose stack"
+  tags: ["install"]
+  community.docker.docker_compose_v2:
+    project_src: "/opt/{{ maria_db_dest_name }}"
+    project_name: "{{ maria_db_dest_name }}"
+    state: "present"
+    pull: "missing"
+    recreate: "auto"
+    remove_orphans: true
+
+- name: "Install Python MySQL library (package)"
+  tags: ["install"]
+  ansible.builtin.package:
+    name: "{{ 'python3-PyMySQL' if ansible_os_family == 'RedHat' else 'python3-pymysql' }}"
+    state: "present"
+
+- name: "Install MySQL and MariaDB clients"
+  tags: ["install"]
+  ansible.builtin.package:
+    name: "{{ maria_db_client_packages }}"
+    state: "present"
+
+# `docker_compose_v2` returns once the container is "running", which is
+# before mysqld inside finishes its initial DB bootstrap on first start.
+# Block here so downstream add-db / add-user (or any caller) doesn't hit
+# "can't connect" on a fresh host.
+- name: "Wait for MariaDB to accept TCP connections"
+  tags: ["install"]
+  ansible.builtin.wait_for:
+    host: "127.0.0.1"
+    port: "{{ maria_db_port }}"
+    timeout: 60
+
+- name: "Wait for MariaDB to authenticate root"
+  tags: ["install"]
+  community.mysql.mysql_info:
+    login_host: "127.0.0.1"
+    login_port: "{{ maria_db_port }}"
+    login_user: "root"
+    login_password: "{{ maria_db_root_password }}"
+    filter: ["version"]
+  register: "_maria_db_ready"
+  retries: 30
+  delay: 2
+  until: "_maria_db_ready is succeeded"
+  changed_when: false

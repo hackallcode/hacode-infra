@@ -1,0 +1,55 @@
+# gost scenario. The role gates its firewalld block by
+# ansible_os_family == 'RedHat', so on Debian those tasks are skipped and
+# the operator's own firewall stack is left untouched.
+
+driver:
+  name: "docker"
+
+platforms:
+  - name: "almalinux10"
+    image: "almalinux:10"
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "rocky10"
+    image: "geerlingguy/docker-rockylinux10-ansible:latest"
+    pre_build_image: true
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2204"
+    image: "geerlingguy/docker-ubuntu2204-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2404"
+    image: "geerlingguy/docker-ubuntu2404-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+
+provisioner:
+  name: "ansible"
+  inventory:
+    group_vars:
+      all:
+        gost_instances:
+          - name: "gost-test"
+            listen_port: 8080
+            socks_ip: "127.0.0.1"
+            socks_port: 1080
+            redirects: []

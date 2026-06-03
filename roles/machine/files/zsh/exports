@@ -1,0 +1,6 @@
+# Personal zsh exports - sourced from ~/.zshrc.
+# Edit freely; this file is yours.
+
+# Where your projects live (used by sws/swv/mkv).
+export SOURCES_DIR="$HOME/sources"
+export VENV_DIR="$HOME/.venv"

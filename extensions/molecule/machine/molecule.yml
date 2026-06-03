@@ -1,0 +1,85 @@
+# Smoke-test scenario for the machine role. Only the lightweight subroles are
+# exercised here (users, ssh, system, journald) — the package upgrade, swap,
+# selinux, firewall, dns, fail2ban, docker, cockpit, nvidia, raspberry and
+# reboot subroles are toggled off because they are either non-deterministic
+# (latest-package churn) or require real hardware / kernel features that a CI
+# container can't provide.
+
+driver:
+  name: "docker"
+
+platforms:
+  - name: "almalinux10"
+    image: "almalinux:10"
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "rocky10"
+    image: "geerlingguy/docker-rockylinux10-ansible:latest"
+    pre_build_image: true
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2204"
+    image: "geerlingguy/docker-ubuntu2204-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2404"
+    image: "geerlingguy/docker-ubuntu2404-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+
+provisioner:
+  name: "ansible"
+  inventory:
+    group_vars:
+      all:
+        # ansible_host is left unset — the community.docker connection plugin
+        # uses it to identify the container, so it must equal inventory_hostname.
+        # The /etc/hosts line the role writes will read e.g. "almalinux10
+        # molecule-test", which is harmless inside the test container.
+
+        machine_users_enabled: true
+        machine_ssh_enabled: true
+        machine_system_enabled: true
+        machine_journald_enabled: true
+
+        machine_swap_enabled: false
+        machine_packages_enabled: false
+        machine_zsh_enabled: false
+        machine_firewall_enabled: false
+        machine_selinux_enabled: false
+        machine_raspberry_enabled: false
+        machine_fail2ban_enabled: false
+        machine_dns_enabled: false
+        machine_docker_enabled: false
+        machine_chrony_enabled: false
+        machine_cockpit_enabled: false
+        machine_nvidia_enabled: false
+        machine_reboot_enabled: false
+
+        setup_user_name: "root"
+        machine_users:
+          - name: "molecule"
+            groups: ["wheel"]
+            ssh_authorized_keys: >-
+              ssh-ed25519
+              AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+              molecule@test
+        hostname: "molecule-test"

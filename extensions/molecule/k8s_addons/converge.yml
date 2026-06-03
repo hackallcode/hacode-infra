@@ -1,0 +1,64 @@
+# Converge runs in two plays:
+# 1. On the target container: bootstrap a single-node k3s cluster and
+#    fetch the kubeconfig back to /tmp/molecule-k3s-kubeconfig/ on the
+#    controller (k3s role's default behaviour given the group_vars in
+#    molecule.yml).
+# 2. On the controller: invoke k8s_addons against the fetched
+#    kubeconfig. The role itself uses delegate_to: localhost +
+#    run_once: true on every task, so it could also be included from
+#    the play above - but routing through `hosts: localhost` makes the
+#    intent more obvious.
+
+- name: "Converge: bootstrap k3s on target"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Run the k3s role"
+      block:
+        - ansible.builtin.include_role:
+            name: "hacode.infra.k3s"
+      rescue:
+        - name: "Surface kubelet logs (nested cgroups can break startup)"
+          ansible.builtin.command: "journalctl -u k3s --no-pager -n 200"
+          register: "k3s_journal"
+          changed_when: false
+          failed_when: false
+
+        - name: "Print journal tail"
+          ansible.builtin.debug:
+            var: "k3s_journal.stdout_lines"
+
+- name: "Converge: rewrite kubeconfig server URL for controller access"
+  hosts: "localhost"
+  connection: "local"
+  gather_facts: false
+
+  tasks:
+    # The k3s role builds the server URL from `hostvars[primary].ansible_host`,
+    # which here is the container name (`almalinux10`). Helm running on the
+    # controller can't resolve that; rewrite to localhost (the apiserver
+    # port is forwarded via `published_ports` in molecule.yml). k3s's
+    # default apiserver TLS SAN already includes 127.0.0.1.
+    - name: "Patch kubeconfig server URL → 127.0.0.1"
+      ansible.builtin.replace:
+        path: "/tmp/molecule-k3s-kubeconfig/almalinux10.yaml"
+        regexp: "https://almalinux10:6443"
+        replace: "https://127.0.0.1:6443"
+
+- name: "Converge: install Headlamp via k8s_addons"
+  hosts: "localhost"
+  connection: "local"
+  gather_facts: false
+
+  tasks:
+    - name: "Include k8s_addons role"
+      ansible.builtin.include_role:
+        name: "hacode.infra.k8s_addons"
+      vars:
+        k8s_addons_kubeconfig: "/tmp/molecule-k3s-kubeconfig/almalinux10.yaml"
+        k8s_addons_headlamp_enabled: true
+        # Constrained CI runners need more than the default 5m for the
+        # Headlamp pod to become Ready.
+        k8s_addons_headlamp_chart_timeout: "15m0s"

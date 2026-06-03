@@ -1,0 +1,32 @@
+# Prevent OS from freezing
+dtparam=watchdog=on
+
+# Enable full power for USB on boot without 5A adapter
+usb_max_current_enable=1
+
+# Enable PCI port
+dtparam=pciex1
+dtparam=pciex1_gen=2
+
+# Fan PWM
+dtparam=cooling_fan=on
+
+# Temp 0 settings
+dtparam=fan_temp0=47500
+dtparam=fan_temp0_hyst=7500
+dtparam=fan_temp0_speed=127
+
+# Temp 1 settings
+dtparam=fan_temp1=55000
+dtparam=fan_temp1_hyst=7500
+dtparam=fan_temp1_speed=165
+
+# Temp 2 settings
+dtparam=fan_temp2=62500
+dtparam=fan_temp2_hyst=7500
+dtparam=fan_temp2_speed=204
+
+# Temp 3 settings
+dtparam=fan_temp3=70000
+dtparam=fan_temp3_hyst=7500
+dtparam=fan_temp3_speed=255

@@ -1,0 +1,4 @@
+# HTTP Basic auth users for app vhosts that opt in via `app_basic_auth`.
+# Map of `{ username: plaintext_password }`. Rendered into htpasswd files
+# alongside the vhost config — keep the password values in Ansible Vault.
+basic_users: {}

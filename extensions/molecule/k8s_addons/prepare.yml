@@ -1,0 +1,65 @@
+# Prepare runs two plays:
+# 1. Target containers: firewalld stack so the k3s role's open-ports
+#    task has something to talk to (mirrors molecule/k3s/prepare.yml).
+# 2. Controller (localhost): helm CLI install, since the
+#    `kubernetes.core.helm` module shells out to a real `helm` binary
+#    on the controller. Idempotent: skips if `helm` is already on PATH.
+
+- name: "Prepare: firewalld stack on RHEL for k3s open-ports task"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Install firewalld + python3-firewall on RHEL family"
+      ansible.builtin.package:
+        name:
+          - "firewalld"
+          - "python3-firewall"
+          - "iptables"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Force firewalld onto the iptables backend on RHEL family"
+      ansible.builtin.lineinfile:
+        path: "/etc/firewalld/firewalld.conf"
+        regexp: "^FirewallBackend="
+        line: "FirewallBackend=iptables"
+        state: "present"
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Start firewalld on RHEL family"
+      ansible.builtin.systemd:
+        name: "firewalld"
+        state: "started"
+        enabled: true
+      when: "ansible_os_family == 'RedHat'"
+
+- name: "Prepare: helm CLI + kubernetes python client on controller"
+  hosts: "localhost"
+  connection: "local"
+  gather_facts: false
+
+  tasks:
+    - name: "Check for existing helm binary"
+      ansible.builtin.command: "helm version --short"
+      register: "_molecule_helm_check"
+      changed_when: false
+      failed_when: false
+
+    - name: "Install helm CLI via get-helm-3"
+      ansible.builtin.shell: |
+        set -euo pipefail
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 -o /tmp/get-helm-3
+        chmod 0755 /tmp/get-helm-3
+        /tmp/get-helm-3
+      args:
+        executable: "/bin/bash"
+        creates: "/usr/local/bin/helm"
+      become: true
+      when: "_molecule_helm_check.rc != 0"
+
+    - name: "Install kubernetes python client (required by kubernetes.core.k8s/helm_info)"
+      ansible.builtin.pip:
+        name: "kubernetes"
+        state: "present"

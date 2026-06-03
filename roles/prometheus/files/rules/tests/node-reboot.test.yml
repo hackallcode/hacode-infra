@@ -1,0 +1,73 @@
+rule_files:
+  - ../node-reboot.yml
+
+evaluation_interval: 1m
+
+tests:
+  # node_reboot_required > 0 → срабатывает RebootRequired
+  - interval: 1m
+    input_series:
+      - series: 'node_reboot_required{job="node",instance_name="testhost"}'
+        values: "1x10"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: RebootRequired
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "testhost requires a reboot."
+
+  # node_reboot_required == 0 → не срабатывает
+  - interval: 1m
+    input_series:
+      - series: 'node_reboot_required{job="node",instance_name="testhost"}'
+        values: "0x10"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: RebootRequired
+        exp_alerts: []
+
+  # boot_time = 0, uptime через 2 мин = 120 сек < 300 → срабатывает NodeReboot
+  - interval: 30s
+    input_series:
+      - series: 'node_boot_time_seconds{job="node",instance_name="testhost"}'
+        values: "0x40"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: NodeReboot
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "Reboot detected"
+              description: "Reboot detected on testhost.\nSystem started 120 seconds ago."
+
+      # uptime > 300 сек → не срабатывает
+      - eval_time: 10m
+        alertname: NodeReboot
+        exp_alerts: []
+
+  # Миграция: boot_time скачет в прошлое (uptime становится > 1260) → NodeMigration
+  - interval: 1m
+    input_series:
+      - series: 'node_boot_time_seconds{job="node",instance_name="testhost"}'
+        values: "0x10 -1000x40"
+
+    alert_rule_test:
+      - eval_time: 21m
+        alertname: NodeMigration
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "Migration detected on testhost."

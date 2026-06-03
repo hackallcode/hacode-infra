@@ -1,0 +1,42 @@
+- name: "Add ingress-nginx Helm repo"
+  tags: ["ingress-nginx"]
+  kubernetes.core.helm_repository:
+    name: "ingress-nginx"
+    repo_url: "https://kubernetes.github.io/ingress-nginx"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Install/upgrade ingress-nginx chart"
+  tags: ["ingress-nginx"]
+  vars:
+    # Empty strings break chart schema; only pass nodePorts that are set.
+    _np_http: >-
+      {{ {'http': k8s_addons_ingress_nginx_http_node_port | int}
+         if (k8s_addons_ingress_nginx_http_node_port | string | length) > 0
+         else {} }}
+    _np_https: >-
+      {{ {'https': k8s_addons_ingress_nginx_https_node_port | int}
+         if (k8s_addons_ingress_nginx_https_node_port | string | length) > 0
+         else {} }}
+    _np: "{{ _np_http | combine(_np_https) }}"
+    _service: >-
+      {{ {'type': 'NodePort'}
+         | combine({'nodePorts': _np} if (_np | length) > 0 else {}) }}
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "ingress-nginx"
+    chart_ref: "ingress-nginx/ingress-nginx"
+    chart_version: "{{ k8s_addons_ingress_nginx_chart_version }}"
+    release_namespace: "{{ k8s_addons_ingress_nginx_namespace }}"
+    create_namespace: true
+    wait: true
+    timeout: "{{ k8s_addons_ingress_nginx_chart_timeout }}"
+    values: >-
+      {{
+        {'controller': {'service': _service}}
+        | combine(k8s_addons_ingress_nginx_extra_values, recursive=true)
+      }}
+  delegate_to: "localhost"
+  run_once: true
+  become: false

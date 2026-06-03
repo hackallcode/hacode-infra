@@ -1,0 +1,20 @@
+- name: "Check nginx configs"
+  tags: ["reload"]
+  ansible.builtin.command:
+    cmd: "nginx -t"
+  register: "nginx_config_status"
+  changed_when: "nginx_config_status.rc != 0"
+  check_mode: false
+
+- name: "Nginx test status"
+  tags: ["reload"]
+  ansible.builtin.debug:
+    msg: "{{ nginx_config_status.stderr }}"
+  failed_when: "nginx_config_status.rc != 0"
+
+- name: "Reload nginx"
+  tags: ["reload"]
+  ansible.builtin.systemd:
+    name: "nginx"
+    state: "reloaded"
+  throttle: 1

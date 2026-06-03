@@ -1,0 +1,7 @@
+- name: "Converge: app role (static deployment)"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: "hacode.infra.app"

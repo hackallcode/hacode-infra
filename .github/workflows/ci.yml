@@ -1,0 +1,136 @@
+name: "ci"
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  sanity:
+    name: "ansible sanity + lint"
+    runs-on: "ubuntu-latest"
+    strategy:
+      matrix:
+        ansible:
+          - "stable-2.16"
+          - "stable-2.17"
+          - "stable-2.18"
+          - "stable-2.19"
+          - "stable-2.20"
+    steps:
+      - name: "Check out collection"
+        uses: "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5"  # v4.x
+        with:
+          path: "ansible_collections/hacode/infra"
+
+      - name: "Set up Python"
+        uses: "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"  # v5.x
+        with:
+          python-version: "3.12"
+
+      - name: "Install ansible-core and tools"
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            "https://github.com/ansible/ansible/archive/${{ matrix.ansible }}.tar.gz" \
+            ansible-lint yamllint
+
+      - name: "Install collection dependencies"
+        run: |
+          ansible-galaxy collection install \
+            ansible.posix community.general community.docker \
+            community.mysql community.crypto kubernetes.core \
+            prometheus.prometheus
+
+      - name: "yamllint"
+        working-directory: "ansible_collections/hacode/infra"
+        run: "yamllint ."
+
+      - name: "ansible-lint"
+        working-directory: "ansible_collections/hacode/infra"
+        run: "ansible-lint"
+
+      - name: "markdownlint"
+        working-directory: "ansible_collections/hacode/infra"
+        run: "make lint/markdown"
+
+      - name: "promtool: check + unit-test prometheus alert rules"
+        working-directory: "ansible_collections/hacode/infra"
+        run: "make test/prometheus-rules"
+
+      - name: "Build collection artifact"
+        working-directory: "ansible_collections/hacode/infra"
+        run: "ansible-galaxy collection build --output-path dist/"
+
+      - name: "Upload artifact"
+        uses: "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"  # v4.x
+        with:
+          name: "hacode-infra-${{ matrix.ansible }}"
+          path: "ansible_collections/hacode/infra/dist/*.tar.gz"
+          retention-days: 7
+
+  molecule:
+    name: "molecule (${{ matrix.scenario }})"
+    runs-on: "ubuntu-latest"
+    needs: ["sanity"]
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - "machine"
+          - "certificate"
+          - "gost"
+          - "nginx"
+          - "php"
+          - "certbot"
+          - "wireguard"
+          - "prometheus"
+          - "app"
+          - "docker"
+          - "gitlab_runner"
+          - "k3s"
+          - "k8s_addons"
+          - "maria_db"
+          - "node_js"
+          - "ssh_tunnel"
+    steps:
+      - name: "Check out collection"
+        uses: "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5"  # v4.x
+        with:
+          path: "ansible_collections/hacode/infra"
+
+      - name: "Set up Python"
+        uses: "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"  # v5.x
+        with:
+          python-version: "3.12"
+
+      - name: "Install test requirements"
+        working-directory: "ansible_collections/hacode/infra"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r test-requirements.txt
+
+      - name: "Install collection dependencies"
+        working-directory: "ansible_collections/hacode/infra"
+        run: "ansible-galaxy collection install -r requirements.yml"
+
+      - name: "Run molecule"
+        # Run from the collection root so Ansible auto-discovers the
+        # collection via cwd. Molecule still picks up the scenarios under
+        # extensions/molecule/<scenario>/ and the shared base config at
+        # extensions/molecule/config.yml per its "collections at
+        # extensions/molecule/config.yml" default lookup.
+        working-directory: "ansible_collections/hacode/infra"
+        env:
+          ANSIBLE_FORCE_COLOR: "1"
+          PY_COLORS: "1"
+        run: "molecule test -s ${{ matrix.scenario }}"

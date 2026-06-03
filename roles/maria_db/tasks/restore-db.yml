@@ -1,0 +1,26 @@
+- name: "Check that '{{ backup_file }}' backup exists"
+  tags: ["restore"]
+  ansible.builtin.stat:
+    path: "../../backups/maria_db/{{ backup_file }}"
+  register: "backup_check_result"
+  delegate_to: "localhost"
+
+- name: "Upload local backup '{{ backup_file }}' to server"
+  tags: ["restore"]
+  ansible.builtin.copy:
+    src: "../../backups/maria_db/{{ backup_file }}"
+    dest: "/opt/backups/maria_db/{{ backup_file }}"
+    mode: "0600"
+  when: "backup_check_result.stat.exists"
+
+- name: "Restore database '{{ db_name }}'"
+  tags: ["restore"]
+  community.mysql.mysql_db:
+    login_host: "127.0.0.1"
+    login_port: "{{ maria_db_port }}"
+    login_user: "root"
+    login_password: "{{ maria_db_root_password }}"
+    state: "import"
+    name: "{{ db_name }}"
+    target: "/opt/backups/maria_db/{{ backup_file }}"
+  when: "backup_check_result.stat.exists"

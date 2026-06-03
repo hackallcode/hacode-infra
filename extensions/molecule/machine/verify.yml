@@ -1,0 +1,42 @@
+- name: "Verify: machine role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Custom user exists"
+      ansible.builtin.command: "id molecule"
+      register: "id_user"
+      changed_when: false
+      failed_when: "id_user.rc != 0"
+
+    - name: "Custom user is in the wheel group"
+      ansible.builtin.command: "id -nG molecule"
+      register: "id_groups"
+      changed_when: false
+      failed_when: "'wheel' not in id_groups.stdout.split()"
+
+    - name: "Custom user has the molecule key in authorized_keys"
+      ansible.builtin.slurp:
+        src: "/home/molecule/.ssh/authorized_keys"
+      register: "user_keys"
+      failed_when: >-
+        'molecule@test' not in (user_keys.content | b64decode | string)
+
+    - name: "Sshd disallows root login"
+      ansible.builtin.command: "grep -E '^PermitRootLogin' /etc/ssh/sshd_config"
+      register: "sshd_root"
+      changed_when: false
+      failed_when: "'no' not in sshd_root.stdout"
+
+    - name: "Sshd disallows password auth"
+      ansible.builtin.command: "grep -E '^PasswordAuthentication' /etc/ssh/sshd_config"
+      register: "sshd_pw"
+      changed_when: false
+      failed_when: "'no' not in sshd_pw.stdout"
+
+    - name: "Journald keeps logs on disk"
+      ansible.builtin.command: "grep -E '^Storage=' /etc/systemd/journald.conf"
+      register: "journald_cfg"
+      changed_when: false
+      failed_when: "'persistent' not in journald_cfg.stdout"

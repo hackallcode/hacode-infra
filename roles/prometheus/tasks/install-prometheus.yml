@@ -1,0 +1,69 @@
+- name: "Gather Facts"
+  tags: ["install"]
+  ansible.builtin.setup:
+    gather_subset:
+      - "architecture"
+      - "processor_count"
+  when: "ansible_architecture is not defined"
+
+- name: "List managed rule files"
+  tags: ["install"]
+  ansible.builtin.find:
+    paths: "{{ [role_path ~ '/files/rules'] + prometheus_extra_rule_dirs }}"
+    patterns: "*.yml"
+  delegate_to: "localhost"
+  become: false
+  register: "managed_rule_files"
+
+- name: "List rule files on host"
+  tags: ["install"]
+  ansible.builtin.find:
+    paths: "/etc/prometheus/rules"
+    patterns: "*.yml"
+  register: "host_rule_files"
+
+- name: "Remove stale rule files"
+  tags: ["install"]
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "absent"
+  loop: >-
+    {{
+      host_rule_files.files
+      | map(attribute='path')
+      | reject('in',
+          managed_rule_files.files
+          | map(attribute='path')
+          | map('basename')
+          | map('regex_replace', '^', '/etc/prometheus/rules/')
+          | list
+        )
+      | list
+    }}
+  register: "stale_rules_cleanup"
+
+- name: "Reload Prometheus after stale rules cleanup"  # noqa: no-handler
+  tags: ["install"]
+  ansible.builtin.systemd:
+    name: "prometheus"
+    state: "reloaded"
+  when: "stale_rules_cleanup.changed"
+
+- name: "Install Prometheus"
+  tags: ["install"]
+  vars:
+    prometheus_version: "3.4.0"
+    prometheus_web_listen_address: "{{ prometheus_web_listen_ip }}:{{ prometheus_web_listen_port }}"
+    prometheus_scrape_configs: "{{ prometheus_scrape_default_configs + prometheus_scrape_custom_configs }}"
+    prometheus_alertmanager_config: "{{ prometheus_am_default_configs + prometheus_am_custom_configs }}"
+    prometheus_alert_rules: []
+    prometheus_alert_rules_files: >-
+      {{ [role_path ~ '/files/rules/*.yml']
+         + (prometheus_extra_rule_dirs | map('regex_replace', '/?$', '/*.yml') | list) }}
+    prometheus_static_targets_files: >-
+      {{ [role_path ~ '/files/targets/*.yml']
+         + (prometheus_extra_target_dirs | map('regex_replace', '/?$', '/*.yml') | list) }}
+  ansible.builtin.include_role:
+    name: "prometheus.prometheus.prometheus"
+    apply:
+      tags: ["install"]

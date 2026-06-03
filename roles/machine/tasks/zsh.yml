@@ -1,0 +1,56 @@
+# `machine_zsh_users` already defaults to root + every `machine_users` entry;
+# allow operators to extend or shrink it explicitly without losing the auto-population.
+- name: "Resolve ZSH user list"
+  tags: ["zsh"]
+  ansible.builtin.set_fact:
+    _machine_zsh_user_list: >-
+      {{ machine_zsh_users | unique | reject('equalto', '') | list }}
+
+- name: "Install ZSH package"
+  tags: ["zsh"]
+  ansible.builtin.package:
+    name: "zsh"
+    state: "present"
+
+- name: "Install oh-my-zsh"
+  tags: ["zsh"]
+  ansible.builtin.shell:
+    executable: "/bin/bash"
+    cmd: |
+      set -e -o pipefail
+      export USER="{{ item }}"
+      export HOME="$(getent passwd "${USER}" 2>/dev/null | cut -d: -f6)"
+      export ZSH="${HOME}/.oh-my-zsh"
+      installed=0
+      if [ ! -d "${ZSH}" ]; then
+        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+        installed=1
+      fi
+      current_shell="$(getent passwd "${USER}" | cut -d: -f7)"
+      target_shell="$(command -v zsh)"
+      if [ "${current_shell}" != "${target_shell}" ]; then
+        chsh -s "${target_shell}" "${USER}"
+        installed=1
+      fi
+      if [ "${installed}" = "0" ]; then exit 100; fi
+  loop: "{{ _machine_zsh_user_list }}"
+  register: "zsh_install"
+  changed_when: "zsh_install.rc == 0"
+  failed_when: "zsh_install.rc not in [0, 100]"
+  loop_control:
+    label: "{{ item }}"
+
+- name: "Upload ZSH files"
+  tags: ["zsh"]
+  ansible.builtin.copy:
+    src: "zsh/{{ item.1.from }}"
+    dest: >-
+      {{ ('/root/' if item.0 == 'root' else ('/home/' ~ item.0 ~ '/')) ~ item.1.to }}
+    force: "{{ item.1.force | default(true) }}"
+    owner: "{{ item.0 }}"
+    group: "{{ item.0 }}"
+    mode: "{{ item.1.mode | default('0644') }}"
+  loop: "{{ _machine_zsh_user_list | product(machine_zsh_files) | list }}"
+  loop_control:
+    label: "{{ item.0 }} -> {{ item.1.to }}"
+  when: "machine_zsh_files | length > 0"

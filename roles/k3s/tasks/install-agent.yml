@@ -1,0 +1,154 @@
+- name: "Assert k3s_token is set"
+  tags: ["always"]
+  ansible.builtin.assert:
+    that: "k3s_token | length > 0"
+    fail_msg: "k3s_token must be set in inventory"
+
+- ansible.builtin.import_tasks: "preflight.yml"
+
+- name: "Assert at least one k3s_server is defined"
+  tags: ["always"]
+  ansible.builtin.assert:
+    that: "(groups['k3s_server'] | default([])) | length > 0"
+    fail_msg: "k3s_server group must contain at least one host"
+
+- name: "Resolve cluster server (server in k3s_server with same k3s_cluster_name)"
+  tags: ["always"]
+  ansible.builtin.set_fact:
+    k3s_cluster_peers: >-
+      {{ groups['k3s_server']
+         | map('extract', hostvars)
+         | selectattr('k3s_cluster_name', 'defined')
+         | selectattr('k3s_cluster_name', 'equalto', k3s_cluster_name)
+         | map(attribute='inventory_hostname')
+         | list }}
+
+- name: "Resolve k3s server URL (primary of this agent's cluster)"
+  tags: ["always"]
+  ansible.builtin.set_fact:
+    k3s_primary_url: "https://{{ hostvars[k3s_cluster_peers[0]].ansible_host }}:6443"
+
+- name: "Open k3s agent ports in firewall (RHEL only)"
+  tags: ["firewall"]
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: "enabled"
+  loop: "{{ k3s_agent_ports }}"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Trust k3s pod/service CIDRs in firewalld (RHEL only)"
+  tags: ["firewall"]
+  ansible.posix.firewalld:
+    zone: "trusted"
+    source: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: "enabled"
+  loop: "{{ k3s_trusted_cidrs }}"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "k3s_trusted_cidrs | length > 0"
+
+- name: "Download k3s install script"
+  tags: ["install"]
+  ansible.builtin.get_url:
+    url: "{{ k3s_install_url }}"
+    dest: "/usr/local/bin/k3s-install.sh"
+    mode: "0755"
+
+- name: "Compile agent role-derived args (node-ip)"
+  tags: ["install"]
+  vars:
+    _ip: >-
+      {{
+        ['--node-ip=' + k3s_node_ip]
+        if (k3s_node_ip | default('') | length > 0)
+        else []
+      }}
+  ansible.builtin.set_fact:
+    k3s_agent_role_args: "{{ _ip | join(' ') }}"
+
+- name: "Run k3s installer (agent)"
+  tags: ["install"]
+  ansible.builtin.command: "/usr/local/bin/k3s-install.sh"
+  environment:
+    K3S_TOKEN: "{{ k3s_token }}"
+    K3S_URL: "{{ k3s_primary_url }}"
+    INSTALL_K3S_CHANNEL: "{{ k3s_channel }}"
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_EXEC: "agent {{ k3s_agent_role_args }} {{ k3s_agent_args | join(' ') }}"
+  args:
+    creates: "/etc/systemd/system/k3s-agent.service"
+
+- name: "Enable and start k3s-agent service"
+  tags: ["install"]
+  ansible.builtin.systemd:
+    name: "k3s-agent"
+    enabled: true
+    state: "started"
+    daemon_reload: true
+
+# kubelet refuses to self-assign labels/taints in the kubernetes.io / k8s.io
+# namespaces (NodeRestriction-style hard-check at kubelet startup). Apply
+# them via API instead, after the agent has joined the cluster. The agent
+# itself has no kubectl/kubeconfig — delegate to the primary server which
+# does.
+- name: "Resolve labels/taints to apply on this agent node"
+  tags: ["install", "labels", "taints"]
+  vars:
+    _user_labels: "{{ k3s_node_labels.items() | map('join', '=') | list }}"
+  ansible.builtin.set_fact:
+    k3s_apply_labels: "{{ _user_labels }}"
+    k3s_apply_taints: "{{ k3s_node_taints }}"
+    k3s_node_kubectl_name: "{{ ansible_hostname | lower }}"
+
+- name: "Wait for this agent node to register in the cluster"
+  tags: ["install", "labels", "taints"]
+  ansible.builtin.command:
+    argv:
+      - "/usr/local/bin/k3s"
+      - "kubectl"
+      - "get"
+      - "node"
+      - "{{ k3s_node_kubectl_name }}"
+  delegate_to: "{{ k3s_cluster_peers[0] }}"
+  register: "k3s_node_check"
+  changed_when: false
+  retries: 30
+  delay: 4
+  until: "k3s_node_check.rc == 0"
+  when: "(k3s_apply_labels | length > 0) or (k3s_apply_taints | length > 0)"
+
+- name: "Apply agent node labels via k3s kubectl on primary"
+  tags: ["install", "labels"]
+  ansible.builtin.command:
+    argv:
+      - "/usr/local/bin/k3s"
+      - "kubectl"
+      - "label"
+      - "node"
+      - "{{ k3s_node_kubectl_name }}"
+      - "{{ item }}"
+      - "--overwrite"
+  delegate_to: "{{ k3s_cluster_peers[0] }}"
+  loop: "{{ k3s_apply_labels }}"
+  register: "k3s_label_res"
+  changed_when: "'labeled' in (k3s_label_res.stdout | default(''))"
+
+- name: "Apply agent node taints via k3s kubectl on primary"
+  tags: ["install", "taints"]
+  ansible.builtin.command:
+    argv:
+      - "/usr/local/bin/k3s"
+      - "kubectl"
+      - "taint"
+      - "node"
+      - "{{ k3s_node_kubectl_name }}"
+      - "{{ item }}"
+      - "--overwrite"
+  delegate_to: "{{ k3s_cluster_peers[0] }}"
+  loop: "{{ k3s_apply_taints }}"
+  register: "k3s_taint_res"
+  changed_when: "'tainted' in (k3s_taint_res.stdout | default(''))"

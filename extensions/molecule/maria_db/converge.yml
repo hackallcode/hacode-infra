@@ -1,0 +1,7 @@
+- name: "Converge: maria_db role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: "hacode.infra.maria_db"

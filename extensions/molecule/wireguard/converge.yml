@@ -1,0 +1,27 @@
+- name: "Converge: wireguard role (server install + key generation only)"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Run server-install"
+      ansible.builtin.include_role:
+        name: "hacode.infra.wireguard"
+        tasks_from: "server-install"
+
+    # The role enables and (re)starts wg-quick@wg0 unconditionally. That
+    # systemd unit relies on the wireguard kernel module which isn't
+    # available in a CI container, so the systemd step inside
+    # server-configure may fail. The rescue block tolerates that — earlier
+    # tasks (keys, /etc/wireguard/wg0.conf) still ran and are validated by
+    # verify.yml.
+    - name: "Run server-configure (keys + wg0.conf)"
+      block:
+        - name: "Include server-configure"
+          ansible.builtin.include_role:
+            name: "hacode.infra.wireguard"
+            tasks_from: "server-configure"
+      rescue:
+        - name: "Wg-quick start expected to fail under containerised kernel"
+          ansible.builtin.debug:
+            msg: "wg-quick@wg0 cannot start without the wireguard kernel module"

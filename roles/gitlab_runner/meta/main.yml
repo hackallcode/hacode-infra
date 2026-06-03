@@ -1,0 +1,23 @@
+galaxy_info:
+  role_name: "gitlab_runner"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: >-
+    Install and register a Docker-based GitLab Runner; supports
+    install/uninstall, register/unregister and start/stop/restart
+    entrypoints.
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+    - name: "Debian"
+      versions: ["bullseye", "bookworm"]
+  galaxy_tags:
+    - "ci"
+    - "gitlab"
+    - "runner"
+
+dependencies: []

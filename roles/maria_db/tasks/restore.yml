@@ -1,0 +1,19 @@
+- name: "Restore DB"
+  tags: ["restore"]
+  vars:
+    db_name: "{{ item[0] }}"
+    backup_file: "{{ item | join('') }}"
+  ansible.builtin.include_tasks:
+    file: "restore-db.yml"
+    apply:
+      tags: ["restore"]
+  loop: >-
+    {{
+      (maria_db_databases
+      if not maria_db_database
+      else (
+        [maria_db_database]
+        if maria_db_database in maria_db_databases
+        else []
+      )) | product(['.sql', '.sql.bz2'])
+    }}

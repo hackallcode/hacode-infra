@@ -1,0 +1,89 @@
+# k3s scenario: each platform is its own single-node server cluster. The
+# role downloads the upstream installer from get.k3s.io and brings up k3s
+# under systemd; the scenario uses init-capable, privileged containers with
+# host cgroupns so kubelet can launch. This scenario is the slowest in the
+# matrix (~70MB k3s install per host).
+
+driver:
+  name: "docker"
+
+platforms:
+  - name: "almalinux10"
+    image: "almalinux:10"
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+    groups: ["k3s_server"]
+  - name: "rocky10"
+    image: "geerlingguy/docker-rockylinux10-ansible:latest"
+    pre_build_image: true
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+    groups: ["k3s_server"]
+  - name: "ubuntu2204"
+    image: "geerlingguy/docker-ubuntu2204-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+    groups: ["k3s_server"]
+  - name: "ubuntu2404"
+    image: "geerlingguy/docker-ubuntu2404-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+    groups: ["k3s_server"]
+
+provisioner:
+  name: "ansible"
+  inventory:
+    group_vars:
+      all:
+        # `ansible_host` defaults to `inventory_hostname` for community.docker,
+        # so setting it explicitly to the container name is a no-op for the
+        # connection — but the k3s role reads `hostvars[primary].ansible_host`
+        # to build the kubeconfig server URL, and that requires the var to
+        # actually exist in hostvars. The resulting URL embeds the container
+        # name (e.g. https://almalinux10:6443); the kubeconfig isn't used
+        # outside the test.
+        ansible_host: "{{ inventory_hostname }}"
+        hostname: "{{ inventory_hostname }}"
+        # Each host is its own one-node cluster; the role's
+        # `selectattr('k3s_cluster_name', 'defined')` filter reads hostvars
+        # so `k3s_cluster_name` must live there.
+        k3s_cluster_name: "{{ inventory_hostname }}"
+        k3s_token: "molecule-shared-token"
+        k3s_kubeconfig_local_dir: "/tmp/molecule-k3s-kubeconfig"
+        k3s_kubeconfig_local_file: "{{ inventory_hostname }}.yaml"
+        # k3s's bundled containerd defaults to the overlayfs snapshotter,
+        # which fails inside Docker Desktop's linuxkit kernel (the nested
+        # overlay mount returns EINVAL). The `native` snapshotter copies
+        # layers instead of stacking them — slower, but works in dind.
+        k3s_server_args:
+          - "--snapshotter=native"
+        # Bare distro images (almalinux:10) don't ship `kmod` (modprobe),
+        # and even when present, loading kernel modules from inside a
+        # nested container is blocked. Skip module-load preflight in tests;
+        # production hosts ship kmod + have kernel privileges. Sysctls
+        # like `net.bridge.bridge-nf-call-iptables` also need br_netfilter
+        # loaded (it isn't here), so skip those too.
+        k3s_kernel_modules: []
+        k3s_sysctls: {}
+        # `ansible_host` is a container name like "almalinux10", not an IP;
+        # k3s rejects it for `--node-ip`. Empty string asks k3s to detect
+        # via default route (works inside docker bridge).
+        k3s_node_ip: ""

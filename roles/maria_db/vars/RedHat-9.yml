@@ -1,0 +1,3 @@
+# EL9 still ships the legacy `mysql` meta-package.
+maria_db_client_packages:
+  - "mysql"

@@ -1,0 +1,61 @@
+# Maximum concurrent jobs across all executors on this runner.
+runner_concurrent: 4
+
+# Runner display name shown in the GitLab UI.
+runner_name: "{{ inventory_hostname }}"
+
+# GitLab instance the runner registers against.
+runner_api_url: "https://gitlab.corp.mail.ru"
+
+# Required for registration. Obtain from GitLab → Admin / Group /
+# Project → Settings → CI/CD → Runners. Empty → registration fails fast.
+runner_registration_token:
+
+# Executor used to run jobs. `docker` keeps job environments isolated;
+# `shell` runs them as `gitlab-runner` on the host (no isolation).
+runner_executor: "docker"
+
+# Image used when the executor is `docker` and the job doesn't specify
+# one. Pin a dind image when jobs rely on `docker build`.
+runner_docker_image: "docker:28.3.3"
+
+# Tags advertised to GitLab. Pipelines pick this runner only if at
+# least one tag in the job's `tags:` matches.
+runner_tag_list: ["docker"]
+
+# Volumes mounted into every docker-executor job. `/certs/client` is
+# expected when using dind with TLS; `/cache` is the runner cache dir.
+runner_docker_volumes: ["/certs/client", "/cache"]
+
+# `--docker-network-mode` for the executor. Empty → docker default
+# (bridge). Set to `host` for jobs that need to reach services bound
+# only to localhost on the runner host.
+runner_docker_network_mode:
+
+# `--docker-privileged` — required for docker-in-docker. Disable on
+# untrusted multi-tenant runners.
+runner_privileged: true
+
+# Environment variables injected into every job. Defaults wire up
+# docker-in-docker over the linked `docker:dind` service.
+runner_default_env:
+  DOCKER_HOST: "tcp://docker:2375"
+  DOCKER_TLS_CERTDIR: ""
+
+# Extra job env on top of `runner_default_env` (merged, keys override).
+runner_env: {}
+
+# `--limit` on jobs this runner takes from GitLab. 0 = unlimited.
+runner_limit: 0
+
+# Architecture tag in GitLab's binary release URL. Mapped from
+# `ansible_architecture`; override directly if you need a non-default
+# mapping.
+runner_arch: >-
+  {{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64', 'armv7l': 'arm', 'armv6l': 'arm'}
+     .get(ansible_architecture | default('x86_64'), 'amd64') }}
+
+# `gitlab-runner` binary download URL. Points at `/latest/` by default;
+# override to pin a release.
+runner_download_url: >-
+  https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-{{ runner_arch }}

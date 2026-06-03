@@ -1,0 +1,6 @@
+- name: "Restart gitlab runner"
+  ansible.builtin.systemd:
+    name: "gitlab-runner"
+    state: "restarted"
+    enabled: true
+  when: "not ansible_check_mode"

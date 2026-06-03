@@ -1,0 +1,97 @@
+# ===== Cluster target =====
+# Path to a kubeconfig on the controller. The role's helm/k8s calls all
+# delegate to localhost and use this file. Auto-derives from
+# `k3s_cluster_name` when the role is included alongside hacode.infra.k3s
+# (both roles share `hacode_kube_configs_dir`), so adding `k8s_addons` to
+# the same inventory group as `k3s` Just Works. For clusters provisioned
+# by anything other than hacode.infra.k3s, set this explicitly per host
+# / group — e.g. a dedicated `k8s` inventory group with each host's
+# kubeconfig path in group_vars.
+k8s_addons_kubeconfig: >-
+  {{
+    (hacode_kube_configs_dir ~ '/' ~ k3s_cluster_name ~ '.yml')
+    if (k3s_cluster_name is defined and (k3s_cluster_name | string | length > 0))
+    else ''
+  }}
+
+# ===== Headlamp (Kubernetes web UI) =====
+# Successor to the now-archived `kubernetes-dashboard`; CNCF/kubernetes-sigs
+# project, actively maintained. Per-cluster opt-in.
+k8s_addons_headlamp_enabled: false
+
+# Pinned chart version. Repo: https://kubernetes-sigs.github.io/headlamp/.
+k8s_addons_headlamp_chart_version: "0.42.0"
+
+# Helm chart install timeout, passed as `--timeout`. Format follows Go's
+# time.ParseDuration ("10m0s", "1h").
+k8s_addons_headlamp_chart_timeout: "5m0s"
+
+k8s_addons_headlamp_namespace: "headlamp"
+
+# Fixed NodePort for the Service. Set to expose Headlamp directly on every
+# node (port must be within `--service-node-port-range`, default
+# 30000-32767). Leave empty to keep the chart default (`ClusterIP`) and
+# route through an Ingress instead. The chart serves **plain HTTP** on
+# container port 4466; the role maps NodePort → service port 80 → 4466,
+# terminate TLS upstream if you need https.
+k8s_addons_headlamp_node_port: ""
+
+# Headlamp Ingress shortcut. Set `_host` to the FQDN the chart should serve
+# on; the role builds the Ingress resource off it. Reach for
+# `_extra_values.ingress` only when this two-knob shape isn't enough
+# (multiple hosts, TLS secrets, annotations, exact-match paths, etc.).
+k8s_addons_headlamp_ingress_enabled: false
+k8s_addons_headlamp_ingress_class_name: "nginx"
+k8s_addons_headlamp_ingress_host: ""
+k8s_addons_headlamp_ingress_path: "/"
+
+# Admin ServiceAccount. The role creates a long-lived
+# `kubernetes.io/service-account-token` Secret bound to cluster-admin and
+# saves the decoded bearer token to `k8s_addons_headlamp_token_file`
+# (mode 0600), which by default lands next to the kubeconfig - e.g.
+# kubeconfig `<dir>/prod.yml` → token `<dir>/prod-headlamp-token.txt`.
+k8s_addons_headlamp_admin_sa: "headlamp-admin"
+
+# Controller-side path where the headlamp admin bearer token is saved.
+# Derives from the kubeconfig basename so the cluster identifier stays
+# visible in the filename without introducing a separate `cluster_name`
+# variable. Override to relocate the token elsewhere.
+k8s_addons_headlamp_token_file: >-
+  {{ k8s_addons_kubeconfig | dirname }}/{{
+    k8s_addons_kubeconfig | basename | regex_replace('\.ya?ml$', '')
+  }}-headlamp-token.txt
+
+# Extra values merged on top of the role's NodePort defaults
+# (deep-merge, user wins on conflicts). Use to enable OIDC, plugins,
+# resource limits, etc.
+k8s_addons_headlamp_extra_values: {}
+
+# ===== Ingress-NGINX (HTTP/L7 ingress controller) =====
+# Helm chart from kubernetes/ingress-nginx. Service type is forced to
+# `NodePort` (chart default is `LoadBalancer`, which silently stays in
+# `<pending>` on baremetal / on-prem clusters with no cloud LB controller).
+# Per-cluster opt-in.
+k8s_addons_ingress_nginx_enabled: false
+
+# Pinned chart version. Repo: https://kubernetes.github.io/ingress-nginx.
+# Chart version tracks the controller image: chart `4.x.y` ships controller
+# `1.x.y`.
+k8s_addons_ingress_nginx_chart_version: "4.15.1"
+
+# Helm chart install timeout, passed as `--timeout`. Format follows Go's
+# time.ParseDuration ("10m0s", "1h").
+k8s_addons_ingress_nginx_chart_timeout: "5m0s"
+
+k8s_addons_ingress_nginx_namespace: "ingress-nginx"
+
+# Fixed NodePorts for the controller's external HTTP/HTTPS listeners.
+# Leave empty (`""`) for auto-assignment from the cluster's NodePort range
+# (default 30000-32767). Set when an upstream proxy / external nginx needs
+# deterministic targets.
+k8s_addons_ingress_nginx_http_node_port: ""
+k8s_addons_ingress_nginx_https_node_port: ""
+
+# Extra values merged on top of the role's NodePort defaults
+# (deep-merge, user wins on conflicts). Use to tune resources, enable
+# metrics, switch IngressClass name, etc.
+k8s_addons_ingress_nginx_extra_values: {}

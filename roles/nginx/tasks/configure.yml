@@ -1,0 +1,49 @@
+- name: "Gather os_family for nginx user/group resolution"
+  tags: ["configure"]
+  ansible.builtin.setup:
+    filter: ["ansible_os_family"]
+  when: "ansible_os_family is not defined"
+
+- name: "Load OS-family vars (nginx_user/nginx_group)"
+  tags: ["configure"]
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: "Upload main nginx config"
+  tags: ["configure"]
+  ansible.builtin.template:
+    src: "nginx.conf.j2"
+    dest: "/etc/nginx/nginx.conf"
+    owner: "{{ nginx_user }}"
+    group: "{{ nginx_group }}"
+    mode: "u=rwX,g=rX,o="
+  register: "nginx_main_config"
+
+- name: "Upload nginx config defaults"
+  tags: ["configure"]
+  ansible.posix.synchronize:
+    src: "{{ role_path }}/files/default.d/"
+    dest: "/etc/nginx/default.d/"
+    delete: true
+    rsync_opts:
+      - "--chown {{ nginx_user }}:{{ nginx_group }}"
+      - "--chmod u=rwX,g=rX,o="
+      - "--rsh={{ hacode_sync_rsh | quote }}"
+  register: "nginx_default_config"
+
+- name: "Change nginx config dir permissions"
+  tags: ["configure"]
+  ansible.builtin.file:
+    path: "/etc/nginx"
+    state: "directory"
+    recurse: true
+    owner: "{{ nginx_user }}"
+    group: "{{ nginx_group }}"
+    mode: "u=rwX,g=rX,o="
+
+- name: "Reload nginx if config changed"
+  tags: ["configure"]
+  ansible.builtin.include_tasks:
+    file: "reload.yml"
+    apply:
+      tags: ["configure"]
+  when: "nginx_main_config is changed or nginx_default_config is changed or (force | default(false) | bool)"

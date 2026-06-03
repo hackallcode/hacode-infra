@@ -1,0 +1,92 @@
+- name: "Get some Ansible variables"
+  tags: ["always"]
+  ansible.builtin.setup:
+    filter: ["ansible_os_family"]
+
+- name: "Load OS-family vars (nginx_user/nginx_group)"
+  tags: ["always"]
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: "Install packages"
+  tags: ["package"]
+  ansible.builtin.package:
+    name:
+      - "nginx"
+    state: "present"
+  register: "nginx_pkg"
+
+- name: "Enable nginx on boot"
+  tags: ["package"]
+  ansible.builtin.systemd:
+    name: "nginx"
+    state: "started"
+    enabled: true
+
+- name: "Restart nginx after package install"
+  tags: ["package"]
+  ansible.builtin.systemd:
+    name: "nginx"
+    state: "restarted"
+  when: "nginx_pkg is changed or (force | default(false) | bool)"
+
+- name: "Manage HTTP/HTTPS firewall rules on RHEL family"
+  when: "ansible_os_family == 'RedHat'"
+  tags: ["firewall"]
+  block:
+    - name: "Enable HTTP in firewall"
+      ansible.posix.firewalld:
+        service: "http"
+        permanent: true
+        state: "enabled"
+      register: "nginx_fw_http"
+
+    - name: "Enable HTTPS in firewall"
+      ansible.posix.firewalld:
+        service: "https"
+        permanent: true
+        state: "enabled"
+      register: "nginx_fw_https"
+
+    - name: "Reload firewall"
+      ansible.builtin.systemd:
+        name: "firewalld"
+        state: "reloaded"
+      when: "nginx_fw_http is changed or nginx_fw_https is changed or (force | default(false) | bool)"
+
+- name: "Create group 'www'"
+  tags: ["user"]
+  ansible.builtin.group:
+    name: "www"
+    state: "present"
+
+- name: "Add nginx daemon user to 'www' group"
+  tags: ["user"]
+  ansible.builtin.user:
+    name: "{{ nginx_user }}"
+    groups: "www"
+    append: true
+
+- name: "Change owner of nginx logs"
+  tags: ["user"]
+  ansible.builtin.file:
+    path: "/var/log/nginx"
+    state: "directory"
+    recurse: true
+    owner: "root"
+    group: "root"
+    mode: "u=rwX,g=rX,o="
+
+- name: "Create a www directory"
+  tags: ["user"]
+  ansible.builtin.file:
+    path: "/var/www"
+    state: "directory"
+    owner: "root"
+    group: "www"
+    mode: "u=rwX,g=rX,o="
+
+- name: "Install python3-passlib"
+  tags: ["passlib"]
+  ansible.builtin.package:
+    name: "python3-passlib"
+    state: "present"

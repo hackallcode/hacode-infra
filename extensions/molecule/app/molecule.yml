@@ -1,0 +1,74 @@
+# app scenario: tests the default flow (prepare → upload → restart) with
+# `app_type: static` — the only dispatch type that doesn't drag docker /
+# node_js along. A throw-away source tree is created in `prepare` so rsync
+# has something to sync.
+
+driver:
+  name: "docker"
+
+platforms:
+  - name: "almalinux10"
+    image: "almalinux:10"
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "rocky10"
+    image: "geerlingguy/docker-rockylinux10-ansible:latest"
+    pre_build_image: true
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2204"
+    image: "geerlingguy/docker-ubuntu2204-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2404"
+    image: "geerlingguy/docker-ubuntu2404-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+
+provisioner:
+  name: "ansible"
+  inventory:
+    group_vars:
+      all:
+        app_project: "molecule-static"
+        app_type: "static"
+        app_source_dir: "/tmp/molecule-source"
+        app_content_dir: "/opt/molecule-static"
+        # Use the controller's UID/GID so rsync's `--chown` doesn't drift.
+        app_dir_owner: "{{ lookup('pipe', 'id -u') }}"
+        app_dir_group: "{{ lookup('pipe', 'id -g') }}"
+
+scenario:
+  # `ansible.posix.synchronize` reports false-positive group changes when
+  # controller (macOS / arbitrary CI runner) and remote disagree on the
+  # name → gid mapping (e.g. gid 20 = "staff" on macOS, "dialout"/"games"
+  # on Linux). Production deployments over SSH between two Linux hosts
+  # share name maps and stay idempotent; here we just skip the dry-run
+  # rerun to keep the test honest.
+  test_sequence:
+    - "dependency"
+    - "destroy"
+    - "syntax"
+    - "create"
+    - "prepare"
+    - "converge"
+    - "verify"
+    - "destroy"

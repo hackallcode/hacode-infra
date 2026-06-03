@@ -1,0 +1,20 @@
+groups:
+  - name: "node_ram"
+    rules:
+      - alert: "CpuUtilizationWarning"
+        expr: '100 - (avg without(cpu, mode) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80'
+        for: "1m"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: "CPU utilization is more than 80%"
+          description: 'CPU utilization on {{ $labels.instance_name }} is {{ printf "%.2f" $value }}%'
+
+      - alert: "CpuUtilizationCritical"
+        expr: '100 - (avg without(cpu, mode) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90'
+        for: "1m"
+        labels:
+          severity: "critical"
+        annotations:
+          summary: "CPU utilization is more than 90%"
+          description: 'CPU utilization on {{ $labels.instance_name }} is {{ printf "%.2f" $value }}%'

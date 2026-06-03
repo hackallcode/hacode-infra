@@ -1,0 +1,57 @@
+- ansible.builtin.import_tasks: "_validate.yml"
+
+- name: "Get current time"
+  tags: ["backup"]
+  ansible.builtin.setup:
+    filter:
+      - "ansible_date_time"
+  run_once: true
+
+- name: "Compute archive name"
+  tags: ["backup"]
+  ansible.builtin.set_fact:
+    app_backup_archive: >-
+      {{ ansible_date_time.date.replace('-', '') }}_{{ inventory_hostname }}_{{ app_project }}.tar.gz
+
+- name: "Ensure remote backup directory exists"
+  tags: ["backup"]
+  ansible.builtin.file:
+    path: "{{ app_backup_remote_dir }}"
+    state: "directory"
+    mode: "0700"
+
+- name: "Archive data paths on the remote"
+  tags: ["backup"]
+  community.general.archive:
+    path: "{{ app_data_paths | map('regex_replace', '^(.*)', app_content_dir ~ '/\\1') | list }}"
+    exclude_path: "{{ app_global_exclude + app_exclude_paths }}"
+    dest: "{{ app_backup_remote_dir }}/{{ app_backup_archive }}"
+    format: "gz"
+    mode: "0600"
+    force_archive: true
+  when: "app_data_paths | length > 0"
+  register: "app_archive_res"
+
+- name: "Ensure local backup directory exists"
+  tags: ["backup"]
+  ansible.builtin.file:
+    path: "{{ app_backup_local_dir }}"
+    state: "directory"
+    mode: "0700"
+  delegate_to: "localhost"
+  become: false
+  when: "app_archive_res.get('archived', []) | length > 0"
+
+- name: "Fetch archive to controller"
+  tags: ["backup"]
+  ansible.builtin.fetch:
+    src: "{{ app_backup_remote_dir }}/{{ app_backup_archive }}"
+    dest: "{{ app_backup_local_dir }}/{{ app_backup_archive }}"
+    flat: true
+  when: "app_archive_res.get('archived', []) | length > 0"
+
+- name: "Remove archive from remote"
+  tags: ["backup"]
+  ansible.builtin.file:
+    path: "{{ app_backup_remote_dir }}/{{ app_backup_archive }}"
+    state: "absent"

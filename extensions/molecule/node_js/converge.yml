@@ -1,0 +1,16 @@
+- name: "Converge: node_js role (build a tiny app in an ephemeral container)"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  vars:
+    app_project: "molecule-node"
+    app_content_dir: "/opt/molecule-node"
+    node_js_version: "20-alpine"
+    node_js_build_command: ["npm", "run", "build"]
+
+  tasks:
+    - name: "Include node_js build tasks"
+      ansible.builtin.include_role:
+        name: "hacode.infra.node_js"
+        tasks_from: "build"

@@ -1,0 +1,11 @@
+- ansible.builtin.import_tasks: "_validate.yml"
+
+- name: "Stop docker compose stack"
+  tags: ["stop"]
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_content_dir }}"
+    project_name: "{{ app_project }}"
+    state: "stopped"
+  when:
+    - "app_type == 'docker'"
+    - "not ansible_check_mode"

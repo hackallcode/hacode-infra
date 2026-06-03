@@ -1,0 +1,27 @@
+groups:
+  - name: "node_ram"
+    rules:
+      - alert: "LowRamMb"
+        expr: "round(node_memory_MemAvailable_bytes / 1024 / 1024) < 100"
+        for: "1m"
+        labels:
+          severity: "critical"
+        annotations:
+          summary: 'Less than 100 MB available memory'
+          description: '{{ printf "%.2f" $value }} MB of memory available on {{ $labels.instance_name }}.'
+
+      - alert: "LowRamPercent"
+        expr: "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10"
+        for: "1m"
+        labels:
+          severity: "critical"
+        annotations:
+          summary: 'Less than 10 percent available memory'
+          description: '{{ printf "%.2f" $value }}% of memory available on {{ $labels.instance_name }}.'
+
+      - alert: "OomKillDetected"
+        expr: "increase(node_vmstat_oom_kill[1m]) > 0"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: 'OOM kill detected {{ $value }} times on {{ $labels.instance_name }}.'

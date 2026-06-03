@@ -1,0 +1,18 @@
+{# Managed by hacode.infra.machine. Override NTP sources via
+   `chrony_pools` (DNS round-robin) and `chrony_servers` (fixed hosts). #}
+{% for p in chrony_pools %}
+pool {{ p }} iburst
+{% endfor %}
+{% for s in chrony_servers %}
+server {{ s }} iburst
+{% endfor %}
+
+driftfile /var/lib/chrony/drift
+makestep 1.0 3
+rtcsync
+{% if ansible_os_family == 'RedHat' %}
+keyfile /etc/chrony.keys
+sourcedir /run/chrony-dhcp
+{% endif %}
+leapsectz right/UTC
+logdir /var/log/chrony

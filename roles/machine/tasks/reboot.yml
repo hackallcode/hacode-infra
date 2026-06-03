@@ -1,0 +1,24 @@
+- name: "Check if reboot is required (Debian)"
+  tags: ["reboot"]
+  ansible.builtin.stat:
+    path: "/var/run/reboot-required"
+    get_checksum: false
+    get_attributes: false
+    get_mime: false
+  register: "reboot_required_file"
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Check if reboot is required (RedHat)"
+  tags: ["reboot"]
+  ansible.builtin.command: "needs-restarting -r"
+  register: "needs_restarting_res"
+  failed_when: "needs_restarting_res.rc not in [0, 1]"
+  changed_when: false
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Reboot host (only if required)"
+  tags: ["reboot"]
+  ansible.builtin.reboot:
+  when: >-
+    (ansible_os_family == 'Debian' and (reboot_required_file.stat.exists | default(false)))
+    or (ansible_os_family == 'RedHat' and (needs_restarting_res.rc | default(0)) == 1)
