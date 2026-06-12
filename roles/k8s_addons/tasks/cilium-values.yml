@@ -1,0 +1,93 @@
+# Shared by cilium-install.yml and the molecule `helm template`
+# smoke-test, so any value-composition / input-validation regression
+# trips both. All tasks here delegate_to: localhost + run_once: true to
+# match the rest of the role (cluster-wide install — `helm` runs from
+# the controller).
+
+- name: "Validate kube-proxy replacement value"
+  tags: ["cilium"]
+  ansible.builtin.assert:
+    that: "k8s_addons_cilium_kube_proxy_replacement in ['true', 'false']"
+    fail_msg: >-
+      `k8s_addons_cilium_kube_proxy_replacement` must be the string
+      `"true"` or `"false"` (Cilium >=1.16 chart schema), got
+      `{{ k8s_addons_cilium_kube_proxy_replacement }}`.
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Validate apiserver endpoint is set when kube-proxy is replaced"
+  tags: ["cilium"]
+  ansible.builtin.assert:
+    that: "(k8s_addons_cilium_k8s_service_host | string | length) > 0"
+    fail_msg: >-
+      Set `k8s_addons_cilium_k8s_service_host` to the apiserver IP/FQDN
+      when `k8s_addons_cilium_kube_proxy_replacement: "true"`. Cilium
+      needs a kube-proxy-free path to the apiserver since it's replacing
+      the in-cluster ClusterIP datapath.
+  when: "k8s_addons_cilium_kube_proxy_replacement == 'true'"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Compose Cilium Helm values"
+  tags: ["cilium"]
+  # Single Jinja expression (not a YAML mapping with `"{{ x | int }}"`
+  # scalars): on Ansible <2.18, interpolation inside a quoted scalar
+  # coerces the result back to a string ("1" / "False" instead of 1 /
+  # false), which Cilium's chart schema then rejects.
+  ansible.builtin.set_fact:
+    _cilium_helm_values: >-
+      {{
+        {
+          'operator': {'replicas': k8s_addons_cilium_operator_replicas | int},
+          'ipam': {
+            'mode': 'cluster-pool',
+            'operator': {
+              'clusterPoolIPv4PodCIDRList': [k8s_addons_cilium_pod_cidr],
+              'clusterPoolIPv4MaskSize': k8s_addons_cilium_pod_cidr_mask_size | int,
+            },
+          },
+          'kubeProxyReplacement': k8s_addons_cilium_kube_proxy_replacement,
+          'cni': {'exclusive': k8s_addons_cilium_cni_exclusive | bool},
+        }
+        | combine(
+            {'k8sServiceHost': k8s_addons_cilium_k8s_service_host,
+             'k8sServicePort': k8s_addons_cilium_k8s_service_port | int}
+            if k8s_addons_cilium_kube_proxy_replacement == 'true' else {},
+            recursive=true)
+        | combine(
+            {'devices': k8s_addons_cilium_devices}
+            if (k8s_addons_cilium_devices | string | length) > 0 else {},
+            recursive=true)
+        | combine(
+            {'egressMasqueradeInterfaces': k8s_addons_cilium_egress_masquerade_interfaces}
+            if (k8s_addons_cilium_egress_masquerade_interfaces | string | length) > 0
+            else {},
+            recursive=true)
+        | combine(k8s_addons_cilium_extra_values, recursive=true)
+      }}
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+# Regression guard for the stringified-scalar bug above. Effective on
+# Ansible <2.18; on 2.18+ jinja2-native hides the bug but the assert
+# still pins expectations. Runs in `--check` mode.
+- name: "Assert rendered values use native scalar types"
+  tags: ["cilium"]
+  ansible.builtin.assert:
+    that:
+      - "_cilium_helm_values.operator.replicas is integer"
+      - "_cilium_helm_values.ipam.operator.clusterPoolIPv4MaskSize is integer"
+      - "_cilium_helm_values.cni.exclusive is boolean"
+    fail_msg: >-
+      Cilium Helm values rendered with stringified scalars (e.g.
+      `replicas: "1"` instead of `1`). This happens when value expressions
+      are written as `"{{ '{{' }} x | int {{ '}}' }}"` in YAML — interpolation
+      inside a quoted scalar coerces the result back to a string, and
+      Cilium's chart schema rejects it. Render the whole values dict as a
+      single Jinja expression instead.
+  delegate_to: "localhost"
+  run_once: true
+  become: false

@@ -3,6 +3,7 @@
   kubernetes.core.helm_repository:
     name: "headlamp"
     repo_url: "https://kubernetes-sigs.github.io/headlamp/"
+  check_mode: false
   delegate_to: "localhost"
   run_once: true
   become: false

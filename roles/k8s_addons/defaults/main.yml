@@ -1,18 +1,85 @@
 # ===== Cluster target =====
 # Path to a kubeconfig on the controller. The role's helm/k8s calls all
-# delegate to localhost and use this file. Auto-derives from
-# `k3s_cluster_name` when the role is included alongside hacode.infra.k3s
-# (both roles share `hacode_kube_configs_dir`), so adding `k8s_addons` to
-# the same inventory group as `k3s` Just Works. For clusters provisioned
-# by anything other than hacode.infra.k3s, set this explicitly per host
-# / group — e.g. a dedicated `k8s` inventory group with each host's
-# kubeconfig path in group_vars.
+# delegate to localhost and use this file. Auto-derives from the k3s role's
+# kubeconfig vars when present, so dropping `k8s_addons` into the same
+# inventory group as `hacode.infra.k3s` Just Works - including the case
+# where the operator pinned a custom `k3s_kubeconfig_local_file` /
+# `_local_dir` per cluster. For clusters provisioned by anything other
+# than hacode.infra.k3s, set this explicitly per host / group.
 k8s_addons_kubeconfig: >-
   {{
-    (hacode_kube_configs_dir ~ '/' ~ k3s_cluster_name ~ '.yml')
+    ((k3s_kubeconfig_local_dir | default(hacode_kube_configs_dir))
+     ~ '/'
+     ~ (k3s_kubeconfig_local_file | default(k3s_cluster_name ~ '.yml')))
     if (k3s_cluster_name is defined and (k3s_cluster_name | string | length > 0))
     else ''
   }}
+
+# ===== Cilium (CNI + NetworkPolicy) =====
+# Replacement CNI for clusters that disable k3s's built-in flannel +
+# kube-router (`--flannel-backend=none --disable-network-policy`). Brings
+# the cluster much closer to DOKS / GKE / EKS defaults. Until this chart
+# lands, the node sits NotReady and CoreDNS stays Pending - that's expected.
+k8s_addons_cilium_enabled: false
+
+# Pinned chart version. Repo: https://helm.cilium.io.
+k8s_addons_cilium_chart_version: "1.16.5"
+
+# Helm chart install timeout, passed as `--timeout`. Cilium's daemonset has
+# to come up cluster-wide before `helm --wait` returns Ready, so allow some
+# slack on cold installs.
+k8s_addons_cilium_chart_timeout: "10m0s"
+
+k8s_addons_cilium_namespace: "kube-system"
+
+# Cilium operator replica count. Upstream default is 2 (HA), but a 1-node
+# cluster can never schedule two operators on distinct nodes, so one stays
+# Pending and `helm --wait` times out. Default to 1; bump to 2 for HA.
+k8s_addons_cilium_operator_replicas: 1
+
+# Pod CIDR Cilium hands out to nodes. Defaults to whatever k3s is using
+# (so pod IPs land inside the range firewalld trusts); falls back to
+# k3s's own default when the var isn't in scope.
+k8s_addons_cilium_pod_cidr: "{{ k3s_cluster_cidr | default('10.42.0.0/16') }}"
+k8s_addons_cilium_pod_cidr_mask_size: 24
+
+# kube-proxy replacement. DOKS keeps stock kube-proxy; default "false"
+# matches. Set to "true" together with `--disable-kube-proxy` in
+# `k3s_server_args` for the Cilium-only datapath.
+#
+# Cilium >=1.16 expects the *string* "true"/"false" here, not a bool.
+k8s_addons_cilium_kube_proxy_replacement: "false"
+
+# Apiserver endpoint used by Cilium when it replaces kube-proxy.
+k8s_addons_cilium_k8s_service_host: ""
+k8s_addons_cilium_k8s_service_port: 6443
+
+# Don't tear down other CNI configs k3s may have written (e.g. leftover
+# flannel `10-flannel.conflist` if k3s was reinstalled without wiping
+# /etc/cni/net.d). Set `true` for a strict single-CNI environment.
+k8s_addons_cilium_cni_exclusive: false
+
+# Interfaces Cilium attaches BPF programs to for native routing /
+# encapsulation. Empty (default) lets Cilium auto-detect via the route
+# table. Pin to a specific NIC (e.g. "eth0") when the node has multiple
+# public interfaces and the auto-pick lands on the wrong one — DigitalOcean
+# droplets with a floating IP + a separate node-IP NIC are a known case.
+# Accepts a comma-separated list or a glob (e.g. "eth+" for all eth*).
+k8s_addons_cilium_devices: ""
+
+# Interface(s) used as the SNAT source for pod→external traffic. Empty
+# lets Cilium derive from `_devices` / the default route. Pin to the
+# egress NIC (e.g. "eth0") when pod-to-internet times out because pod IPs
+# leak out unmasqueraded — typical symptom on multi-NIC nodes. Note that
+# self-hosted k3s on systemd-restart can transiently flush the iptables
+# masquerade chain; Cilium re-installs it on the next agent reconcile
+# loop, but `kubectl -n kube-system rollout restart ds/cilium` is the
+# fast manual recovery.
+k8s_addons_cilium_egress_masquerade_interfaces: ""
+
+# Extra values merged on top of the role's defaults (deep-merge, user wins
+# on conflicts). Use to enable Hubble, BGP, ClusterMesh, etc.
+k8s_addons_cilium_extra_values: {}
 
 # ===== Headlamp (Kubernetes web UI) =====
 # Successor to the now-archived `kubernetes-dashboard`; CNCF/kubernetes-sigs

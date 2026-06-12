@@ -47,6 +47,76 @@
         regexp: "https://almalinux10:6443"
         replace: "https://127.0.0.1:6443"
 
+# Offline chart-schema smoke-test for Cilium. We don't install Cilium
+# into the molecule cluster (eBPF + per-node CNI state are fragile in
+# privileged docker — see molecule.yml), but we still want to catch
+# stringified-scalar / wrong-key / wrong-nesting regressions in the
+# values dict the role would hand to helm. `helm template` validates
+# against the chart's values.schema.json without any cluster contact,
+# so it runs cheaply and is independent of the Ansible jinja2-native
+# default (which on 2.18+ hides the stringified-scalar bug locally).
+#
+# Runs BEFORE the Headlamp install play: those plays share `hosts:
+# localhost`, so if Headlamp ever fails (chart_timeout exhausted on a
+# slow CI runner, etc.) Ansible would mark localhost failed and skip
+# subsequent plays — losing Cilium coverage entirely.
+- name: "Converge: smoke-test Cilium chart values offline (helm template)"
+  hosts: "localhost"
+  connection: "local"
+  gather_facts: false
+
+  tasks:
+    - name: "Add cilium helm repo on the controller"
+      kubernetes.core.helm_repository:
+        name: "cilium"
+        repo_url: "https://helm.cilium.io"
+
+    - name: "Render Cilium values via the role's shared values task"
+      ansible.builtin.import_role:
+        name: "hacode.infra.k8s_addons"
+        tasks_from: "cilium-values"
+
+    - name: "Write rendered values to a temp file for `helm template`"
+      ansible.builtin.copy:
+        content: "{{ _cilium_helm_values | to_nice_yaml(indent=2) }}"
+        dest: "/tmp/molecule-cilium-values.yml"
+        mode: "0644"
+
+    - name: "Render cilium chart offline and validate against values.schema.json"
+      ansible.builtin.command:
+        argv:
+          - "helm"
+          - "template"
+          - "cilium"
+          - "cilium/cilium"
+          - "--version"
+          - "{{ k8s_addons_cilium_chart_version }}"
+          - "--namespace"
+          - "{{ k8s_addons_cilium_namespace }}"
+          - "--values"
+          - "/tmp/molecule-cilium-values.yml"
+      register: "_cilium_template"
+      changed_when: false
+
+    - name: "Sanity-check: rendered output includes a DaemonSet named `cilium`"
+      ansible.builtin.assert:
+        that:
+          # Parse the multi-doc YAML and look for a document that's
+          # explicitly the cilium agent DaemonSet (substring `name: cilium`
+          # would also match `name: cilium-config`, `name: cilium-operator`,
+          # `app.kubernetes.io/name: cilium-agent`, etc.).
+          - >-
+            (_cilium_template.stdout
+             | from_yaml_all
+             | reject('none')
+             | selectattr('kind', 'eq', 'DaemonSet')
+             | selectattr('metadata.name', 'eq', 'cilium')
+             | list | length) > 0
+        fail_msg: >-
+          `helm template cilium/cilium` ran without error but the output
+          doesn't contain a `DaemonSet/cilium` — chart layout may have
+          changed in version `{{ k8s_addons_cilium_chart_version }}`.
+
 - name: "Converge: install Headlamp via k8s_addons"
   hosts: "localhost"
   connection: "local"

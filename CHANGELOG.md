@@ -7,6 +7,36 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added
+
+- `k8s_addons` role: Cilium CNI addon
+  ([cilium/cilium](https://github.com/cilium/cilium)). Replacement CNI for
+  clusters that disable k3s's built-in flannel + kube-router
+  (`--flannel-backend=none --disable-network-policy`), bringing the
+  cluster closer to DOKS / GKE Dataplane V2 / EKS defaults. Toggle with
+  `k8s_addons_cilium_enabled`; pod CIDR auto-tracks `k3s_cluster_cidr`
+  when in scope. Default `operator.replicas: 1` prevents `helm --wait`
+  hangs on single-node clusters (upstream default 2 leaves one operator
+  `Pending`). `_kube_proxy_replacement` is a string (`"false"` / `"true"`)
+  to match Cilium 1.16+ chart schema; switching to `"true"` requires
+  `_k8s_service_host` and `--disable-kube-proxy` in `k3s_server_args`.
+  Cilium installs first and uninstalls last so the CNI stays up while
+  other addons talk to the apiserver during teardown. Installing Cilium
+  into the molecule cluster is out of scope (eBPF + per-node CNI state
+  are fragile in privileged docker), but value-rendering is covered by
+  an offline `helm template` smoke-test in the molecule scenario that
+  validates the role's defaults against the chart's `values.schema.json`
+  — catches stringified-scalar / wrong-key / wrong-nesting regressions
+  independent of Ansible's jinja2-native default.
+
+### Changed
+
+- `k8s_addons_kubeconfig` default now respects the k3s role's
+  `k3s_kubeconfig_local_dir` / `k3s_kubeconfig_local_file` overrides
+  (previously assumed `<hacode_kube_configs_dir>/<cluster>.yml`), so a
+  custom kubeconfig filename pinned in inventory composes correctly with
+  `hacode.infra.k3s`.
+
 ## [0.1.0] - 2026-06-09
 
 ### Added

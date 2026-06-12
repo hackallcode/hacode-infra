@@ -5,6 +5,20 @@
 # k3s bootstrap + Headlamp chart is one of the slower scenarios in the
 # matrix; multi-platform would blow the per-job budget on free runners.
 #
+# Cilium is intentionally not *installed* here: it needs k3s booted with
+# `--flannel-backend=none --disable-network-policy`, which roughly doubles
+# the scenario runtime (full reboot of the CNI before any other addon can
+# schedule), and its eBPF datapath is fragile inside a privileged docker
+# container (BPF map pinning, kube-proxy replacement, cgroup v2 quirks).
+# We exercise the install/uninstall path manually against a real cluster
+# instead - see `roles/k8s_addons/README.md`. Headlamp + Ingress-NGINX
+# stay in scope because they're pure userspace Helm releases.
+#
+# What we DO test here for Cilium: an offline `helm template` smoke-test
+# in converge.yml renders the chart against the role's default values
+# and lets Cilium's `values.schema.json` reject any stringified-scalar /
+# wrong-key / wrong-nesting regression. No cluster contact required.
+#
 # The Helm CLI is installed on the controller in prepare; the
 # `kubernetes.core.helm` module shells out to it.
 
