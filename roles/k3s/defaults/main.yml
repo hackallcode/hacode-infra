@@ -15,10 +15,14 @@ k3s_tls_san_extra: [] # extra SANs on top of ansible_host (e.g. ["k3s.example.co
 
 # IP that this node advertises to the rest of the cluster: kubelet `--node-ip`
 # on all roles, plus apiserver `--advertise-address` on servers. Defaults to
-# `ansible_host` so the address we use to reach the host is the address k3s
-# tells the cluster about — auto-detection would pick the default-route NIC
-# instead, which silently breaks multi-NIC hosts where the SSH/inventory IP
-# isn't the one on the default route. Set to "" to fall back to k3s defaults.
+# `ansible_host` so the address we reach the host on is the address k3s tells
+# the cluster about - k3s's own auto-detection picks the default-route NIC,
+# which silently breaks multi-NIC hosts where the SSH/inventory IP isn't the
+# one on the default route. Preflight probes whether the address is bound to
+# a local interface and silently falls back to k3s auto-detect when it isn't
+# (typical cloud-droplet case: `ansible_host` is a floating / NAT'd public IP
+# routed externally to a host whose local NIC has a private address). Pin to
+# "" to skip the probe and always use k3s auto-detect.
 k3s_node_ip: "{{ ansible_host }}"
 
 # Taint effect applied to k3s server nodes as

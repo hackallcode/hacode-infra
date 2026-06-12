@@ -37,6 +37,21 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   custom kubeconfig filename pinned in inventory composes correctly with
   `hacode.infra.k3s`.
 
+### Fixed
+
+- `k3s` role: preflight now probes local interfaces for `k3s_node_ip` and
+  silently falls back to k3s auto-detect when the address isn't bound to
+  a local NIC. Without this, the default `k3s_node_ip: {{ ansible_host }}`
+  would propagate to etcd's `--listen-peer-urls=https://<ip>:2380` and
+  systemd-start the unit into `bind: cannot assign requested address` on
+  cloud droplets where `ansible_host` is a floating / NAT'd public IP
+  (DO floating IPs, AWS EIPs, GCP external IPs) routed externally to a
+  host whose local NIC has a private address. The probe makes the default
+  work zero-config for both bare metal and cloud. Pin `k3s_node_ip: ""`
+  to skip the probe entirely. Regression-guarded by removing the molecule
+  workaround that previously pinned `k3s_node_ip: ""` — both `k3s` and
+  `k8s_addons` scenarios now rely on the fallback.
+
 ## [0.1.0] - 2026-06-09
 
 ### Added

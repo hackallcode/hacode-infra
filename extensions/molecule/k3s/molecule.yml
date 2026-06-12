@@ -83,7 +83,10 @@ provisioner:
         # loaded (it isn't here), so skip those too.
         k3s_kernel_modules: []
         k3s_sysctls: {}
-        # `ansible_host` is a container name like "almalinux10", not an IP;
-        # k3s rejects it for `--node-ip`. Empty string asks k3s to detect
-        # via default route (works inside docker bridge).
-        k3s_node_ip: ""
+        # `ansible_host` here is a container name like "almalinux10", not
+        # an IP — exactly the floating-IP / NAT'd-public-IP scenario the
+        # preflight probe handles (address not bound to a local NIC ⇒
+        # silently fall back to k3s auto-detect via default route). We
+        # leave the default in place on purpose so this scenario exercises
+        # that fallback; reverting the preflight breaks the scenario
+        # because k3s rejects a non-IP `--node-ip`.

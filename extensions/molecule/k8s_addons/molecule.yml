@@ -59,7 +59,10 @@ provisioner:
         # module-load preflight in tests. br_netfilter sysctls likewise.
         k3s_kernel_modules: []
         k3s_sysctls: {}
-        k3s_node_ip: ""  # see k3s scenario molecule.yml
+        # k3s_node_ip is left at the default (= ansible_host = container
+        # name) — preflight detects it's not on a local NIC and falls back
+        # to k3s auto-detect. See k3s scenario molecule.yml for the full
+        # rationale.
 
 scenario:
   # `idempotence` skipped: a second helm install/upgrade against an
