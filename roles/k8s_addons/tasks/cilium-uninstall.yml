@@ -2,6 +2,25 @@
 # (shared with other system components), and per-node CNI state on disk
 # (/etc/cni/net.d/05-cilium.conflist, pinned BPF maps under /sys/fs/bpf)
 # is not cleaned - that lives on the cluster nodes, not the controller.
+#
+# All cluster-touching tasks are gated on `_cilium_release_info.status is
+# defined`. A missing release short-circuits the cluster work, and a
+# stale / unreachable kubeconfig makes the helm_info probe fail (cleanly
+# via `failed_when: false`) which lands in the same skip — so
+# `make ... uninstall` against a dead cluster won't hang.
+
+- name: "Check cilium release status (probes cluster reachability too)"
+  tags: ["cilium-uninstall"]
+  kubernetes.core.helm_info:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "cilium"
+    release_namespace: "{{ k8s_addons_cilium_namespace }}"
+  register: "_cilium_release_info"
+  failed_when: false
+  changed_when: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
 
 - name: "Uninstall cilium chart"
   tags: ["cilium-uninstall"]
@@ -10,6 +29,7 @@
     name: "cilium"
     release_namespace: "{{ k8s_addons_cilium_namespace }}"
     state: "absent"
+  when: "_cilium_release_info.status is defined"
   delegate_to: "localhost"
   run_once: true
   become: false

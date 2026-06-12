@@ -84,6 +84,16 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   workaround that previously pinned `k3s_node_ip: ""` — both `k3s` and
   `k8s_addons` scenarios now rely on the fallback.
 
+- `k8s_addons` role: harden the helm release lifecycle. A SIGTERM /
+  Ctrl-C during `helm install --wait` previously left releases in
+  `pending-install`, wedging the next run with `another operation in
+  progress`. The role now probes `helm status` before install and
+  uninstalls any `pending-*` release. All chart installs additionally
+  set `atomic: true` so partial failures roll back instead of leaving
+  a half-baked release behind. The uninstall path gates every
+  cluster-touching task on `helm_info.status is defined`, making it
+  tolerant of both missing-release and unreachable-cluster cases.
+
 ## [0.1.0] - 2026-06-09
 
 ### Added

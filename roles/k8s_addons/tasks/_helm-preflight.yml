@@ -1,0 +1,44 @@
+# Recover from a "pending-install" / "pending-upgrade" / "pending-rollback"
+# helm release left over from an interrupted operation (Ctrl+C / SIGTERM
+# during `helm --wait`, network blip during install, etc.). Without this
+# preflight, the next `helm install` errors with `another operation
+# (install/upgrade/rollback) is in progress` and the role is wedged
+# until an operator does `helm uninstall` manually.
+#
+# Caller sets:
+#   _helm_preflight_release_name      — Helm release name
+#   _helm_preflight_release_namespace — release namespace
+#
+# Behavior: query `helm status`; if the release is in any pending-* state,
+# uninstall it so the subsequent install starts from a clean slate. Note
+# this prefers correctness over data preservation — a pending-upgrade
+# loses the prior version's revision history. Acceptable here because
+# the role's installs use `atomic: true`, so the only way to land in
+# pending-* is an externally killed run, not a chart bug.
+
+- name: "Preflight: status of {{ _helm_preflight_release_name }} helm release"
+  kubernetes.core.helm_info:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "{{ _helm_preflight_release_name }}"
+    release_namespace: "{{ _helm_preflight_release_namespace }}"
+  register: "_helm_preflight_info"
+  failed_when: false
+  changed_when: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Recover stuck pending-* {{ _helm_preflight_release_name }} release"
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "{{ _helm_preflight_release_name }}"
+    release_namespace: "{{ _helm_preflight_release_namespace }}"
+    state: "absent"
+  when:
+    - "_helm_preflight_info.status is defined"
+    - >-
+      (_helm_preflight_info.status.status | default(''))
+      in ['pending-install', 'pending-upgrade', 'pending-rollback']
+  delegate_to: "localhost"
+  run_once: true
+  become: false

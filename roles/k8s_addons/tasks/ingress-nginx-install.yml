@@ -8,6 +8,12 @@
   run_once: true
   become: false
 
+- ansible.builtin.import_tasks: "_helm-preflight.yml"
+  tags: ["ingress-nginx-install"]
+  vars:
+    _helm_preflight_release_name: "ingress-nginx"
+    _helm_preflight_release_namespace: "{{ k8s_addons_ingress_nginx_namespace }}"
+
 - name: "Install/upgrade ingress-nginx chart"
   tags: ["ingress-nginx-install"]
   vars:
@@ -32,6 +38,7 @@
     release_namespace: "{{ k8s_addons_ingress_nginx_namespace }}"
     create_namespace: true
     wait: true
+    atomic: true
     timeout: "{{ k8s_addons_ingress_nginx_chart_timeout }}"
     values: >-
       {{
