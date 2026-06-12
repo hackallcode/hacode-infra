@@ -1,3 +1,21 @@
+# Cluster-touching tasks are gated on `_ingress_nginx_release_info.status
+# is defined`. Missing release skips cleanly; unreachable cluster surfaces
+# as a soft-fail on helm_info and lands in the same skip — so
+# `make ... uninstall` against a dead cluster won't hang.
+
+- name: "Check ingress-nginx release status (probes cluster reachability too)"
+  tags: ["ingress-nginx-uninstall"]
+  kubernetes.core.helm_info:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "ingress-nginx"
+    release_namespace: "{{ k8s_addons_ingress_nginx_namespace }}"
+  register: "_ingress_nginx_release_info"
+  failed_when: false
+  changed_when: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
 - name: "Uninstall ingress-nginx chart"
   tags: ["ingress-nginx-uninstall"]
   kubernetes.core.helm:
@@ -5,6 +23,7 @@
     name: "ingress-nginx"
     release_namespace: "{{ k8s_addons_ingress_nginx_namespace }}"
     state: "absent"
+  when: "_ingress_nginx_release_info.status is defined"
   delegate_to: "localhost"
   run_once: true
   become: false
@@ -17,6 +36,7 @@
     api_version: "v1"
     kind: "Namespace"
     name: "{{ k8s_addons_ingress_nginx_namespace }}"
+  when: "_ingress_nginx_release_info.status is defined"
   delegate_to: "localhost"
   run_once: true
   become: false

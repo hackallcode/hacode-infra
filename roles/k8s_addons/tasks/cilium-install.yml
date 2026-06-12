@@ -11,6 +11,12 @@
 - ansible.builtin.import_tasks: "cilium-values.yml"
   tags: ["cilium-install"]
 
+- ansible.builtin.import_tasks: "_helm-preflight.yml"
+  tags: ["cilium-install"]
+  vars:
+    _helm_preflight_release_name: "cilium"
+    _helm_preflight_release_namespace: "{{ k8s_addons_cilium_namespace }}"
+
 - name: "Install/upgrade cilium chart"
   tags: ["cilium-install"]
   kubernetes.core.helm:
@@ -21,6 +27,7 @@
     release_namespace: "{{ k8s_addons_cilium_namespace }}"
     create_namespace: true
     wait: true
+    atomic: true
     timeout: "{{ k8s_addons_cilium_chart_timeout }}"
     values: "{{ _cilium_helm_values }}"
   delegate_to: "localhost"

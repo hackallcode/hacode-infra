@@ -10,6 +10,12 @@
 
 - ansible.builtin.import_tasks: "longhorn-values.yml"
 
+- ansible.builtin.import_tasks: "_helm-preflight.yml"
+  tags: ["longhorn-install"]
+  vars:
+    _helm_preflight_release_name: "longhorn"
+    _helm_preflight_release_namespace: "{{ k8s_addons_longhorn_namespace }}"
+
 - name: "Install/upgrade longhorn chart"
   tags: ["longhorn-install"]
   kubernetes.core.helm:
@@ -20,6 +26,7 @@
     release_namespace: "{{ k8s_addons_longhorn_namespace }}"
     create_namespace: true
     wait: true
+    atomic: true
     timeout: "{{ k8s_addons_longhorn_chart_timeout }}"
     values: "{{ _longhorn_helm_values }}"
   delegate_to: "localhost"
