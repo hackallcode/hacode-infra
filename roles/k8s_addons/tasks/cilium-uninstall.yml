@@ -4,7 +4,7 @@
 # is not cleaned - that lives on the cluster nodes, not the controller.
 
 - name: "Uninstall cilium chart"
-  tags: ["cilium"]
+  tags: ["cilium-uninstall"]
   kubernetes.core.helm:
     kubeconfig: "{{ k8s_addons_kubeconfig }}"
     name: "cilium"

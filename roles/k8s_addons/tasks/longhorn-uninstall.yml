@@ -4,7 +4,7 @@
 # are kept - both are cheap and may still be wanted by the operator.
 
 - name: "Uninstall longhorn chart"
-  tags: ["longhorn"]
+  tags: ["longhorn-uninstall"]
   kubernetes.core.helm:
     kubeconfig: "{{ k8s_addons_kubeconfig }}"
     name: "longhorn"
@@ -15,7 +15,7 @@
   become: false
 
 - name: "Delete longhorn namespace"
-  tags: ["longhorn"]
+  tags: ["longhorn-uninstall"]
   kubernetes.core.k8s:
     kubeconfig: "{{ k8s_addons_kubeconfig }}"
     state: "absent"

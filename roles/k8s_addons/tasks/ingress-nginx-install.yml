@@ -1,5 +1,5 @@
 - name: "Add ingress-nginx Helm repo"
-  tags: ["ingress-nginx"]
+  tags: ["ingress-nginx-install"]
   kubernetes.core.helm_repository:
     name: "ingress-nginx"
     repo_url: "https://kubernetes.github.io/ingress-nginx"
@@ -9,7 +9,7 @@
   become: false
 
 - name: "Install/upgrade ingress-nginx chart"
-  tags: ["ingress-nginx"]
+  tags: ["ingress-nginx-install"]
   vars:
     # Empty strings break chart schema; only pass nodePorts that are set.
     _np_http: >-

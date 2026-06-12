@@ -1,11 +1,11 @@
 - name: "Gather minimal facts (branches on ansible_os_family)"
-  tags: ["longhorn"]
+  tags: ["longhorn-install"]
   ansible.builtin.setup:
     gather_subset: "min"
   when: "ansible_facts.os_family is not defined"
 
 - name: "Resolve Longhorn host packages"
-  tags: ["longhorn"]
+  tags: ["longhorn-install"]
   ansible.builtin.set_fact:
     _longhorn_pkgs: >-
       {{
@@ -18,7 +18,7 @@
       }}
 
 - name: "Install Longhorn host packages (Debian)"
-  tags: ["longhorn"]
+  tags: ["longhorn-install"]
   ansible.builtin.apt:
     name: "{{ _longhorn_pkgs }}"
     state: "present"
@@ -27,14 +27,14 @@
   when: "ansible_os_family == 'Debian'"
 
 - name: "Install Longhorn host packages (RHEL)"
-  tags: ["longhorn"]
+  tags: ["longhorn-install"]
   ansible.builtin.dnf:
     name: "{{ _longhorn_pkgs }}"
     state: "present"
   when: "ansible_os_family == 'RedHat'"
 
 - name: "Enable and start iscsid"
-  tags: ["longhorn"]
+  tags: ["longhorn-install"]
   ansible.builtin.systemd:
     name: "iscsid"
     enabled: true

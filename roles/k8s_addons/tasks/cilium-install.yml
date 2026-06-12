@@ -1,5 +1,5 @@
 - name: "Add cilium Helm repo"
-  tags: ["cilium"]
+  tags: ["cilium-install"]
   kubernetes.core.helm_repository:
     name: "cilium"
     repo_url: "https://helm.cilium.io"
@@ -9,10 +9,10 @@
   become: false
 
 - ansible.builtin.import_tasks: "cilium-values.yml"
-  tags: ["cilium"]
+  tags: ["cilium-install"]
 
 - name: "Install/upgrade cilium chart"
-  tags: ["cilium"]
+  tags: ["cilium-install"]
   kubernetes.core.helm:
     kubeconfig: "{{ k8s_addons_kubeconfig }}"
     name: "cilium"
