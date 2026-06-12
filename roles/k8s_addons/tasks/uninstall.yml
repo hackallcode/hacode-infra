@@ -18,6 +18,10 @@
   tags: ["ingress-nginx"]
   ansible.builtin.include_tasks: "ingress-nginx-uninstall.yml"
 
+- name: "Uninstall Longhorn"
+  tags: ["longhorn"]
+  ansible.builtin.include_tasks: "longhorn-uninstall.yml"
+
 # Cilium last: anything above may need the CNI to talk to the apiserver
 # while it's being torn down.
 - name: "Uninstall Cilium"

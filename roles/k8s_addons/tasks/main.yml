@@ -7,6 +7,11 @@
   ansible.builtin.include_tasks: "cilium-install.yml"
   when: "k8s_addons_cilium_enabled | default(false) | bool"
 
+- name: "Install Longhorn"
+  tags: ["longhorn"]
+  ansible.builtin.include_tasks: "longhorn-install.yml"
+  when: "k8s_addons_longhorn_enabled | default(false) | bool"
+
 - name: "Install Headlamp"
   tags: ["headlamp"]
   ansible.builtin.include_tasks: "headlamp-install.yml"

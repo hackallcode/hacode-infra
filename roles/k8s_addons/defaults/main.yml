@@ -81,6 +81,45 @@ k8s_addons_cilium_egress_masquerade_interfaces: ""
 # on conflicts). Use to enable Hubble, BGP, ClusterMesh, etc.
 k8s_addons_cilium_extra_values: {}
 
+# ===== Longhorn (block storage / CSI) =====
+# Distributed block storage with iSCSI. Use it when k3s is installed with
+# `--disable=local-storage` (DOKS-style) and the cluster still needs a
+# working default StorageClass. Longhorn replicates volumes across nodes;
+# on a single-node cluster it stores locally with no replication.
+#
+# Host requirements (iscsid + open-iscsi/iscsi-initiator-utils) are
+# installed by `tasks/host-prep.yml` -> `tasks/longhorn-prep.yml` from a
+# separate play that targets every cluster node, not just the server.
+k8s_addons_longhorn_enabled: false
+
+# Pinned chart version. Repo: https://charts.longhorn.io.
+k8s_addons_longhorn_chart_version: "1.7.2"
+
+# Helm chart install timeout. Longhorn rolls out its manager DaemonSet,
+# CSI driver, and engine images cluster-wide before `helm --wait` returns
+# Ready, so the cold-install path needs noticeable slack.
+k8s_addons_longhorn_chart_timeout: "10m0s"
+
+k8s_addons_longhorn_namespace: "longhorn-system"
+
+# Replica count for the default StorageClass + global default. Upstream
+# chart default is 3 (HA across nodes); on a single-node cluster PVCs stay
+# Pending forever waiting for distinct nodes. Bump to 3 once you have HA.
+k8s_addons_longhorn_replica_count: 1
+
+# Whether Longhorn's StorageClass is marked as the cluster default. With
+# k3s --disable=local-storage there's no other default, so PVCs without an
+# explicit `storageClassName` need this to bind.
+k8s_addons_longhorn_default_storage_class: true
+
+# Opt-in: install nfs-utils / nfs-common on every cluster node so Longhorn
+# can serve ReadWriteMany volumes via its internal NFS provisioner.
+k8s_addons_longhorn_install_nfs: false
+
+# Extra values merged on top of the role's defaults (deep-merge, user wins
+# on conflicts).
+k8s_addons_longhorn_extra_values: {}
+
 # ===== Headlamp (Kubernetes web UI) =====
 # Successor to the now-archived `kubernetes-dashboard`; CNCF/kubernetes-sigs
 # project, actively maintained. Per-cluster opt-in.

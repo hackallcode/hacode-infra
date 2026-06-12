@@ -1,0 +1,42 @@
+- name: "Gather minimal facts (branches on ansible_os_family)"
+  tags: ["longhorn"]
+  ansible.builtin.setup:
+    gather_subset: "min"
+  when: "ansible_facts.os_family is not defined"
+
+- name: "Resolve Longhorn host packages"
+  tags: ["longhorn"]
+  ansible.builtin.set_fact:
+    _longhorn_pkgs: >-
+      {{
+        ((['iscsi-initiator-utils'] if ansible_os_family == 'RedHat' else ['open-iscsi']))
+        + (
+          (['nfs-utils'] if ansible_os_family == 'RedHat' else ['nfs-common'])
+          if (k8s_addons_longhorn_install_nfs | default(false) | bool)
+          else []
+        )
+      }}
+
+- name: "Install Longhorn host packages (Debian)"
+  tags: ["longhorn"]
+  ansible.builtin.apt:
+    name: "{{ _longhorn_pkgs }}"
+    state: "present"
+    update_cache: true
+    cache_valid_time: 3600
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Install Longhorn host packages (RHEL)"
+  tags: ["longhorn"]
+  ansible.builtin.dnf:
+    name: "{{ _longhorn_pkgs }}"
+    state: "present"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Enable and start iscsid"
+  tags: ["longhorn"]
+  ansible.builtin.systemd:
+    name: "iscsid"
+    enabled: true
+    state: "started"
+    daemon_reload: true

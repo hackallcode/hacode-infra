@@ -1,0 +1,27 @@
+# Removes only the Helm release + namespace. Host packages
+# (iscsi-initiator-utils / open-iscsi, nfs-utils / nfs-common) and the
+# replica data on disk under `defaultDataPath` (default /var/lib/longhorn)
+# are kept - both are cheap and may still be wanted by the operator.
+
+- name: "Uninstall longhorn chart"
+  tags: ["longhorn"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "longhorn"
+    release_namespace: "{{ k8s_addons_longhorn_namespace }}"
+    state: "absent"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Delete longhorn namespace"
+  tags: ["longhorn"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "v1"
+    kind: "Namespace"
+    name: "{{ k8s_addons_longhorn_namespace }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
