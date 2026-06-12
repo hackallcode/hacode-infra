@@ -1,6 +1,11 @@
 # Uninstall entrypoint. Runs unconditionally so the user can tear an
-# addon down without first re-asserting its `_enabled` flag - the only
-# gate is per-addon tags.
+# addon down without first re-asserting its `_enabled` flag.
+#
+# Tags use the `<addon>-uninstall` lifecycle suffix so that
+# `--tags cilium` (or any addon name on its own) matches NOTHING — install
+# and uninstall must be invoked explicitly. This is intentional after a
+# real-world incident where `--tags cilium` unexpectedly tore down a live
+# install because the same `cilium` tag fired in both lifecycles.
 
 - name: "Validate kubeconfig is set for uninstall"
   tags: ["always"]
@@ -11,19 +16,19 @@
       so the default resolves) to uninstall any addon.
 
 - name: "Uninstall Headlamp"
-  tags: ["headlamp"]
+  tags: ["headlamp-uninstall"]
   ansible.builtin.include_tasks: "headlamp-uninstall.yml"
 
 - name: "Uninstall Ingress-NGINX"
-  tags: ["ingress-nginx"]
+  tags: ["ingress-nginx-uninstall"]
   ansible.builtin.include_tasks: "ingress-nginx-uninstall.yml"
 
 - name: "Uninstall Longhorn"
-  tags: ["longhorn"]
+  tags: ["longhorn-uninstall"]
   ansible.builtin.include_tasks: "longhorn-uninstall.yml"
 
 # Cilium last: anything above may need the CNI to talk to the apiserver
 # while it's being torn down.
 - name: "Uninstall Cilium"
-  tags: ["cilium"]
+  tags: ["cilium-uninstall"]
   ansible.builtin.include_tasks: "cilium-uninstall.yml"

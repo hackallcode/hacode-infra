@@ -61,6 +61,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   subdirs). Inventories pinning the var explicitly are unaffected; any
   existing on-disk dir needs a manual rename.
 
+- `k8s_addons` role: per-addon tags are now split into
+  `<addon>-install` / `<addon>-uninstall` lifecycle pairs. The bare
+  `<addon>` tag (e.g. `cilium`) no longer matches anything, so
+  `--tags cilium` can't accidentally fire install AND uninstall in the
+  same run — a real-world incident sparked the change. Migrate any
+  `--tags <addon>` invocations to the appropriate `-install` /
+  `-uninstall` lifecycle suffix.
+
 ### Fixed
 
 - `k3s` role: preflight now probes local interfaces for `k3s_node_ip` and

@@ -3,21 +3,21 @@
 # Cilium runs first: cluster is NotReady until the CNI lands, so every
 # addon below would fail to schedule.
 - name: "Install Cilium"
-  tags: ["cilium"]
+  tags: ["cilium-install"]
   ansible.builtin.include_tasks: "cilium-install.yml"
   when: "k8s_addons_cilium_enabled | default(false) | bool"
 
 - name: "Install Longhorn"
-  tags: ["longhorn"]
+  tags: ["longhorn-install"]
   ansible.builtin.include_tasks: "longhorn-install.yml"
   when: "k8s_addons_longhorn_enabled | default(false) | bool"
 
 - name: "Install Headlamp"
-  tags: ["headlamp"]
+  tags: ["headlamp-install"]
   ansible.builtin.include_tasks: "headlamp-install.yml"
   when: "k8s_addons_headlamp_enabled | default(false) | bool"
 
 - name: "Install Ingress-NGINX"
-  tags: ["ingress-nginx"]
+  tags: ["ingress-nginx-install"]
   ansible.builtin.include_tasks: "ingress-nginx-install.yml"
   when: "k8s_addons_ingress_nginx_enabled | default(false) | bool"

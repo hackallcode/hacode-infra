@@ -5,11 +5,11 @@
 # addon contributes its own `<addon>-prep.yml` here, gated by `_enabled`.
 
 - name: "Prep Cilium host iptables state"
-  tags: ["cilium"]
+  tags: ["cilium-install"]
   ansible.builtin.include_tasks: "cilium-prep.yml"
   when: "k8s_addons_cilium_enabled | default(false) | bool"
 
 - name: "Prep Longhorn host packages"
-  tags: ["longhorn"]
+  tags: ["longhorn-install"]
   ansible.builtin.include_tasks: "longhorn-prep.yml"
   when: "k8s_addons_longhorn_enabled | default(false) | bool"

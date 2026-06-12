@@ -276,10 +276,15 @@ Token files land next to each kubeconfig
 
 The uninstall path runs unconditionally (regardless of the `_enabled`
 flag) so you can tear an addon down without flipping the flag back on.
-Use `--tags <addon>` (`headlamp`, `ingress-nginx`, `longhorn`, `cilium`)
-to scope to a specific addon. Removal order is the reverse of install
-(Headlamp, Ingress-NGINX, Longhorn, then Cilium last), so the CNI stays
-up while the others talk to the apiserver during teardown.
+Use `--tags <addon>-uninstall` (`headlamp-uninstall`,
+`ingress-nginx-uninstall`, `longhorn-uninstall`, `cilium-uninstall`)
+to scope to a specific addon. Install and uninstall lifecycles use
+**separate tags** (`<addon>-install` vs `<addon>-uninstall`) on purpose —
+the bare `<addon>` tag matches nothing, so `--tags cilium` will never
+accidentally fire both install and uninstall in the same run. Removal
+order is the reverse of install (Headlamp, Ingress-NGINX, Longhorn,
+then Cilium last), so the CNI stays up while the others talk to the
+apiserver during teardown.
 
 Per-addon teardown details:
 

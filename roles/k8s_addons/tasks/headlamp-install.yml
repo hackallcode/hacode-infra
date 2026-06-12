@@ -1,5 +1,5 @@
 - name: "Add headlamp Helm repo"
-  tags: ["headlamp"]
+  tags: ["headlamp-install"]
   kubernetes.core.helm_repository:
     name: "headlamp"
     repo_url: "https://kubernetes-sigs.github.io/headlamp/"
@@ -9,7 +9,7 @@
   become: false
 
 - name: "Validate ingress host is set when ingress is enabled"
-  tags: ["headlamp"]
+  tags: ["headlamp-install"]
   ansible.builtin.assert:
     that: "(k8s_addons_headlamp_ingress_host | string | length) > 0"
     fail_msg: >-
@@ -18,7 +18,7 @@
   when: "k8s_addons_headlamp_ingress_enabled | bool"
 
 - name: "Install/upgrade headlamp chart"
-  tags: ["headlamp"]
+  tags: ["headlamp-install"]
   vars:
     # Switch Service to NodePort only when `_node_port` is explicitly set
     # (direct access without an Ingress). Empty default → chart keeps
@@ -63,7 +63,7 @@
   become: false
 
 - name: "Apply admin ServiceAccount + ClusterRoleBinding + token Secret"
-  tags: ["headlamp"]
+  tags: ["headlamp-install"]
   kubernetes.core.k8s:
     kubeconfig: "{{ k8s_addons_kubeconfig }}"
     state: "present"
@@ -102,7 +102,7 @@
 # lands; poll until non-empty before saving locally. `no_log` prevents the
 # token from leaking into ansible output / CI logs.
 - name: "Wait for admin token Secret to populate"
-  tags: ["headlamp"]
+  tags: ["headlamp-install"]
   kubernetes.core.k8s_info:
     kubeconfig: "{{ k8s_addons_kubeconfig }}"
     api_version: "v1"
@@ -121,7 +121,7 @@
   no_log: true
 
 - name: "Ensure token-file directory exists on controller"
-  tags: ["headlamp"]
+  tags: ["headlamp-install"]
   ansible.builtin.file:
     path: "{{ k8s_addons_headlamp_token_file | dirname }}"
     state: "directory"
@@ -131,7 +131,7 @@
   become: false
 
 - name: "Save admin token on controller"
-  tags: ["headlamp"]
+  tags: ["headlamp-install"]
   ansible.builtin.copy:
     content: "{{ _k8s_addons_headlamp_secret.resources[0].data.token | b64decode }}\n"
     dest: "{{ k8s_addons_headlamp_token_file }}"

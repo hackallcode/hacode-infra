@@ -2,7 +2,7 @@
 # smoke-test, so any value-composition regression trips both.
 
 - name: "Compose Longhorn Helm values"
-  tags: ["longhorn"]
+  tags: ["longhorn-install"]
   # Single Jinja expression so `| int` / `| bool` keep native types —
   # see cilium-values.yml for the full quoted-scalar / Ansible <2.18
   # rationale.
@@ -22,7 +22,7 @@
       }}
 
 - name: "Assert rendered values use native scalar types"
-  tags: ["longhorn"]
+  tags: ["longhorn-install"]
   ansible.builtin.assert:
     that:
       - "_longhorn_helm_values.persistence.defaultClass is boolean"
