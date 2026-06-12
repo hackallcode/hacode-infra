@@ -8,3 +8,8 @@
   tags: ["cilium"]
   ansible.builtin.include_tasks: "cilium-prep.yml"
   when: "k8s_addons_cilium_enabled | default(false) | bool"
+
+- name: "Prep Longhorn host packages"
+  tags: ["longhorn"]
+  ansible.builtin.include_tasks: "longhorn-prep.yml"
+  when: "k8s_addons_longhorn_enabled | default(false) | bool"

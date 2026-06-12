@@ -9,6 +9,24 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `k8s_addons` role: Longhorn distributed block-storage addon
+  ([longhorn/longhorn](https://github.com/longhorn/longhorn)). Provides a
+  default `StorageClass` for clusters installed with
+  `--disable=local-storage` (DOKS-style) so PVCs without an explicit
+  `storageClassName` bind via Longhorn. Toggle with
+  `k8s_addons_longhorn_enabled`; default `replicaCount: 1` keeps PVCs
+  binding on single-node clusters (upstream chart default `3` leaves
+  them `Pending` waiting for distinct nodes). Per-node prep (iscsid,
+  optional NFS support) lives behind a new `host-prep` role entrypoint
+  invoked from a play whose `hosts:` covers every k3s server + agent —
+  the cluster-level `helm` work stays on `delegate_to: localhost`.
+  Value rendering shared between the install task and an offline
+  `helm template` smoke-test in the molecule scenario; the Longhorn
+  1.7.x chart doesn't ship a values.schema.json, so the test catches
+  wrong-key / wrong-nesting / missing-manifest regressions rather than
+  pure type coercion (a separate type-assert in `longhorn-values.yml`
+  guards the latter on Ansible <2.18).
+
 - `k8s_addons` role: Cilium CNI addon
   ([cilium/cilium](https://github.com/cilium/cilium)). Replacement CNI for
   clusters that disable k3s's built-in flannel + kube-router
@@ -36,6 +54,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   (previously assumed `<hacode_kube_configs_dir>/<cluster>.yml`), so a
   custom kubeconfig filename pinned in inventory composes correctly with
   `hacode.infra.k3s`.
+
+- `wireguard` role: default `wg_client_configs_local_dir` renamed from
+  `<output>/wg_configs` to `<output>/wg-configs` for consistency with
+  the `kube-configs` and `certs` siblings (kebab-case for output
+  subdirs). Inventories pinning the var explicitly are unaffected; any
+  existing on-disk dir needs a manual rename.
 
 ### Fixed
 

@@ -1,0 +1,36 @@
+# Shared by longhorn-install.yml and the molecule `helm template`
+# smoke-test, so any value-composition regression trips both.
+
+- name: "Compose Longhorn Helm values"
+  tags: ["longhorn"]
+  # Single Jinja expression so `| int` / `| bool` keep native types —
+  # see cilium-values.yml for the full quoted-scalar / Ansible <2.18
+  # rationale.
+  ansible.builtin.set_fact:
+    _longhorn_helm_values: >-
+      {{
+        {
+          'persistence': {
+            'defaultClass': k8s_addons_longhorn_default_storage_class | bool,
+            'defaultClassReplicaCount': k8s_addons_longhorn_replica_count | int,
+          },
+          'defaultSettings': {
+            'defaultReplicaCount': k8s_addons_longhorn_replica_count | int,
+          },
+        }
+        | combine(k8s_addons_longhorn_extra_values, recursive=true)
+      }}
+
+- name: "Assert rendered values use native scalar types"
+  tags: ["longhorn"]
+  ansible.builtin.assert:
+    that:
+      - "_longhorn_helm_values.persistence.defaultClass is boolean"
+      - "_longhorn_helm_values.persistence.defaultClassReplicaCount is integer"
+      - "_longhorn_helm_values.defaultSettings.defaultReplicaCount is integer"
+    fail_msg: >-
+      Longhorn Helm values rendered with stringified scalars. This
+      happens when value expressions are written as quoted Jinja
+      (`"{{ '{{' }} x | int {{ '}}' }}"`) — interpolation inside a
+      quoted scalar coerces the result back to a string. Render the
+      whole values dict as a single Jinja expression instead.

@@ -14,7 +14,7 @@ wg_dns_enabled: false
 
 # Where client wg-config files generated on the server are fetched to on
 # the controller.
-wg_client_configs_local_dir: "{{ hacode_output_dir }}/wg_configs"
+wg_client_configs_local_dir: "{{ hacode_output_dir }}/wg-configs"
 
 # UDP port the server listens on.
 wg_port: 1194

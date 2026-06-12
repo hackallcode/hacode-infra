@@ -1,21 +1,21 @@
 # hacode.infra.k8s_addons
 
-Install opinionated Kubernetes addons (Cilium CNI, Headlamp, Ingress-NGINX)
-into an existing cluster via Helm and raw manifests. Each addon is gated
-by its own `k8s_addons_<name>_enabled` flag and lives in its own
-`tasks/<addon>-install.yml` / `tasks/<addon>-uninstall.yml` pair.
+Install opinionated Kubernetes addons (Cilium CNI, Longhorn block
+storage, Headlamp, Ingress-NGINX) into an existing cluster via Helm and
+raw manifests. Each addon is gated by its own `k8s_addons_<name>_enabled`
+flag and lives in its own `tasks/<addon>-install.yml` /
+`tasks/<addon>-uninstall.yml` pair.
 
-The role talks to the cluster from the controller via the supplied
-kubeconfig - every task is `delegate_to: localhost` + `run_once: true` -
-so it can be included in any play (including `hosts: cluster_nodes`) without
-firing N times against unrelated managed hosts. The `helm` CLI must be
-installed on the controller (the `kubernetes.core.helm` module shells out
-to it).
+Cluster-level tasks (helm, k8s) delegate to localhost + `run_once`, so
+the role can be included in any play (including `hosts: cluster_nodes`)
+without firing N times against unrelated managed hosts. The `helm` CLI
+must be installed on the controller.
 
 Addons that need per-node OS setup expose their host-level tasks via
-`tasks_from: host-prep`. Currently: Cilium flushes orphan `OLD_CILIUM_*`
-iptables chains left over from an unclean shutdown. Invoke the
-entrypoint from a play whose `hosts:` covers every cluster node:
+`tasks_from: host-prep`. Currently: Longhorn installs the iscsid stack;
+Cilium flushes orphan `OLD_CILIUM_*` iptables chains left over from an
+unclean shutdown. Invoke the entrypoint from a play whose `hosts:`
+covers every cluster node:
 
 ```yaml
 - hosts: "k3s_server:k3s_agent"
@@ -96,6 +96,46 @@ values are validated offline against the chart's `values.schema.json`
 via a `helm template` smoke-test in `extensions/molecule/k8s_addons/`.
 That catches stringified-scalar / wrong-key / wrong-nesting regressions
 regardless of which Ansible version is in use.
+
+### Longhorn
+
+[Longhorn](https://longhorn.io/) is a distributed block-storage CSI for
+k8s. Use it as the cluster's default `StorageClass` when k3s is
+installed with `--disable=local-storage` (DOKS-style) - PVCs without an
+explicit `storageClassName` then bind through Longhorn instead of staying
+`Pending`.
+
+Longhorn's CSI driver needs `iscsid` on every node. The role installs
+the relevant host packages (`iscsi-initiator-utils` on RHEL/Rocky,
+`open-iscsi` on Debian/Ubuntu) and starts the service via the
+`host-prep` entrypoint. NFS support (for ReadWriteMany volumes) is
+opt-in via `_install_nfs: true`.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `k8s_addons_longhorn_enabled` | `false` | opt-in flag |
+| `k8s_addons_longhorn_chart_version` | `1.7.2` | pinned chart version from `https://charts.longhorn.io` |
+| `k8s_addons_longhorn_chart_timeout` | `10m0s` | helm `--timeout`; the Longhorn manager/CSI rollout takes a while on cold installs |
+| `k8s_addons_longhorn_namespace` | `longhorn-system` | release namespace |
+| `k8s_addons_longhorn_replica_count` | `1` | default replica count for the StorageClass + global default. Upstream chart default is `3` (HA) which leaves PVCs `Pending` on single-node clusters waiting for distinct hosts. Bump to `3` for HA |
+| `k8s_addons_longhorn_default_storage_class` | `true` | mark Longhorn's StorageClass as the cluster default. Needed when k3s ships without local-storage and PVCs don't pin a `storageClassName` |
+| `k8s_addons_longhorn_install_nfs` | `false` | install `nfs-utils` / `nfs-common` on every node so Longhorn can serve RWX volumes via its internal NFS provisioner |
+| `k8s_addons_longhorn_extra_values` | `{}` | extra Helm values deep-merged on top of the role's defaults (user wins). Use to tune resource limits, change `defaultDataPath`, enable backup target, etc. |
+
+The uninstall path removes only the Helm release and the namespace.
+Host packages and replica data on disk (`/var/lib/longhorn/` by default)
+are left in place.
+
+The molecule scenario doesn't *install* Longhorn (it needs iscsid +
+privileged host access that's unreliable in nested docker, and PVC
+binding only makes sense against a long-lived host), but a `helm
+template` smoke-test in `extensions/molecule/k8s_addons/` renders the
+chart offline against the role's defaults and sanity-checks that
+`defaultClass: true` propagates to the StorageClass annotation and
+`defaultClassReplicaCount` to `numberOfReplicas`. The Longhorn 1.7.x
+chart doesn't ship a `values.schema.json`, so pure type-coercion bugs
+aren't caught by this — the type-assert in `longhorn-values.yml` is
+the regression guard for those.
 
 ### Headlamp
 
@@ -236,10 +276,10 @@ Token files land next to each kubeconfig
 
 The uninstall path runs unconditionally (regardless of the `_enabled`
 flag) so you can tear an addon down without flipping the flag back on.
-Use `--tags <addon>` (`headlamp`, `ingress-nginx`, `cilium`) to scope to
-a specific addon. Removal order is the reverse of install (Headlamp,
-Ingress-NGINX, then Cilium last), so the CNI stays up while the others
-talk to the apiserver during teardown.
+Use `--tags <addon>` (`headlamp`, `ingress-nginx`, `longhorn`, `cilium`)
+to scope to a specific addon. Removal order is the reverse of install
+(Headlamp, Ingress-NGINX, Longhorn, then Cilium last), so the CNI stays
+up while the others talk to the apiserver during teardown.
 
 Per-addon teardown details:
 
@@ -247,6 +287,10 @@ Per-addon teardown details:
   `ClusterRoleBinding`, the namespace, and the saved token file on the
   controller.
 - **Ingress-NGINX** — removes the Helm release and the namespace.
+- **Longhorn** — removes the Helm release and the namespace. Host
+  packages (`iscsi-initiator-utils` / `open-iscsi`, optional NFS) and
+  replica data on disk (`/var/lib/longhorn/` by default) are kept in
+  place; both are cheap and may still be wanted by the operator.
 - **Cilium** — removes only the Helm release. The `kube-system`
   namespace is shared and per-node CNI state on disk
   (`/etc/cni/net.d/05-cilium.conflist`, pinned BPF maps under

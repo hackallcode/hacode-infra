@@ -8,6 +8,7 @@
   vars:
     _k8s_addons_enabled_flags:
       - "{{ k8s_addons_cilium_enabled | default(false) | bool }}"
+      - "{{ k8s_addons_longhorn_enabled | default(false) | bool }}"
       - "{{ k8s_addons_headlamp_enabled | default(false) | bool }}"
       - "{{ k8s_addons_ingress_nginx_enabled | default(false) | bool }}"
   ansible.builtin.assert:
