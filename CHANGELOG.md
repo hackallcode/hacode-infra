@@ -69,6 +69,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `--tags <addon>` invocations to the appropriate `-install` /
   `-uninstall` lifecycle suffix.
 
+- `k8s_addons` role: README now explicitly documents controller-side
+  requirements (`helm` CLI + Python `kubernetes` package).
+  `_validate.yml` asserts both up-front with clear fail-messages,
+  replacing a deep stack trace from the first helm/k8s task with an
+  immediate fix-message.
+
 ### Fixed
 
 - `k3s` role: preflight now probes local interfaces for `k3s_node_ip` and

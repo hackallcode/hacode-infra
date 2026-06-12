@@ -8,8 +8,24 @@ flag and lives in its own `tasks/<addon>-install.yml` /
 
 Cluster-level tasks (helm, k8s) delegate to localhost + `run_once`, so
 the role can be included in any play (including `hosts: cluster_nodes`)
-without firing N times against unrelated managed hosts. The `helm` CLI
-must be installed on the controller.
+without firing N times against unrelated managed hosts.
+
+## Controller requirements
+
+The role's helm / k8s tasks run on the controller and need:
+
+- **`helm` CLI on `PATH`** — `kubernetes.core.helm` and
+  `kubernetes.core.helm_info` shell out to it. Install via
+  [get.helm.sh](https://helm.sh/docs/intro/install/) or your package
+  manager. Tested with helm v3.x and v4.x.
+- **Python `kubernetes` package** in the same interpreter Ansible uses on
+  the controller. `kubernetes.core.k8s` / `helm_info` import it
+  directly; without it the role fails with `ModuleNotFoundError:
+  kubernetes`. Install with `pip install kubernetes`.
+
+A preflight assert in `_validate.yml` checks both are present before any
+addon-touching task runs, so the failure message is clear when a
+dependency is missing.
 
 Addons that need per-node OS setup expose their host-level tasks via
 `tasks_from: host-prep`. Currently: Longhorn installs the iscsid stack;
