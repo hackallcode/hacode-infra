@@ -74,3 +74,29 @@
     reload: true
   loop: "{{ k3s_sysctls | dict2items }}"
   when: "k3s_sysctls | length > 0"
+
+# k3s passes `k3s_node_ip` to etcd as `--listen-peer-urls=https://<ip>:2380`;
+# if the address isn't on a local interface, etcd dies with "bind: cannot
+# assign requested address" during systemctl start. This is the common
+# cloud-droplet case where `ansible_host` is a floating / NAT'd public IP
+# (DO droplets, AWS EIPs, GCP external IPs) routed externally to a host
+# whose local NIC has a private address. Probe up-front and silently fall
+# back to k3s auto-detection so the default `k3s_node_ip: {{ ansible_host }}`
+# Just Works for both bare metal and cloud.
+- name: "Probe local interfaces for k3s_node_ip"
+  tags: ["install"]
+  ansible.builtin.shell:
+    cmd: "set -o pipefail; ip -o -4 addr show | awk '{print $4}' | cut -d/ -f1 | grep -Fxq -- '{{ k3s_node_ip }}'"
+    executable: "/bin/bash"
+  register: "k3s_node_ip_check"
+  changed_when: false
+  failed_when: false
+  when: "k3s_node_ip | default('') | length > 0"
+
+- name: "Fall back to k3s auto-detect when k3s_node_ip is not on a local NIC"
+  tags: ["install"]
+  ansible.builtin.set_fact:
+    k3s_node_ip: ""
+  when:
+    - "k3s_node_ip | default('') | length > 0"
+    - "k3s_node_ip_check.rc | default(0) != 0"

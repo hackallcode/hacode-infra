@@ -9,10 +9,10 @@ Install k3s server and agent nodes; fetch and rewrite kubeconfig to the controll
 | `k3s_channel` | `stable` | release channel when `k3s_version` is empty |
 | `k3s_version` | `""` | pin specific version like `v1.32.0+k3s1` |
 | `k3s_token` | `""` | shared cluster token; must be set per inventory |
-| `k3s_server_args` | `[]` | extra flags for `k3s server` |
-| `k3s_agent_args` | `[]` | extra flags for `k3s agent` |
+| `k3s_server_args` | `[]` | extra flags for `k3s server`. Changes here are picked up on re-run: the role compares the desired `ExecStart=` against `/etc/systemd/system/k3s.service` and reinstalls + restarts k3s when they drift |
+| `k3s_agent_args` | `[]` | extra flags for `k3s agent`. Same drift detection as `k3s_server_args` — re-run reinstalls + restarts `k3s-agent` when the unit's `ExecStart=` doesn't match |
 | `k3s_tls_san_extra` | `[]` | extra SANs on top of `ansible_host` |
-| `k3s_node_ip` | `{{ ansible_host }}` | kubelet `--node-ip` (+ apiserver `--advertise-address` on servers); `""` falls back to k3s default-route detection |
+| `k3s_node_ip` | `{{ ansible_host }}` | kubelet `--node-ip` (+ apiserver `--advertise-address` on servers). Preflight probes local NICs and silently falls back to k3s auto-detect if the address isn't bound locally (cloud-droplet case: `ansible_host` is a floating / NAT'd public IP). Set to `""` to skip the probe |
 | `k3s_control_plane_taint` | `""` | taint effect on servers as `node-role.kubernetes.io/control-plane=true:<effect>` (`NoSchedule` / `PreferNoSchedule` / `NoExecute`); empty = no taint. Applied via `kubectl taint` |
 | `k3s_node_labels` | `{}` | dict of labels applied via `kubectl label` post-install (server applies its own; agent labels are applied from primary via `delegate_to`) |
 | `k3s_node_taints` | `[]` | list of raw taint specs (`key=value:effect`) applied via `kubectl taint` post-install |

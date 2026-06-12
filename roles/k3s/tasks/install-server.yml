@@ -100,6 +100,53 @@
   ansible.builtin.set_fact:
     k3s_server_role_args: "{{ _ip | join(' ') }}"
 
+# The k3s installer is non-idempotent against the systemd ExecStart line:
+# a stock `creates: /etc/systemd/system/k3s.service` guard would skip the
+# installer forever once the unit exists, so subsequent changes to
+# `k3s_server_args` / `k3s_node_ip` never reach the running service.
+# Compare the running unit's resolved ExecStart against the desired one
+# and re-run the installer only when they drift (or the unit is missing
+# on first install). `systemctl show` returns the resolved value as a
+# single line, sidestepping the multi-line `\` continuations the
+# installer writes into `/etc/systemd/system/k3s.service`.
+- name: "Read current k3s ExecStart via systemctl (drift detection)"
+  tags: ["install"]
+  ansible.builtin.command:
+    argv: ["systemctl", "show", "-p", "ExecStart", "--value", "--no-pager", "k3s.service"]
+  register: "k3s_current_exec_raw"
+  changed_when: false
+  failed_when: false
+
+- name: "Compute expected k3s ExecStart and detect drift"
+  tags: ["install"]
+  vars:
+    _expected_exec: >-
+      {{
+        ('server --cluster-init '
+         if k3s_is_primary
+         else 'server --server ' ~ k3s_primary_url ~ ' ')
+        ~ k3s_server_role_args ~ ' ' ~ (k3s_server_args | join(' '))
+      }}
+    # `systemctl show --value -p ExecStart k3s.service` returns one line:
+    #   `{ path=/usr/local/bin/k3s ; argv[]=/usr/local/bin/k3s <args> ; ... }`
+    # Extract the argv[] field (stops at the next `;`), strip the binary
+    # path, normalise whitespace. Missing unit → stdout is empty.
+    # Using regex_search without a capture-replacement arg returns the
+    # match as a string; with one (e.g. `, '\1'`) it returns a *list*,
+    # which breaks the string compare below — drift was always true.
+    _current_exec: >-
+      {{ (k3s_current_exec_raw.stdout | default('')
+           | regex_search('argv\[\]=[^;]+'))
+         | default('', true)
+         | regex_replace('^argv\[\]=/usr/local/bin/k3s\s*', '')
+         | regex_replace('\s+', ' ')
+         | trim }}
+    _unit_present: "{{ (k3s_current_exec_raw.stdout | default('') | length) > 0 }}"
+    _expected_normalized: "{{ _expected_exec | regex_replace('\\s+', ' ') | trim }}"
+  ansible.builtin.set_fact:
+    k3s_unit_present: "{{ _unit_present }}"
+    k3s_server_args_drift: "{{ _unit_present and (_current_exec != _expected_normalized) }}"
+
 - name: "Run k3s installer (primary server, --cluster-init)"
   tags: ["install"]
   ansible.builtin.command: "/usr/local/bin/k3s-install.sh"
@@ -108,9 +155,10 @@
     INSTALL_K3S_CHANNEL: "{{ k3s_channel }}"
     INSTALL_K3S_VERSION: "{{ k3s_version }}"
     INSTALL_K3S_EXEC: "server --cluster-init {{ k3s_server_role_args }} {{ k3s_server_args | join(' ') }}"
-  args:
-    creates: "/etc/systemd/system/k3s.service"
-  when: "k3s_is_primary"
+  changed_when: true
+  when:
+    - "k3s_is_primary"
+    - "(not k3s_unit_present) or k3s_server_args_drift"
 
 - name: "Run k3s installer (joining server)"
   tags: ["install"]
@@ -122,9 +170,10 @@
     INSTALL_K3S_EXEC: >-
       server --server {{ k3s_primary_url }}
       {{ k3s_server_role_args }} {{ k3s_server_args | join(' ') }}
-  args:
-    creates: "/etc/systemd/system/k3s.service"
-  when: "not k3s_is_primary"
+  changed_when: true
+  when:
+    - "not k3s_is_primary"
+    - "(not k3s_unit_present) or k3s_server_args_drift"
 
 - name: "Enable and start k3s service"
   tags: ["install"]
@@ -134,14 +183,15 @@
     state: "started"
     daemon_reload: true
 
-- name: "Restart k3s to apply new tls-san"
+- name: "Restart k3s to apply new tls-san or server args"
   tags: ["install"]
   ansible.builtin.systemd:
     name: "k3s"
     state: "restarted"
-  when:
-    - "k3s_apiserver_cert.stat.exists"
-    - "k3s_config is changed or (force | default(false) | bool)"
+  when: >-
+    (k3s_apiserver_cert.stat.exists
+     and (k3s_config is changed or (force | default(false) | bool)))
+    or k3s_server_args_drift | default(false) | bool
 
 - name: "Wait for kubeconfig file to appear"
   tags: ["install", "kubeconfig"]

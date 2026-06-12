@@ -70,6 +70,35 @@
   ansible.builtin.set_fact:
     k3s_agent_role_args: "{{ _ip | join(' ') }}"
 
+# See install-server.yml for the drift-detection rationale.
+- name: "Read current k3s-agent ExecStart via systemctl (drift detection)"
+  tags: ["install"]
+  ansible.builtin.command:
+    argv: ["systemctl", "show", "-p", "ExecStart", "--value", "--no-pager", "k3s-agent.service"]
+  register: "k3s_agent_current_exec_raw"
+  changed_when: false
+  failed_when: false
+
+- name: "Compute expected k3s-agent ExecStart and detect drift"
+  tags: ["install"]
+  vars:
+    _expected_exec: >-
+      {{ 'agent ' ~ k3s_agent_role_args ~ ' ' ~ (k3s_agent_args | join(' ')) }}
+    # `regex_search(pattern)` returns a string match; with a replacement
+    # arg it would return a *list* — see install-server.yml for details.
+    _current_exec: >-
+      {{ (k3s_agent_current_exec_raw.stdout | default('')
+           | regex_search('argv\[\]=[^;]+'))
+         | default('', true)
+         | regex_replace('^argv\[\]=/usr/local/bin/k3s\s*', '')
+         | regex_replace('\s+', ' ')
+         | trim }}
+    _unit_present: "{{ (k3s_agent_current_exec_raw.stdout | default('') | length) > 0 }}"
+    _expected_normalized: "{{ _expected_exec | regex_replace('\\s+', ' ') | trim }}"
+  ansible.builtin.set_fact:
+    k3s_agent_unit_present: "{{ _unit_present }}"
+    k3s_agent_args_drift: "{{ _unit_present and (_current_exec != _expected_normalized) }}"
+
 - name: "Run k3s installer (agent)"
   tags: ["install"]
   ansible.builtin.command: "/usr/local/bin/k3s-install.sh"
@@ -79,8 +108,8 @@
     INSTALL_K3S_CHANNEL: "{{ k3s_channel }}"
     INSTALL_K3S_VERSION: "{{ k3s_version }}"
     INSTALL_K3S_EXEC: "agent {{ k3s_agent_role_args }} {{ k3s_agent_args | join(' ') }}"
-  args:
-    creates: "/etc/systemd/system/k3s-agent.service"
+  changed_when: true
+  when: "(not k3s_agent_unit_present) or k3s_agent_args_drift"
 
 - name: "Enable and start k3s-agent service"
   tags: ["install"]
@@ -89,6 +118,13 @@
     enabled: true
     state: "started"
     daemon_reload: true
+
+- name: "Restart k3s-agent to apply new agent args"
+  tags: ["install"]
+  ansible.builtin.systemd:
+    name: "k3s-agent"
+    state: "restarted"
+  when: "k3s_agent_args_drift | default(false) | bool"
 
 # kubelet refuses to self-assign labels/taints in the kubernetes.io / k8s.io
 # namespaces (NodeRestriction-style hard-check at kubelet startup). Apply
