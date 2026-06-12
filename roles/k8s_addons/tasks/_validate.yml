@@ -20,3 +20,57 @@
       auto-derives to
       `<k3s_kubeconfig_local_dir | hacode_kube_configs_dir>/<k3s_kubeconfig_local_file | <cluster>.yml>`.
   when: "_k8s_addons_enabled_flags | select | list | length > 0"
+
+# Controller-side dependencies: `kubernetes.core.helm*` shell out to the
+# `helm` binary, `kubernetes.core.k8s` / `helm_info` import the Python
+# `kubernetes` package. Catch both up-front with clear messages rather
+# than letting the failure surface as a deep stack trace from the first
+# helm/k8s task. Runs on `localhost` since that's where the modules
+# execute (per the role's delegate_to + run_once contract).
+- name: "Probe controller for `helm` CLI on PATH"
+  tags: ["always"]
+  ansible.builtin.command:
+    argv: ["helm", "version", "--short"]
+  register: "_k8s_addons_helm_probe"
+  changed_when: false
+  failed_when: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Assert `helm` CLI is available"
+  tags: ["always"]
+  ansible.builtin.assert:
+    that: "_k8s_addons_helm_probe.rc | default(127) == 0"
+    fail_msg: >-
+      `helm` CLI not found on the controller. The role's helm tasks
+      shell out to it via `kubernetes.core.helm`. Install helm v3.x or
+      v4.x (https://helm.sh/docs/intro/install/) and ensure it's on
+      `PATH` for the user Ansible runs as.
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Probe controller for the Python `kubernetes` package"
+  tags: ["always"]
+  ansible.builtin.command:
+    argv: ["{{ ansible_python_interpreter | default('python3') }}", "-c", "import kubernetes"]
+  register: "_k8s_addons_kubernetes_probe"
+  changed_when: false
+  failed_when: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Assert Python `kubernetes` package is importable"
+  tags: ["always"]
+  ansible.builtin.assert:
+    that: "_k8s_addons_kubernetes_probe.rc | default(1) == 0"
+    fail_msg: >-
+      Python `kubernetes` package not importable from the controller's
+      Ansible interpreter. `kubernetes.core.k8s` / `helm_info` need it.
+      Install via `pip install kubernetes` into the same env Ansible
+      uses.
+  delegate_to: "localhost"
+  run_once: true
+  become: false
