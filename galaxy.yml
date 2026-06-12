@@ -12,9 +12,9 @@ authors:
 description: >-
   Reusable Ansible roles for bootstrapping bare-metal and VM hosts: machine
   baseline (users, ssh, firewall, dns, fail2ban, journald, swap, zsh, nvidia,
-  cockpit), Docker, k3s + Helm-based k8s addons (Headlamp), MariaDB, Nginx,
-  PHP, Node.js builds, Prometheus stack, WireGuard, Certbot, internal CA,
-  GitLab Runner, GOST tunnel, SSH tunnels.
+  cockpit), Docker, k3s + Helm-based k8s addons (Cilium CNI, Headlamp,
+  Ingress-NGINX), MariaDB, Nginx, PHP, Node.js builds, Prometheus stack,
+  WireGuard, Certbot, internal CA, GitLab Runner, GOST tunnel, SSH tunnels.
 
 tags:
   - "infrastructure"

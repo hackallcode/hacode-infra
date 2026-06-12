@@ -1,0 +1,10 @@
+# Entrypoint for host-level (per-node) prep. Unlike `main.yml`, these
+# tasks run on the cluster nodes themselves — not delegated to localhost
+# — so invoke via `tasks_from: host-prep` from a play whose `hosts:`
+# covers every k3s server + agent (see README for the layout). Each
+# addon contributes its own `<addon>-prep.yml` here, gated by `_enabled`.
+
+- name: "Prep Cilium host iptables state"
+  tags: ["cilium"]
+  ansible.builtin.include_tasks: "cilium-prep.yml"
+  when: "k8s_addons_cilium_enabled | default(false) | bool"

@@ -1,8 +1,8 @@
 # hacode.infra.k8s_addons
 
-Install opinionated Kubernetes addons (currently: Headlamp) into an existing
-cluster via Helm and raw manifests. Each addon is gated by its own
-`k8s_addons_<name>_enabled` flag and lives in its own
+Install opinionated Kubernetes addons (Cilium CNI, Headlamp, Ingress-NGINX)
+into an existing cluster via Helm and raw manifests. Each addon is gated
+by its own `k8s_addons_<name>_enabled` flag and lives in its own
 `tasks/<addon>-install.yml` / `tasks/<addon>-uninstall.yml` pair.
 
 The role talks to the cluster from the controller via the supplied
@@ -12,13 +12,90 @@ firing N times against unrelated managed hosts. The `helm` CLI must be
 installed on the controller (the `kubernetes.core.helm` module shells out
 to it).
 
+Addons that need per-node OS setup expose their host-level tasks via
+`tasks_from: host-prep`. Currently: Cilium flushes orphan `OLD_CILIUM_*`
+iptables chains left over from an unclean shutdown. Invoke the
+entrypoint from a play whose `hosts:` covers every cluster node:
+
+```yaml
+- hosts: "k3s_server:k3s_agent"
+  become: true
+  tasks:
+    - ansible.builtin.import_role:
+        name: "hacode.infra.k8s_addons"
+        tasks_from: "host-prep"
+```
+
 ## Variables
 
 ### Cluster target
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `k8s_addons_kubeconfig` | `{{ hacode_kube_configs_dir }}/{{ k3s_cluster_name }}.yml` when `k3s_cluster_name` is in scope, otherwise `""` | path to a kubeconfig on the controller. The default works zero-config when the role is included alongside `hacode.infra.k3s` in the same inventory group (both roles share `hacode_kube_configs_dir`). For clusters provisioned by anything other than the k3s role, set this explicitly in inventory (e.g. group_vars of a dedicated `k8s` group) |
+| `k8s_addons_kubeconfig` | derived from `k3s_kubeconfig_local_dir` / `_local_file` / `k3s_cluster_name` when in scope, else `""` | path to a kubeconfig on the controller. The default works zero-config when the role is included alongside `hacode.infra.k3s` in the same inventory group - including the case where the operator pinned a custom kubeconfig filename via `k3s_kubeconfig_local_file`. For clusters provisioned by anything other than the k3s role, set this explicitly in inventory (e.g. group_vars of a dedicated `k8s` group) |
+
+### Cilium
+
+[Cilium](https://cilium.io/) is the CNI / NetworkPolicy implementation
+used by DOKS, GKE Dataplane V2, EKS Anywhere, etc. Use it to replace
+k3s's bundled flannel + kube-router; the cluster ends up much closer to
+upstream / managed-Kubernetes defaults.
+
+**Prerequisite**: install k3s with the flannel and kube-router disable
+flags so Cilium can take over the datapath. Until Cilium lands, the node
+will sit `NotReady` and CoreDNS will stay `Pending`. That's expected.
+
+```yaml
+k3s_server_args:
+  - "--flannel-backend=none"
+  - "--disable-network-policy"
+  - "--disable=traefik"     # optional but typical (use ingress-nginx)
+  - "--disable=servicelb"   # optional but typical (no Klipper LB)
+```
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `k8s_addons_cilium_enabled` | `false` | opt-in flag |
+| `k8s_addons_cilium_chart_version` | `1.16.5` | pinned chart version from `https://helm.cilium.io` |
+| `k8s_addons_cilium_chart_timeout` | `10m0s` | helm `--timeout`; Cilium DaemonSet needs cluster-wide rollout before `--wait` returns |
+| `k8s_addons_cilium_namespace` | `kube-system` | release namespace |
+| `k8s_addons_cilium_operator_replicas` | `1` | upstream chart default is `2` (HA) which leaves one operator `Pending` on single-node clusters and hangs `--wait`. Bump to 2+ when running HA control planes |
+| `k8s_addons_cilium_pod_cidr` | `{{ k3s_cluster_cidr \| default('10.42.0.0/16') }}` | pod CIDR Cilium allocates from. Default tracks `k3s_cluster_cidr` when in scope, otherwise falls back to k3s's own default - so colocating with `hacode.infra.k3s` needs no extra config |
+| `k8s_addons_cilium_pod_cidr_mask_size` | `24` | per-node block size carved out of the pod CIDR |
+| `k8s_addons_cilium_kube_proxy_replacement` | `"false"` | string `"false"` keeps kube-proxy (DOKS-style). Set to `"true"` + `--disable-kube-proxy` in `k3s_server_args` for Cilium's kube-proxy-free datapath |
+| `k8s_addons_cilium_k8s_service_host` | `""` | apiserver IP/FQDN; required only when `_kube_proxy_replacement: "true"` |
+| `k8s_addons_cilium_k8s_service_port` | `6443` | apiserver port; paired with `_k8s_service_host` |
+| `k8s_addons_cilium_cni_exclusive` | `false` | leave non-Cilium CNI configs in `/etc/cni/net.d` alone (e.g. flannel leftovers from a previous install). Set `true` for strict single-CNI |
+| `k8s_addons_cilium_devices` | `""` | interfaces Cilium attaches BPF programs to (e.g. `eth0`, `eth+`). Empty = auto-detect via default route. Pin when the node has multiple public NICs and Cilium picks the wrong one |
+| `k8s_addons_cilium_egress_masquerade_interfaces` | `""` | SNAT source interface for pod→external traffic. Empty = derive from `_devices` / default route. Pin to the egress NIC (e.g. `eth0`) when pod-to-internet times out because pod IPs leak out unmasqueraded |
+| `k8s_addons_cilium_extra_values` | `{}` | extra Helm values deep-merged on top of the role's defaults (user wins). Use to enable Hubble, BGP, ClusterMesh, etc. |
+
+See [Uninstall](#uninstall) for teardown notes (Cilium leaves per-node
+CNI state on disk; the `kube-system` namespace is shared).
+
+**Note on k3s restarts and masquerade.** On self-hosted k3s, a
+`systemctl restart k3s` rewrites iptables on startup and can transiently
+flush Cilium's pod-egress masquerade chain. Cilium reinstalls it on the
+next agent reconcile loop, but the symptom in the gap is `pod →
+external` timing out while `hostNetwork pod → external` works. Manual
+recovery: `kubectl -n kube-system rollout restart ds/cilium`. To make
+sure Cilium masquerades through the right interface on multi-NIC nodes,
+pin `k8s_addons_cilium_egress_masquerade_interfaces`.
+
+An unclean shutdown also leaves orphan `OLD_CILIUM_*` iptables chains
+that the next agent appends to, producing the same symptom. The role's
+`host-prep` entrypoint includes a Cilium-specific iptables cleanup
+(`cilium-prep.yml`) that flushes and deletes any `OLD_CILIUM_*` chains
+before the agent starts — invoke it from a play whose `hosts:` covers
+every cluster node (see the host-prep example near the top of this
+file).
+
+The molecule scenario doesn't *install* Cilium (eBPF datapath + per-node
+CNI state are fragile in privileged docker), but the rendered helm
+values are validated offline against the chart's `values.schema.json`
+via a `helm template` smoke-test in `extensions/molecule/k8s_addons/`.
+That catches stringified-scalar / wrong-key / wrong-nesting regressions
+regardless of which Ansible version is in use.
 
 ### Headlamp
 
@@ -159,6 +236,20 @@ Token files land next to each kubeconfig
 
 The uninstall path runs unconditionally (regardless of the `_enabled`
 flag) so you can tear an addon down without flipping the flag back on.
-Use `--tags headlamp` to scope to a specific addon. The Headlamp
-uninstall removes the Helm release, the cluster-scoped `ClusterRoleBinding`,
-the namespace, and the saved token file on the controller.
+Use `--tags <addon>` (`headlamp`, `ingress-nginx`, `cilium`) to scope to
+a specific addon. Removal order is the reverse of install (Headlamp,
+Ingress-NGINX, then Cilium last), so the CNI stays up while the others
+talk to the apiserver during teardown.
+
+Per-addon teardown details:
+
+- **Headlamp** — removes the Helm release, the cluster-scoped
+  `ClusterRoleBinding`, the namespace, and the saved token file on the
+  controller.
+- **Ingress-NGINX** — removes the Helm release and the namespace.
+- **Cilium** — removes only the Helm release. The `kube-system`
+  namespace is shared and per-node CNI state on disk
+  (`/etc/cni/net.d/05-cilium.conflist`, pinned BPF maps under
+  `/sys/fs/bpf`) is left in place; to migrate to another CNI, run
+  `cilium-cli uninstall` on each node or wipe `/etc/cni/net.d`
+  manually.

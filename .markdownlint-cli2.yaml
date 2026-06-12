@@ -14,6 +14,10 @@ config:
   MD060:
     style: "consistent"
   MD033: false  # no inline HTML (we don't use any; safe to leave default)
+  # Keep a Changelog repeats `### Added` / `### Changed` under every
+  # release heading; only flag duplicates inside the same release.
+  MD024:
+    siblings_only: true
 
 # Don't walk into vendored / generated trees.
 ignores:

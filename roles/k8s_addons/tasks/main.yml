@@ -1,5 +1,12 @@
 - ansible.builtin.import_tasks: "_validate.yml"
 
+# Cilium runs first: cluster is NotReady until the CNI lands, so every
+# addon below would fail to schedule.
+- name: "Install Cilium"
+  tags: ["cilium"]
+  ansible.builtin.include_tasks: "cilium-install.yml"
+  when: "k8s_addons_cilium_enabled | default(false) | bool"
+
 - name: "Install Headlamp"
   tags: ["headlamp"]
   ansible.builtin.include_tasks: "headlamp-install.yml"

@@ -3,9 +3,10 @@ galaxy_info:
   namespace: "hacode"
   author: "Vladimir Severov"
   description: >-
-    Install opinionated Kubernetes addons (Headlamp, …) into an existing
-    cluster via Helm and raw manifests. Each addon is gated by its own
-    `k8s_addons_<name>_enabled` flag and lives in its own `tasks/<addon>-*.yml`.
+    Install opinionated Kubernetes addons (Cilium CNI, Headlamp,
+    Ingress-NGINX) into an existing cluster via Helm and raw manifests.
+    Each addon is gated by its own `k8s_addons_<name>_enabled` flag and
+    lives in its own `tasks/<addon>-*.yml`.
   license: "Apache-2.0"
   min_ansible_version: "2.16"
   platforms:

@@ -1,0 +1,28 @@
+- name: "Add cilium Helm repo"
+  tags: ["cilium"]
+  kubernetes.core.helm_repository:
+    name: "cilium"
+    repo_url: "https://helm.cilium.io"
+  check_mode: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- ansible.builtin.import_tasks: "cilium-values.yml"
+  tags: ["cilium"]
+
+- name: "Install/upgrade cilium chart"
+  tags: ["cilium"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "cilium"
+    chart_ref: "cilium/cilium"
+    chart_version: "{{ k8s_addons_cilium_chart_version }}"
+    release_namespace: "{{ k8s_addons_cilium_namespace }}"
+    create_namespace: true
+    wait: true
+    timeout: "{{ k8s_addons_cilium_chart_timeout }}"
+    values: "{{ _cilium_helm_values }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
