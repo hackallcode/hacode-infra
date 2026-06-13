@@ -100,6 +100,17 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   cluster-touching task on `helm_info.status is defined`, making it
   tolerant of both missing-release and unreachable-cluster cases.
 
+- `k8s_addons` role: helm preflight now also recovers from the
+  `uninstalling` state — left over when a `helm uninstall` is killed
+  mid-flight (e.g. operator killed a stuck pre-delete Job). Recovery
+  is now split by state: `pending-install` (no prior deployed
+  revision) is reaped via `helm uninstall`, while `pending-upgrade` /
+  `pending-rollback` / `uninstalling` (all of which have a prior
+  deployed revision to fall back to) are recovered via `helm rollback`.
+  NEVER uninstalling charts with pre-delete hooks (Longhorn,
+  cert-manager, postgres-operator, ...) — the hooks run cluster-wide
+  cleanup logic and would destroy the data the release was managing.
+
 ## [0.1.0] - 2026-06-09
 
 ### Added

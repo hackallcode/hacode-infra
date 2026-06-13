@@ -1,20 +1,26 @@
 # Recover from a "pending-install" / "pending-upgrade" / "pending-rollback"
 # helm release left over from an interrupted operation (Ctrl+C / SIGTERM
-# during `helm --wait`, network blip during install, etc.). Without this
-# preflight, the next `helm install` errors with `another operation
-# (install/upgrade/rollback) is in progress` and the role is wedged
-# until an operator does `helm uninstall` manually.
+# during `helm --wait`, transient apiserver TLS blip mid-upgrade, etc.).
+# Without this preflight, the next install errors with `another operation
+# (install/upgrade/rollback) is in progress` and the role is wedged until
+# an operator intervenes manually.
 #
 # Caller sets:
-#   _helm_preflight_release_name      — Helm release name
-#   _helm_preflight_release_namespace — release namespace
+#   _helm_preflight_release_name      - Helm release name
+#   _helm_preflight_release_namespace - release namespace
 #
-# Behavior: query `helm status`; if the release is in any pending-* state,
-# uninstall it so the subsequent install starts from a clean slate. Note
-# this prefers correctness over data preservation — a pending-upgrade
-# loses the prior version's revision history. Acceptable here because
-# the role's installs use `atomic: true`, so the only way to land in
-# pending-* is an externally killed run, not a chart bug.
+# Recovery rules:
+#   pending-install (rev 1 never reached deployed):
+#     `helm uninstall` - no prior revision to preserve; pre-delete hooks
+#     have no cluster state to act on.
+#   pending-upgrade / pending-rollback / uninstalling (has a prior
+#   deployed revision):
+#     `helm rollback` to the previous revision. NEVER uninstall: charts
+#     with pre-delete hooks (Longhorn, cert-manager, postgres-operator,
+#     ...) run cluster-wide cleanup logic in the hook and would destroy
+#     the data the release was managing. `uninstalling` shows up when an
+#     uninstall got killed mid-flight (e.g. operator killed a stuck
+#     pre-delete Job); rollback brings the release back to deployed.
 
 - name: "Preflight: status of {{ _helm_preflight_release_name }} helm release"
   kubernetes.core.helm_info:
@@ -28,7 +34,7 @@
   run_once: true
   become: false
 
-- name: "Recover stuck pending-* {{ _helm_preflight_release_name }} release"
+- name: "Uninstall stuck pending-install {{ _helm_preflight_release_name }} release"
   kubernetes.core.helm:
     kubeconfig: "{{ k8s_addons_kubeconfig }}"
     name: "{{ _helm_preflight_release_name }}"
@@ -36,9 +42,26 @@
     state: "absent"
   when:
     - "_helm_preflight_info.status is defined"
+    - "(_helm_preflight_info.status.status | default('')) == 'pending-install'"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Rollback stuck pending-upgrade/rollback/uninstalling {{ _helm_preflight_release_name }} release"
+  ansible.builtin.command:
+    argv:
+      - "helm"
+      - "--kubeconfig={{ k8s_addons_kubeconfig }}"
+      - "-n"
+      - "{{ _helm_preflight_release_namespace }}"
+      - "rollback"
+      - "{{ _helm_preflight_release_name }}"
+  when:
+    - "_helm_preflight_info.status is defined"
     - >-
       (_helm_preflight_info.status.status | default(''))
-      in ['pending-install', 'pending-upgrade', 'pending-rollback']
+      in ['pending-upgrade', 'pending-rollback', 'uninstalling']
+  changed_when: true
   delegate_to: "localhost"
   run_once: true
   become: false
