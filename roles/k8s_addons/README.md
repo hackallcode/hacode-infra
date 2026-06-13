@@ -142,6 +142,17 @@ The uninstall path removes only the Helm release and the namespace.
 Host packages and replica data on disk (`/var/lib/longhorn/` by default)
 are left in place.
 
+**csi sidecar replicas are install-time only.** The chart's
+`csi.attacherReplicaCount` / `provisionerReplicaCount` / `resizerReplicaCount`
+/ `snapshotterReplicaCount` keys are read by `longhorn-driver-deployer`
+when it *creates* the csi-* Deployments and never reconciled afterwards.
+Setting them via `_extra_values` on an already-deployed cluster updates
+the Helm release values (visible in `helm get values`) but the running
+Deployments stay at their original replica count. To scale down on a
+live cluster, `kubectl scale deploy csi-attacher csi-provisioner
+csi-resizer csi-snapshotter -n longhorn-system --replicas=1` and the
+deployer won't reconcile them back.
+
 The molecule scenario doesn't *install* Longhorn (it needs iscsid +
 privileged host access that's unreliable in nested docker, and PVC
 binding only makes sense against a long-lived host), but a `helm
