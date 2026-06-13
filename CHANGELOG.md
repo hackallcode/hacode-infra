@@ -75,6 +75,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   replacing a deep stack trace from the first helm/k8s task with an
   immediate fix-message.
 
+- `k8s_addons` role: README documents that Longhorn's csi sidecar
+  replica-count values (`csi.attacherReplicaCount` and friends) are
+  read by `longhorn-driver-deployer` only at *create* time and never
+  reconciled afterwards — setting them via `_extra_values` on an
+  already-deployed cluster updates the Helm release values but the
+  running Deployments stay at the original replica count. Workaround
+  (`kubectl scale deploy csi-* --replicas=1`) is documented inline.
+
 ### Fixed
 
 - `k3s` role: preflight now probes local interfaces for `k3s_node_ip` and
