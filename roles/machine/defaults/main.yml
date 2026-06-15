@@ -20,7 +20,7 @@ machine_nvidia_enabled: false
 machine_tmux_enabled: false
 machine_claude_code_enabled: false
 machine_codex_enabled: false
-machine_scripts_enabled: false
+machine_scripts_enabled: true
 machine_reboot_enabled: true
 
 # ===== Users =====
@@ -69,6 +69,22 @@ machine_ssh_max_startups: "60:30:200"
 # password (`false` -> caller's password) or runs without one (`true`).
 machine_admin_group: "wheel"
 machine_admin_nopasswd: true
+
+# Extra sudoers drop-ins, rendered to /etc/sudoers.d/<name> via the same
+# `community.general.sudoers` module the admin-group entry uses (built-in
+# `visudo -c` validation). Each entry maps 1:1 to module params:
+#   - name              filename basename (required)
+#   - user / group      who the rule applies to ("ALL" or "u1,u2");
+#                       mutually exclusive
+#   - host              host_specifier (default ALL)
+#   - runas             effective user
+#   - commands          string or list of commands
+#   - nopassword        bool
+#   - setenv / noexec   bool
+#   - state             "present" (default) | "absent"
+# Typical use: grant NOPASSWD on a helper installed by `machine_scripts`,
+# without piling everyone into the admin group.
+machine_sudoers: []
 
 # Rotate root password if non-empty (hashed with sha512 + per-host seed).
 # `root_password_update` mirrors `ansible.builtin.user.update_password`:
@@ -211,12 +227,14 @@ machine_zsh_users: >-
 tmux_version: "3.5a"
 
 # ===== Scripts =====
-# Drop arbitrary executables into /usr/local/bin (already in PATH for login
-# shells via `machine_localbin_in_path`). Each entry:
+# Drop arbitrary executables onto the host. Each entry:
 #   - name        basename on the remote AND default filename under
 #                 `machine_scripts_src_dir`. Required.
 #   - src         controller-side path. Default:
 #                 "{{ machine_scripts_src_dir }}/{{ name }}".
+#   - dest        destination directory on the remote. Default
+#                 "/usr/local/bin" (in PATH via `machine_localbin_in_path`).
+#                 Set to "/usr/local/sbin" for root-only helpers.
 #   - mode        file mode (default: "0755")
 #   - owner       default: "root"
 #   - group       default: "root"

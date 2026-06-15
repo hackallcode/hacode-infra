@@ -78,6 +78,14 @@ provisioner:
         machine_scripts:
           - name: "molecule-script"
             completion: "echo complete -W ok molecule-script"
+          - name: "molecule-sbin-script"
+            dest: "/usr/local/sbin"
+
+        machine_sudoers:
+          - name: "10-molecule-script"
+            user: "molecule"
+            commands: ["/usr/local/bin/molecule-script"]
+            nopassword: true
 
         setup_user_name: "root"
         machine_users:
