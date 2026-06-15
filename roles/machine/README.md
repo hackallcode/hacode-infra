@@ -27,6 +27,7 @@ off by default.
 | `machine_tmux_enabled`        | `false` | build tmux `tmux_version` from source, drop `~/.tmux.conf` per user        |
 | `machine_claude_code_enabled` | `false` | install `@anthropic-ai/claude-code` globally via npm (installs nodejs+npm) |
 | `machine_codex_enabled`       | `false` | install `@openai/codex` globally via npm (installs nodejs+npm)             |
+| `machine_scripts_enabled`     | `false` | copy entries in `machine_scripts` into `/usr/local/bin`                    |
 | `machine_reboot_enabled`      | `true`  | reboot at the end if required                                              |
 
 ## Key variables
@@ -88,6 +89,17 @@ cockpit_key_path: ""
 # Tmux (source build)
 tmux_version: "3.5a"
 
+# Scripts dropped into /usr/local/bin (PATH-wide for login shells). Each
+# entry: {name (required), src?, mode?, owner?, group?, completion?}.
+# Default src is "{{ machine_scripts_src_dir }}/{{ name }}". When
+# `completion` is set, the role evals its output (e.g.
+# "kubectl completion bash", "ovpn init") on login: for bash via
+# /etc/profile.d/<name>-completion.sh, and for zsh (when
+# `machine_zsh_enabled`) via each user's
+# ~/.oh-my-zsh/custom/<name>-completion.zsh so it loads after compinit.
+machine_scripts_src_dir: "{{ playbook_dir }}/sources/scripts"
+machine_scripts: []                # e.g. [{name: "ovpn", completion: "ovpn init"}]
+
 # NVIDIA / CUDA
 cuda_version: "12.5"
 nvidia_container_toolkit_version: "1.17.8"
@@ -145,7 +157,7 @@ ansible-playbook site.yml --tags "custom_user,ssh"
 
 Available tags: `always`, `root_user`, `custom_user`, `setup_user_cleanup`, `ssh`, `locale`, `hostname`, `motd`,
 `path`, `swap`, `package`, `zsh`, `firewall`, `selinux`, `raspberry`, `journald`, `fail2ban`, `dns`, `docker`,
-`cockpit`, `nvidia`, `tmux`, `claude_code`, `codex`, `reboot`.
+`cockpit`, `nvidia`, `tmux`, `claude_code`, `codex`, `scripts`, `reboot`.
 
 ## Convenience entrypoint
 

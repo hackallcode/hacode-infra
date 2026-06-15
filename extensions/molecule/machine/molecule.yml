@@ -74,6 +74,11 @@ provisioner:
         machine_nvidia_enabled: false
         machine_reboot_enabled: false
 
+        machine_scripts_enabled: true
+        machine_scripts:
+          - name: "molecule-script"
+            completion: "echo complete -W ok molecule-script"
+
         setup_user_name: "root"
         machine_users:
           - name: "molecule"

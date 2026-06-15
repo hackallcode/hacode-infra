@@ -60,5 +60,8 @@
 - ansible.builtin.import_tasks: "codex.yml"
   when: "machine_codex_enabled | bool"
 
+- ansible.builtin.import_tasks: "scripts.yml"
+  when: "machine_scripts_enabled | bool"
+
 - ansible.builtin.import_tasks: "reboot.yml"
   when: "machine_reboot_enabled | bool"
