@@ -1,7 +1,7 @@
 - name: "Create a directory for backups"
   tags: ["backup"]
   ansible.builtin.file:
-    path: "/opt/backups/maria_db/"
+    path: "/opt/backups/maria-db/"
     state: "directory"
     mode: "0700"
 

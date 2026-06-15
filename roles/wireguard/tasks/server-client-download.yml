@@ -25,7 +25,7 @@
 - name: "Set 'wg_file_name' fact"
   tags: ["clients-download"]
   ansible.builtin.set_fact:
-    wg_file_name: "{{ wg_client.name }}{{ '_local' if (local_net_only | default(False)) else '' }}.conf"
+    wg_file_name: "{{ wg_client.name }}{{ '-local' if (local_net_only | default(False)) else '' }}.conf"
 
 - name: "Create a directory for WireGuard configs"
   tags: ["clients-download"]
@@ -37,7 +37,7 @@
 - name: "Create '{{ wg_file_name }}' config"
   tags: ["clients-download"]
   ansible.builtin.template:
-    dest: "/etc/wireguard/configs/wg0_{{ wg_file_name }}"
+    dest: "/etc/wireguard/configs/wg0-{{ wg_file_name }}"
     src: "wg-client-wg0.conf.j2"
     owner: "root"
     group: "root"
@@ -47,6 +47,6 @@
 - name: "Download '{{ wg_file_name }}' config"
   tags: ["clients-download"]
   ansible.builtin.fetch:
-    src: "/etc/wireguard/configs/wg0_{{ wg_file_name }}"
-    dest: "{{ wg_client_configs_local_dir }}/{{ inventory_hostname }}_{{ wg_file_name }}"
+    src: "/etc/wireguard/configs/wg0-{{ wg_file_name }}"
+    dest: "{{ wg_client_configs_local_dir }}/{{ inventory_hostname }}-{{ wg_file_name }}"
     flat: true
