@@ -1,0 +1,48 @@
+- name: "Install scripts to /usr/local/bin"
+  tags: ["scripts"]
+  ansible.builtin.copy:
+    src: "{{ item.src | default(machine_scripts_src_dir ~ '/' ~ item.name) }}"
+    dest: "/usr/local/bin/{{ item.name }}"
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop: "{{ machine_scripts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Drop bash completion snippets to /etc/profile.d"
+  tags: ["scripts"]
+  ansible.builtin.copy:
+    dest: "/etc/profile.d/{{ item.name }}-completion.sh"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    content: |
+      if [ -n "${BASH_VERSION:-}" ] && command -v {{ item.name }} >/dev/null 2>&1; then
+          eval "$({{ item.completion }} 2>/dev/null)" 2>/dev/null
+      fi
+  loop: "{{ machine_scripts | selectattr('completion', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Drop zsh completion snippets to each user's oh-my-zsh custom dir"
+  tags: ["scripts"]
+  ansible.builtin.copy:
+    dest: >-
+      {{ ('/root' if item.0 == 'root' else ('/home/' ~ item.0))
+         ~ '/.oh-my-zsh/custom/' ~ item.1.name ~ '-completion.zsh' }}
+    owner: "{{ item.0 }}"
+    group: "{{ item.0 }}"
+    mode: "0644"
+    content: |
+      if command -v {{ item.1.name }} >/dev/null 2>&1; then
+          autoload -Uz +X bashcompinit && bashcompinit
+          eval "$({{ item.1.completion }} 2>/dev/null)"
+      fi
+  loop: >-
+    {{ (machine_zsh_users | default([]))
+       | product(machine_scripts | selectattr('completion', 'defined') | list)
+       | list }}
+  loop_control:
+    label: "{{ item.0 }} -> {{ item.1.name }}"
+  when: "machine_zsh_enabled | default(false) | bool"

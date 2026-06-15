@@ -1,0 +1,5 @@
+#!/bin/sh
+# Test fixture: exercised by the machine role's `scripts` subrole in the
+# molecule scenario. Echoing a stable token lets verify.yml confirm the
+# binary lands in /usr/local/bin/ and is on PATH.
+echo "molecule-script-ok"

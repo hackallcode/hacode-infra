@@ -9,6 +9,24 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `machine` role: optional `scripts` subrole copies arbitrary
+  executables into `/usr/local/bin` (already on PATH for login shells
+  via `machine_localbin_in_path`). Toggle with
+  `machine_scripts_enabled`; populate `machine_scripts` with
+  `[{name: <basename>}]` entries. Source defaults to
+  `{{ machine_scripts_src_dir }}/<name>` (with
+  `machine_scripts_src_dir` defaulting to
+  `{{ playbook_dir }}/sources/scripts`); per-entry `src` / `mode` /
+  `owner` / `group` overrides supported. An optional `completion`
+  field — the command that prints a bash-style `complete ...` snippet
+  (`kubectl completion bash`, `ovpn init`, ...) — wires shell completion
+  on login: bash via `/etc/profile.d/<name>-completion.sh`, and zsh
+  (when `machine_zsh_enabled`) via each `machine_zsh_users` user's
+  `~/.oh-my-zsh/custom/<name>-completion.zsh`. The zsh shim runs after
+  compinit so `bashcompinit` can register bash's `complete` builtin
+  under zsh — `/etc/profile.d/*.sh` is too early for that under zsh's
+  default startup order.
+
 - `k8s_addons` role: Longhorn distributed block-storage addon
   ([longhorn/longhorn](https://github.com/longhorn/longhorn)). Provides a
   default `StorageClass` for clusters installed with

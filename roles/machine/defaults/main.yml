@@ -20,6 +20,7 @@ machine_nvidia_enabled: false
 machine_tmux_enabled: false
 machine_claude_code_enabled: false
 machine_codex_enabled: false
+machine_scripts_enabled: false
 machine_reboot_enabled: true
 
 # ===== Users =====
@@ -208,6 +209,27 @@ machine_zsh_users: >-
 # machine_users (override by placing files/tmux.conf in the role search
 # path of your playbook).
 tmux_version: "3.5a"
+
+# ===== Scripts =====
+# Drop arbitrary executables into /usr/local/bin (already in PATH for login
+# shells via `machine_localbin_in_path`). Each entry:
+#   - name        basename on the remote AND default filename under
+#                 `machine_scripts_src_dir`. Required.
+#   - src         controller-side path. Default:
+#                 "{{ machine_scripts_src_dir }}/{{ name }}".
+#   - mode        file mode (default: "0755")
+#   - owner       default: "root"
+#   - group       default: "root"
+#   - completion  optional. Command that prints a bash-style `complete ...`
+#                 snippet (e.g. "ovpn init", "kubectl completion bash").
+#                 Bash: dropped to /etc/profile.d/<name>-completion.sh,
+#                 evaluated on login. Zsh (when `machine_zsh_enabled`):
+#                 also dropped into each `machine_zsh_users` user's
+#                 ~/.oh-my-zsh/custom/<name>-completion.zsh so it loads
+#                 *after* compinit and `bashcompinit` can register bash's
+#                 `complete` builtin under zsh.
+machine_scripts_src_dir: "{{ playbook_dir }}/sources/scripts"
+machine_scripts: []
 
 # ===== Firewall =====
 firewall_services: ["ssh", "dhcpv6-client"]

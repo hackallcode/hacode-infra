@@ -40,3 +40,29 @@
       register: "journald_cfg"
       changed_when: false
       failed_when: "'persistent' not in journald_cfg.stdout"
+
+    - name: "Scripts subrole dropped molecule-script into /usr/local/bin"
+      ansible.builtin.stat:
+        path: "/usr/local/bin/molecule-script"
+      register: "scripts_stat"
+      failed_when: >-
+        not scripts_stat.stat.exists
+        or not scripts_stat.stat.executable
+        or scripts_stat.stat.mode != '0755'
+
+    # Use absolute path — ansible's `command:` runs with sudo's minimal PATH
+    # on RHEL-family (no /usr/local/bin); the localbin-on-PATH wiring is for
+    # interactive login shells, which this isn't.
+    - name: "Installed script runs"
+      ansible.builtin.command: "/usr/local/bin/molecule-script"
+      register: "scripts_run"
+      changed_when: false
+      failed_when: "scripts_run.stdout != 'molecule-script-ok'"
+
+    - name: "Completion snippet dropped to /etc/profile.d"
+      ansible.builtin.slurp:
+        src: "/etc/profile.d/molecule-script-completion.sh"
+      register: "scripts_completion"
+      failed_when: >-
+        "complete -W ok molecule-script"
+        not in (scripts_completion.content | b64decode)
