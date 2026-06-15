@@ -41,6 +41,11 @@ EOF
 
 # --- Utilities ---
 
+# Ensure ~/.ssh/control exists for ControlPath-based SSH multiplexing —
+# openssh refuses to create the parent dir, so a fresh account stumbles
+# on the first multiplexed connection. Stat-only check on subsequent shells.
+[[ -d "${HOME}/.ssh/control" ]] || mkdir -p -m 700 "${HOME}/.ssh/control" 2>/dev/null
+
 if [[ "$OSTYPE" == darwin* ]]; then
     # Add SSH key to Apple's keychain so passphrase is remembered across reboots.
     ssh-add-apple() {
