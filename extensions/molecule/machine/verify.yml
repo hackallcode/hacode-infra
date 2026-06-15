@@ -66,3 +66,19 @@
       failed_when: >-
         "complete -W ok molecule-script"
         not in (scripts_completion.content | b64decode)
+
+    - name: "Scripts subrole honours per-entry dest override (sbin)"
+      ansible.builtin.stat:
+        path: "/usr/local/sbin/molecule-sbin-script"
+      register: "scripts_sbin_stat"
+      failed_when: >-
+        not scripts_sbin_stat.stat.exists
+        or scripts_sbin_stat.stat.mode != '0755'
+
+    - name: "Sudoers drop-in from machine_sudoers exists and validates"
+      ansible.builtin.slurp:
+        src: "/etc/sudoers.d/10-molecule-script"
+      register: "sudoers_drop_in"
+      failed_when: >-
+        "molecule ALL=NOPASSWD: /usr/local/bin/molecule-script"
+        not in (sudoers_drop_in.content | b64decode)

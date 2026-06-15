@@ -38,6 +38,7 @@ setup_user_name: "root"        # bootstrap user used for the first connection
 root_password: ""              # optional root password rotation
 machine_admin_group: "wheel"   # members get sudo via 90-<group>
 machine_admin_nopasswd: true   # false -> password-prompted sudo for the admin group
+machine_sudoers: []            # extra sudoers drop-ins (community.general.sudoers schema)
 machine_users: []              # base user roster (see below)
 machine_extra_users: []        # per-host append; final list = users + extras
 
@@ -89,10 +90,12 @@ cockpit_key_path: ""
 # Tmux (source build)
 tmux_version: "3.5a"
 
-# Scripts dropped into /usr/local/bin (PATH-wide for login shells). Each
-# entry: {name (required), src?, mode?, owner?, group?, completion?}.
-# Default src is "{{ machine_scripts_src_dir }}/{{ name }}". When
-# `completion` is set, the role evals its output (e.g.
+# Scripts dropped onto the host. Each entry:
+# {name (required), src?, dest?, mode?, owner?, group?, completion?}.
+# Default src is "{{ machine_scripts_src_dir }}/{{ name }}"; default dest
+# is "/usr/local/bin" (PATH-wide for login shells via
+# `machine_localbin_in_path`). Set `dest: "/usr/local/sbin"` for root-only
+# helpers. When `completion` is set the role evals its output (e.g.
 # "kubectl completion bash", "ovpn init") on login: for bash via
 # /etc/profile.d/<name>-completion.sh, and for zsh (when
 # `machine_zsh_enabled`) via each user's
@@ -152,10 +155,10 @@ Each sub-task is tagged; you can re-run a single component:
 
 ```sh
 ansible-playbook site.yml --tags "firewall"
-ansible-playbook site.yml --tags "custom_user,ssh"
+ansible-playbook site.yml --tags "users,ssh"
 ```
 
-Available tags: `always`, `root_user`, `custom_user`, `setup_user_cleanup`, `ssh`, `locale`, `hostname`, `motd`,
+Available tags: `always`, `root_user`, `users`, `setup_user_cleanup`, `ssh`, `locale`, `hostname`, `motd`,
 `path`, `swap`, `package`, `zsh`, `firewall`, `selinux`, `raspberry`, `journald`, `fail2ban`, `dns`, `docker`,
 `cockpit`, `nvidia`, `tmux`, `claude_code`, `codex`, `scripts`, `reboot`.
 

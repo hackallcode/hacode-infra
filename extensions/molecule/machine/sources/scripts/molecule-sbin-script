@@ -1,0 +1,4 @@
+#!/bin/sh
+# Test fixture: paired with `dest: /usr/local/sbin` in molecule.yml to
+# cover the per-entry destination override.
+echo "molecule-sbin-script-ok"

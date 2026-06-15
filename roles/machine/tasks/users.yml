@@ -43,13 +43,13 @@
   when: "root_password | length > 0"
 
 - name: "Create admin sudo group '{{ machine_admin_group }}'"
-  tags: ["custom_user"]
+  tags: ["users"]
   ansible.builtin.group:
     name: "{{ machine_admin_group }}"
     state: "present"
 
 - name: "Allow '{{ machine_admin_group }}' sudo"
-  tags: ["custom_user"]
+  tags: ["users"]
   community.general.sudoers:
     name: "90-{{ machine_admin_group }}"
     group: "{{ machine_admin_group }}"
@@ -58,8 +58,25 @@
     nopassword: "{{ machine_admin_nopasswd | bool }}"
     state: "present"
 
+- name: "Apply extra sudoers drop-ins from machine_sudoers"
+  tags: ["users"]
+  community.general.sudoers:
+    name: "{{ item.name }}"
+    state: "{{ item.state | default('present') }}"
+    user: "{{ item.user | default(omit) }}"
+    group: "{{ item.group | default(omit) }}"
+    host: "{{ item.host | default(omit) }}"
+    runas: "{{ item.runas | default(omit) }}"
+    commands: "{{ item.commands | default(omit) }}"
+    nopassword: "{{ item.nopassword | default(omit) }}"
+    setenv: "{{ item.setenv | default(omit) }}"
+    noexec: "{{ item.noexec | default(omit) }}"
+  loop: "{{ machine_sudoers }}"
+  loop_control:
+    label: "{{ item.name }}"
+
 - name: "Create extra groups referenced by _machine_users_all"
-  tags: ["custom_user"]
+  tags: ["users"]
   ansible.builtin.group:
     name: "{{ item }}"
     state: "present"
@@ -69,7 +86,7 @@
        | flatten | unique | list }}
 
 - name: "Create users"
-  tags: ["custom_user"]
+  tags: ["users"]
   ansible.builtin.user:
     name: "{{ item.name }}"
     update_password: "{{ item.password_update | default(machine_password_update) }}"
@@ -84,7 +101,7 @@
     label: "{{ item.name }}"
 
 - name: "Authorize SSH keys for users"
-  tags: ["custom_user"]
+  tags: ["users"]
   ansible.posix.authorized_key:
     user: "{{ item.name }}"
     state: "present"
@@ -104,20 +121,20 @@
   when: "_user_key | length > 0"
 
 - name: "Remove stock cloud-init sudoers"
-  tags: ["custom_user"]
+  tags: ["users"]
   community.general.sudoers:
     name: "90-cloud-init-users"
     state: "absent"
 
 - name: "Remove stock 90-wheel sudoers"
-  tags: ["custom_user"]
+  tags: ["users"]
   community.general.sudoers:
     name: "90-wheel"
     state: "absent"
   when: "machine_admin_group != 'wheel'"
 
 - name: "Strip trailing whitespace after default '#includedir /etc/sudoers.d'"
-  tags: ["custom_user"]
+  tags: ["users"]
   ansible.builtin.replace:
     path: "/etc/sudoers"
     regexp: '(?m)^(#includedir[ \t]+/etc/sudoers\.d[^\n]*)\s*\Z'

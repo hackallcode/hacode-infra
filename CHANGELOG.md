@@ -101,6 +101,25 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   running Deployments stay at the original replica count. Workaround
   (`kubectl scale deploy csi-* --replicas=1`) is documented inline.
 
+- `machine` role: `machine_sudoers` accepts a list of extra sudoers
+  drop-ins rendered via `community.general.sudoers` (the same module
+  the admin-group entry uses; built-in `visudo -c` validation). Each
+  entry mirrors the module's parameters (`name` + `users`/`group` +
+  `commands` + `nopassword` + `state`/`host`/`runas`/`setenv`/`noexec`).
+  Typical use: grant `NOPASSWD` on a helper installed via
+  `machine_scripts` without piling everyone into the admin group.
+
+- `machine` role: scripts subrole now accepts a per-entry `dest`
+  override (default `/usr/local/bin`). Set `dest: /usr/local/sbin` for
+  root-only helpers, etc.
+
+- `machine` role: user-management tasks in `tasks/users.yml` migrated
+  from the `custom_user` tag to `users` for consistency with the
+  filename (admin-group sudoers, custom-user creation, key authorisation,
+  stock-sudoers cleanup, `machine_sudoers` drop-ins). The
+  `setup_user_cleanup` tag is unchanged. Migrate any
+  `--tags custom_user` invocations to `--tags users`.
+
 ### Fixed
 
 - `k3s` role: preflight now probes local interfaces for `k3s_node_ip` and
