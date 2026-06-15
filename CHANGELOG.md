@@ -122,6 +122,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: `hacode.zsh` now ensures `~/.ssh/control` exists at
+  shell startup so SSH ControlPath multiplexing works out of the box
+  on a fresh account — openssh refuses to create the parent directory
+  itself, so the first multiplexed connection used to fail with
+  `mux_client_open_session: muxserver_open_session: socket: No such
+  file or directory` until the operator created the dir by hand.
+
 - `k3s` role: preflight now probes local interfaces for `k3s_node_ip` and
   silently falls back to k3s auto-detect when the address isn't bound to
   a local NIC. Without this, the default `k3s_node_ip: {{ ansible_host }}`
