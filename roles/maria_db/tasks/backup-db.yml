@@ -12,18 +12,18 @@
     login_password: "{{ maria_db_root_password }}"
     state: "dump"
     name: "{{ db_name }}"
-    target: "/opt/backups/maria_db/{{ backup_name }}"
+    target: "/opt/backups/maria-db/{{ backup_name }}"
     dump_extra_args: "--column-statistics=0"
 
 - name: "Fetch backup of {{ db_name }}"
   tags: ["backup"]
   ansible.builtin.fetch:
-    src: "/opt/backups/maria_db/{{ backup_name }}"
-    dest: "../../backups/maria_db/{{ backup_name }}"
+    src: "/opt/backups/maria-db/{{ backup_name }}"
+    dest: "../../backups/maria-db/{{ backup_name }}"
     flat: true
 
 - name: "Remove backup of {{ db_name }} from remote"
   tags: ["backup"]
   ansible.builtin.file:
-    path: "/opt/backups/maria_db/{{ backup_name }}"
+    path: "/opt/backups/maria-db/{{ backup_name }}"
     state: "absent"

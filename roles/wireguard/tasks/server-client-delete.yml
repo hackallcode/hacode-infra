@@ -13,7 +13,7 @@
 - name: "Remove '{{ wg_client.name }}' config"
   tags: ["clients-delete"]
   ansible.builtin.file:
-    path: "/etc/wireguard/configs/wg0_{{ wg_client.name }}.conf"
+    path: "/etc/wireguard/configs/wg0-{{ wg_client.name }}.conf"
     state: "absent"
 
 - name: "Update WireGuard config"

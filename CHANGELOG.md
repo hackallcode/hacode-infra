@@ -67,6 +67,22 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Changed
 
+- `maria_db` role: backup directory renamed from `maria_db` to `maria-db`
+  (remote `/opt/backups/maria-db/`, controller-side
+  `../../backups/maria-db/`). Matches the `kube-configs` / `wg-configs`
+  kebab-case convention for output subdirs. **Migration**: existing
+  hosts need `mv /opt/backups/maria_db /opt/backups/maria-db` (and the
+  same on the controller for any local backups already taken).
+
+- `wireguard` role: client config filenames switched from snake_case to
+  kebab-case separators. Remote: `/etc/wireguard/configs/wg0_<name>.conf`
+  → `wg0-<name>.conf`; the local-net-only variant goes from
+  `<name>_local.conf` → `<name>-local.conf`. Controller-side downloads
+  land at `<wg-configs>/<host>-<wg-file>` instead of
+  `<wg-configs>/<host>_<wg-file>`. **Migration**: rename existing files
+  (`mv /etc/wireguard/configs/wg0_*.conf …/wg0-*.conf` on each server;
+  same for the local downloads).
+
 - `k8s_addons_kubeconfig` default now respects the k3s role's
   `k3s_kubeconfig_local_dir` / `k3s_kubeconfig_local_file` overrides
   (previously assumed `<hacode_kube_configs_dir>/<cluster>.yml`), so a
