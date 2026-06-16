@@ -28,6 +28,7 @@ Install k3s server and agent nodes; fetch and rewrite kubeconfig to the controll
 | `k3s_kernel_modules` | `[overlay, br_netfilter]` | modules loaded via `modprobe` and persisted in `k3s_modules_load_file` |
 | `k3s_modules_load_file` | `/etc/modules-load.d/k3s.conf` | drop-in for systemd-modules-load |
 | `k3s_sysctls` | `{net.ipv4.ip_forward:1, net.bridge.bridge-nf-call-iptables:1, net.bridge.bridge-nf-call-ip6tables:1}` | sysctls applied via `ansible.posix.sysctl`; empty to skip |
+| `k3s_xfs_prjquota_enabled` | `true` | on XFS roots, add `rootflags=pquota` via `grubby` (RHEL) / `update-grub` (Debian) and reboot if needed, so kubelet's `LocalStorageCapacityIsolation` and Longhorn replicas have `prjquota` available. No-op on non-xfs roots and docker containers. The reboot is gated by `machine_reboot_enabled` (from `hacode.infra.machine`, default true) — set that to `false` to skip the reboot and force a manual one |
 
 ### Notes on labels and taints
 

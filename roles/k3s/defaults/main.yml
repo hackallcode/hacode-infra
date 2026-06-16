@@ -96,3 +96,15 @@ k3s_sysctls:
   net.ipv4.ip_forward: "1"
   net.bridge.bridge-nf-call-iptables: "1"
   net.bridge.bridge-nf-call-ip6tables: "1"
+
+# Enable XFS project quotas on the root filesystem when it's xfs (no-op on
+# ext4/btrfs/overlay/etc.). kubelet uses the resulting `prjquota` mount
+# option for accurate per-pod ephemeral storage accounting
+# (LocalStorageCapacityIsolation), and Longhorn replicas require it. The
+# flag is added to GRUB via `grubby` (RHEL) / `update-grub` (Debian); if
+# the running mount doesn't yet have `prjquota`, preflight reboots the
+# host — gated by `machine_reboot_enabled` (from `hacode.infra.machine`,
+# defaults to true) so a "no reboots please" inventory is respected.
+# Set `false` to skip the whole flow on inventories that already manage
+# their own bootloader / quota story.
+k3s_xfs_prjquota_enabled: true
