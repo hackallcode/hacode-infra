@@ -89,6 +89,18 @@ cockpit_key_path: ""
 
 # Tmux (source build)
 tmux_version: "3.5a"
+# Template rendered into each user's ~/.tmux.conf. Default resolves to the
+# bundled `roles/machine/templates/tmux.conf.j2` via Ansible's template
+# search path; override (e.g. "{{ playbook_dir }}/templates/tmux.conf.j2")
+# for a fully custom config without forking the collection.
+machine_tmux_conf_template: "tmux.conf.j2"
+# Whether the bundled template emits its default options. Flip to `false`
+# to keep the delivery wiring but drop the role's opinions — the rendered
+# ~/.tmux.conf then contains only `machine_tmux_extra_conf` (if set).
+machine_tmux_use_defaults: true
+# Raw extras appended to the bundled template — use when you only want to
+# add lines instead of replacing the whole file.
+machine_tmux_extra_conf: ""
 
 # Scripts dropped onto the host. Each entry:
 # {name (required), src?, dest?, mode?, owner?, group?, completion?}.
@@ -160,7 +172,10 @@ ansible-playbook site.yml --tags "users,ssh"
 
 Available tags: `always`, `root_user`, `users`, `setup_user_cleanup`, `ssh`, `locale`, `hostname`, `motd`,
 `path`, `swap`, `package`, `zsh`, `firewall`, `selinux`, `raspberry`, `journald`, `fail2ban`, `dns`, `docker`,
-`cockpit`, `nvidia`, `tmux`, `claude_code`, `codex`, `scripts`, `reboot`.
+`cockpit`, `nvidia`, `tmux`, `tmux_conf`, `claude_code`, `codex`, `scripts`, `reboot`.
+
+`tmux_conf` is a subtag that runs only the `~/.tmux.conf` rewrite — handy for pushing config tweaks
+without re-checking / rebuilding tmux itself.
 
 ## Convenience entrypoint
 
