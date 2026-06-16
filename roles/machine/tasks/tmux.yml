@@ -55,9 +55,9 @@
         target: "install"
 
 - name: "Drop tmux.conf for each user"
-  tags: ["tmux"]
-  ansible.builtin.copy:
-    src: "tmux.conf"
+  tags: ["tmux", "tmux_conf"]
+  ansible.builtin.template:
+    src: "{{ machine_tmux_conf_template }}"
     dest: "{{ ('/root/.tmux.conf') if item.name == 'root' else ('/home/' ~ item.name ~ '/.tmux.conf') }}"
     owner: "{{ item.name }}"
     group: "{{ item.name }}"

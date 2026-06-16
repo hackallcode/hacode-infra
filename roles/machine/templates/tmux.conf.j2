@@ -1,3 +1,4 @@
+{% if machine_tmux_use_defaults | default(true) | bool %}
 # Enable mouse
 set -g mouse on
 
@@ -12,9 +13,9 @@ bind-key -n WheelDownPane if -F '#{pane_in_mode}' \
   'send-keys -M' \
   'if -F "#{alternate_on}" "send-keys -N 1 Down" "send-keys -M"'
 
-# Selection
-bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
-bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
+# Clipboard via OSC 52
+set -g set-clipboard on
+set -as terminal-features ",xterm*:clipboard"
 
 # TERM
 set -g default-terminal "tmux-256color"
@@ -37,3 +38,11 @@ bind-key -n C-Right next-window
 
 # Set agent socket
 setenv -g SSH_AUTH_SOCK $HOME/.ssh/auth.sock
+{% endif %}
+{% if (machine_tmux_extra_conf | default('') | trim) %}
+{% if machine_tmux_use_defaults | default(true) | bool %}
+
+{% endif %}
+# Inventory extras
+{{ machine_tmux_extra_conf }}
+{% endif %}

@@ -221,10 +221,30 @@ machine_zsh_users: >-
 # ===== Tmux =====
 # Compile tmux from source pinned to this version (distro packages are
 # often years behind). When `machine_tmux_enabled` is true the role builds
-# tmux into /usr/local/bin/tmux and drops a tmux.conf for each user in
-# machine_users (override by placing files/tmux.conf in the role search
-# path of your playbook).
+# tmux into /usr/local/bin/tmux and renders `machine_tmux_conf_template`
+# as ~/.tmux.conf for each user in machine_users + machine_extra_users.
 tmux_version: "3.5a"
+
+# Jinja template passed to `ansible.builtin.template`. The default
+# `"tmux.conf.j2"` resolves via Ansible's template search path to the
+# bundled `roles/machine/templates/tmux.conf.j2`; override per-inventory
+# to a playbook-side path — e.g.
+# `machine_tmux_conf_template: "{{ playbook_dir }}/templates/tmux.conf.j2"` —
+# to swap in a fully custom config without forking the collection.
+machine_tmux_conf_template: "tmux.conf.j2"
+
+# Whether the bundled template emits its default options (mouse, clipboard
+# via OSC 52, TERM, window/pane bindings, ssh-agent socket). Flip to
+# `false` to keep the same delivery mechanism but drop the role's
+# opinions — the rendered ~/.tmux.conf then contains only
+# `machine_tmux_extra_conf` (if set). Useful when you want our wiring
+# but your own opinions, without forking `machine_tmux_conf_template`.
+machine_tmux_use_defaults: true
+
+# Raw config block appended to the bundled template. Use this when you
+# only want to extend the defaults (extra bindings, status-bar tweaks)
+# instead of replacing the whole file via `machine_tmux_conf_template`.
+machine_tmux_extra_conf: ""
 
 # ===== Scripts =====
 # Drop arbitrary executables onto the host. Each entry:

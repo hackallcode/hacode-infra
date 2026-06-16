@@ -142,7 +142,35 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `setup_user_cleanup` tag is unchanged. Migrate any
   `--tags custom_user` invocations to `--tags users`.
 
+- `machine` role: tmux conf-drop task picks up an extra `tmux_conf`
+  subtag so operators can push config tweaks via `--tags tmux_conf`
+  without re-running the version probe / build-from-source pipeline.
+  The umbrella `tmux` tag still covers everything.
+
+- `machine` role: `~/.tmux.conf` is now rendered via
+  `ansible.builtin.template` (was `copy`) from
+  `roles/machine/templates/tmux.conf.j2`. Three customization knobs:
+  `machine_tmux_conf_template` swaps the entire template
+  (e.g. `"{{ playbook_dir }}/templates/tmux.conf.j2"` — picks up
+  playbook-side templates via the search path);
+  `machine_tmux_use_defaults` (default `true`) toggles whether the
+  bundled template emits its default options at all — flip to `false`
+  to keep the delivery wiring but drop the role's opinions; and
+  `machine_tmux_extra_conf` is a raw string appended to the rendered
+  output for inventories that want to add a few lines (or, with
+  `_use_defaults: false`, supply the whole content) without forking
+  the template file.
+
 ### Fixed
+
+- `machine` role: `files/tmux.conf` no longer pipes mouse-drag selections
+  through `pbcopy` — that binary only exists on macOS, so on the Linux
+  hosts this role actually deploys to the binding silently failed and
+  also dragged `copy-pipe-and-cancel`'s side effect of exiting copy-mode
+  on release. Replaced with `set -g set-clipboard on` so the default
+  `MouseDragEnd1Pane` → `copy-selection-no-clear` keeps the selection
+  active *and* tmux propagates it to the system clipboard via OSC 52
+  (handled by every modern terminal — iTerm2, WezTerm, Kitty, Ghostty).
 
 - `machine` role: `hacode.zsh` now ensures `~/.ssh/control` exists at
   shell startup so SSH ControlPath multiplexing works out of the box
