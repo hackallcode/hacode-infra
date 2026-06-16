@@ -261,7 +261,16 @@ firewall_dns_rate_burst: 60
 disabled_firewall_services: ["cockpit"]
 disabled_firewall_ports: []
 firewall_default_zone: "public"
-firewall_routes: [] # [{from_port: 1, to_ip: "1.1.1.1", to_port: 1, state: "enabled"}]
+# Per-host port-forwards via firewalld. Each entry:
+#   - from_port  ingress port or "<start>-<end>" range (required)
+#   - to_port    destination port or range (required)
+#   - proto      "tcp" (default) or "udp" — use "udp" for QUIC /
+#                Hysteria2-style port-hopping (e.g. 20000-50000/udp -> 443/udp)
+#   - to_ip      DNAT target. Omit to keep the forward on the host (port
+#                rewrite only — useful for Hysteria2 listening on 443
+#                catching ingress on a wide UDP range).
+#   - state      "enabled" (default) | "disabled"
+firewall_routes: [] # e.g. [{from_port: "20000-50000", to_port: 443, proto: "udp"}]
 firewall_masquerade: false
 # Extra zones to enable masquerade in (in addition to `firewall_default_zone`
 # when `firewall_masquerade: true`). Needed on jump hosts that DNAT inbound

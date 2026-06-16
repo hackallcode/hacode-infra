@@ -50,9 +50,9 @@
   ansible.posix.firewalld:
     zone: "{{ firewall_default_zone }}"
     port_forward:
-      - proto: "tcp"
+      - proto: "{{ item.proto | default('tcp') }}"
         port: "{{ item.from_port }}"
-        toaddr: "{{ item.to_ip }}"
+        toaddr: "{{ item.to_ip | default(omit) }}"
         toport: "{{ item.to_port }}"
     state: "{{ item.state | default('enabled') }}"
     permanent: true
