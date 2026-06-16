@@ -129,6 +129,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   override (default `/usr/local/bin`). Set `dest: /usr/local/sbin` for
   root-only helpers, etc.
 
+- `machine` role: `firewall_routes` entries accept a `proto` field
+  (default `"tcp"`, set to `"udp"` for QUIC / Hysteria2-style
+  port-hopping — e.g. `20000-50000/udp → 443/udp`). `to_ip` is now
+  optional: omit it when only a port rewrite is needed and the forward
+  should stay on the host without DNAT.
+
 - `machine` role: user-management tasks in `tasks/users.yml` migrated
   from the `custom_user` tag to `users` for consistency with the
   filename (admin-group sudoers, custom-user creation, key authorisation,

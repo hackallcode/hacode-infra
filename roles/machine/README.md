@@ -67,7 +67,7 @@ machine_extra_packages: []
 # Firewall (firewalld)
 firewall_services: ["ssh", "dhcpv6-client"]
 firewall_ports: []                 # ["80/tcp", "443/tcp"]
-firewall_routes: []                # [{from_port: 1, to_ip: "1.1.1.1", to_port: 1}]
+firewall_routes: []                # [{from_port, to_port, proto?: "tcp"|"udp", to_ip?, state?}]
 firewall_masquerade: false
 firewall_default_zone: "public"
 firewall_dns_rate_limit: "600/minute"  # per-source-IP cap (hashlimit) when machine_dns_public
