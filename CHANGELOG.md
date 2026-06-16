@@ -9,6 +9,19 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `k3s` role: preflight auto-enables XFS project quotas on the root
+  filesystem (`rootflags=pquota`) when it's xfs, so kubelet's
+  `LocalStorageCapacityIsolation` and Longhorn replicas have
+  `prjquota` available without manual `grubby` + reboot. Cross-distro:
+  `grubby --update-kernel=ALL --args=rootflags=pquota` on RHEL family,
+  regex-edit of `GRUB_CMDLINE_LINUX` in `/etc/default/grub` +
+  `update-grub` on Debian family. If the running mount doesn't yet
+  reflect the new cmdline the role reboots the host — gated by
+  `machine_reboot_enabled` (from `hacode.infra.machine`, default
+  `true`) so a "no reboots please" inventory is respected. Toggle the
+  whole flow off with `k3s_xfs_prjquota_enabled: false`. No-op on
+  non-xfs roots and inside docker containers.
+
 - `machine` role: optional `scripts` subrole copies arbitrary
   executables into `/usr/local/bin` (already on PATH for login shells
   via `machine_localbin_in_path`). Toggle with

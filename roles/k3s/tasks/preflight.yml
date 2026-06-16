@@ -100,3 +100,112 @@
   when:
     - "k3s_node_ip | default('') | length > 0"
     - "k3s_node_ip_check.rc | default(0) != 0"
+
+# XFS project quotas on /
+# ----------------------
+# kubelet's `LocalStorageCapacityIsolation` and Longhorn's replica volumes
+# both need /etc/fstab-style `prjquota` on the root mount. Enabling it
+# requires adding `rootflags=pquota` to the kernel cmdline (grubby / grub
+# config) and rebooting — the running mount only picks up the flag on
+# fresh boot. Detect the gap, fix the bootloader, reboot if the operator
+# allows it. No-op on non-xfs roots or in docker containers (molecule).
+- name: "Detect root filesystem type and mount options"
+  tags: ["install"]
+  ansible.builtin.command:
+    argv: ["findmnt", "-no", "FSTYPE,OPTIONS", "/"]
+  register: "k3s_root_mount"
+  changed_when: false
+  when:
+    - "k3s_xfs_prjquota_enabled | default(true) | bool"
+    - "ansible_virtualization_type | default('') != 'docker'"
+
+- name: "Resolve XFS prjquota state from findmnt"
+  tags: ["install"]
+  vars:
+    _fields: "{{ (k3s_root_mount.stdout | default('')).split() }}"
+  ansible.builtin.set_fact:
+    k3s_root_is_xfs: "{{ (_fields[0] | default('')) == 'xfs' }}"
+    k3s_root_has_prjquota: "{{ 'prjquota' in (_fields[1] | default('')) }}"
+  when:
+    - "k3s_xfs_prjquota_enabled | default(true) | bool"
+    - "ansible_virtualization_type | default('') != 'docker'"
+
+- name: "Add rootflags=pquota to GRUB (RHEL family — grubby)"
+  tags: ["install"]
+  ansible.builtin.command:
+    argv: ["grubby", "--update-kernel=ALL", "--args=rootflags=pquota"]
+  register: "k3s_grubby_pquota"
+  changed_when: true  # grubby has no quiet "no change" rc; treat as changed
+  when:
+    - "k3s_xfs_prjquota_enabled | default(true) | bool"
+    - "ansible_virtualization_type | default('') != 'docker'"
+    - "k3s_root_is_xfs | default(false) | bool"
+    - "not (k3s_root_has_prjquota | default(false) | bool)"
+    - "ansible_os_family == 'RedHat'"
+
+- name: "Add rootflags=pquota to GRUB_CMDLINE_LINUX (Debian family)"
+  tags: ["install"]
+  # Negative-lookahead regex so the replace is a no-op if `rootflags=pquota`
+  # is already in the line — idempotent across re-runs.
+  ansible.builtin.replace:
+    path: "/etc/default/grub"
+    regexp: '^(GRUB_CMDLINE_LINUX=")(?!.*rootflags=pquota)(.*)"$'
+    replace: '\1\2 rootflags=pquota"'
+    backup: true
+  register: "k3s_grub_cmdline"
+  when:
+    - "k3s_xfs_prjquota_enabled | default(true) | bool"
+    - "ansible_virtualization_type | default('') != 'docker'"
+    - "k3s_root_is_xfs | default(false) | bool"
+    - "not (k3s_root_has_prjquota | default(false) | bool)"
+    - "ansible_os_family == 'Debian'"
+
+- name: "Refresh GRUB config (Debian family)"
+  tags: ["install"]
+  ansible.builtin.command:
+    argv: ["update-grub"]
+  changed_when: true  # only runs when GRUB_CMDLINE_LINUX was just rewritten above
+  when:
+    - "k3s_xfs_prjquota_enabled | default(true) | bool"
+    - "ansible_virtualization_type | default('') != 'docker'"
+    - "ansible_os_family == 'Debian'"
+    - "(k3s_grub_cmdline | default({})) is changed"
+
+- name: "Reboot to apply rootflags=pquota"
+  tags: ["install"]
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+    msg: "Rebooting to apply XFS rootflags=pquota for kubelet/Longhorn quotas"
+  when:
+    - "k3s_xfs_prjquota_enabled | default(true) | bool"
+    - "ansible_virtualization_type | default('') != 'docker'"
+    - "k3s_root_is_xfs | default(false) | bool"
+    - "not (k3s_root_has_prjquota | default(false) | bool)"
+    - "machine_reboot_enabled | default(true) | bool"
+
+- name: "Re-detect root mount options after potential reboot"
+  tags: ["install"]
+  ansible.builtin.command:
+    argv: ["findmnt", "-no", "OPTIONS", "/"]
+  register: "k3s_root_opts_after"
+  changed_when: false
+  when:
+    - "k3s_xfs_prjquota_enabled | default(true) | bool"
+    - "ansible_virtualization_type | default('') != 'docker'"
+    - "k3s_root_is_xfs | default(false) | bool"
+
+- name: "Assert XFS prjquota is active on /"
+  tags: ["install"]
+  ansible.builtin.assert:
+    that: "'prjquota' in (k3s_root_opts_after.stdout | default(''))"
+    fail_msg: >-
+      Root XFS filesystem is missing the `prjquota` mount option even
+      after adding `rootflags=pquota` to GRUB. Either the host wasn't
+      rebooted (machine_reboot_enabled is false — reboot manually and
+      re-run) or the bootloader config didn't pick up the new cmdline
+      (inspect `grubby --info=ALL` / `/proc/cmdline`).
+  when:
+    - "k3s_xfs_prjquota_enabled | default(true) | bool"
+    - "ansible_virtualization_type | default('') != 'docker'"
+    - "k3s_root_is_xfs | default(false) | bool"
+    - "machine_reboot_enabled | default(true) | bool"
