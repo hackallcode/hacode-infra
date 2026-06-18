@@ -20,7 +20,7 @@ Deploy and manage an application on a remote host. Wraps three concerns:
 | `app_content_dir` | `/opt/{{ app_project }}` | remote content directory |
 | `app_type` | `docker` | one of `docker`, `node_js`, `static` |
 | `app_domains` | `[]` | FQDNs served by an nginx vhost; controls firewall behavior |
-| `app_ports` | `[]` | `["8080/tcp"]`; opened if no domains, closed otherwise |
+| `app_ports` | `[]` | `["8080/tcp"]`; opened in firewalld if no domains, closed otherwise. Firewall manipulation is a no-op when firewalld isn't installed / active, so Debian or RHEL hosts that don't run firewalld are unaffected |
 | `app_disabled` | `false` | leave the service stopped after deploy |
 | `app_post_deploy_services` | `[]` | compose service names run as one-shot containers after the main `compose up --wait` succeeds. Each is invoked via `docker compose run --rm <name>`; tag the services with `profiles: [post-deploy]` in `compose.yaml` so they stay out of the main `up`. Gated on `sources_changed \| force` so it doesn't fire on every play. Use for smoke tests, cache warm-up, post-migration verifications |
 | `app_data_paths` | `[]` | paths under `app_content_dir` excluded from rsync, included in backup |

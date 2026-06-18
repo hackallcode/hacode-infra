@@ -9,6 +9,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `wireguard` role: each entry in `wg_servers` accepts an optional
+  `firewall_zone` field. When set, the client-side
+  `client-server-add` task binds the resulting WireGuard interface to
+  that firewalld zone via `firewall-cmd --add-interface` (permanent +
+  immediate) — so tunnel traffic isn't dropped by a `public` / `drop`
+  default policy on a hardened host. Empty (default) leaves the
+  interface in whatever zone firewalld picks for it.
+
 - `machine` role: opt-in LightDM autologin for Raspberry Pi OS Desktop
   hosts. Set `raspberry_autologin_user` to a username and the role
   writes `autologin-user=<name>` + `autologin-user-timeout=0` into
@@ -98,6 +106,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   independent of Ansible's jinja2-native default.
 
 ### Changed
+
+- `app` role: the firewall port-open tasks now gate on the live
+  firewalld state (`systemctl is-active firewalld`) instead of
+  `ansible_os_family == 'RedHat'`. That fixes RHEL hosts where
+  firewalld is intentionally disabled / masked (previously the role
+  tried `firewall-cmd` and failed); it also lets Debian hosts that
+  explicitly install and run firewalld opt into the port-open
+  behavior, which was a hard-coded "RHEL only" before.
 
 - `machine` role: the Raspberry Pi `config.txt` block is now rendered
   from a Jinja template (`templates/raspberry/config.txt.j2`) instead

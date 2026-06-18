@@ -186,6 +186,15 @@
     - "app_type == 'node_js'"
     - "(sources_changed | default(true)) or (force | default(false) | bool)"
 
+- name: "Detect firewalld"
+  tags: ["upload"]
+  ansible.builtin.systemd:
+    name: "firewalld"
+  register: "_firewalld_status"
+  failed_when: false
+  changed_when: false
+  when: "app_ports | length > 0"
+
 - name: "Open app ports in firewall (no domain - direct exposure)"
   tags: ["upload"]
   ansible.posix.firewalld:
@@ -195,7 +204,7 @@
     immediate: true
   loop: "{{ app_ports }}"
   when:
-    - "ansible_os_family == 'RedHat'"
+    - "_firewalld_status.status.ActiveState | default('inactive') == 'active'"
     - "app_ports | length > 0"
     - "app_domains | length == 0"
 
@@ -208,6 +217,6 @@
     immediate: true
   loop: "{{ app_ports }}"
   when:
-    - "ansible_os_family == 'RedHat'"
+    - "_firewalld_status.status.ActiveState | default('inactive') == 'active'"
     - "app_ports | length > 0"
     - "app_domains | length > 0"

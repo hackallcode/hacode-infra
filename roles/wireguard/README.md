@@ -23,6 +23,20 @@ Install WireGuard server and clients; generate peers and download/export their c
 See the templates and per-task variables; this role expects a `wg_*` set of variables defined per-inventory (peer key
 material, IP allocations, listen port).
 
+## Client-side firewalld zone
+
+Each entry in `wg_servers` (the list of upstream servers a client connects to) accepts an optional `firewall_zone`
+field. When set, the role binds the resulting WireGuard interface to that firewalld zone via
+`firewall-cmd --add-interface`, so tunnel traffic isn't dropped by a `public` / `drop` default policy on a hardened
+host. Empty (default) leaves the interface in whatever zone firewalld picks for it.
+
+```yaml
+wg_servers:
+  - name: "wg0"
+    firewall_zone: "trusted"   # treat the tunnel as a trusted network
+    # ... [Interface] / [Peer] fields ...
+```
+
 ## DNS for VPN clients
 
 Enable `wg_dns_enabled: true` to make the VPN endpoint also serve DNS to its clients. Wireguard-side traffic is

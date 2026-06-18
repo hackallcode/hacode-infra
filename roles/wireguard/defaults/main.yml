@@ -41,5 +41,15 @@ wg_clients: []
 
 # Servers the client connects to (used in `wg_role: client` flow).
 # Inventory-supplied list; each entry is a parsed wg config produced by
-# the server's `server-client-download` task.
+# the server's `server-client-download` task plus optional knobs:
+#   - name             (required) interface / config name; the role drops
+#                      `/etc/wireguard/<name>.conf` and starts
+#                      `wg-quick@<name>` from it.
+#   - firewall_zone    (optional) bind the resulting interface to this
+#                      firewalld zone via `firewall-cmd --add-interface`
+#                      (e.g. "trusted" so tunnel traffic isn't dropped by
+#                      a public/drop default policy). Empty -> the
+#                      interface stays in whatever zone firewalld assigns
+#                      it by default.
+#   ... plus the [Interface] / [Peer] fields the wg config contains.
 wg_servers: []
