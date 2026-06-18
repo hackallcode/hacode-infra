@@ -12,6 +12,7 @@ off by default.
 | `machine_ssh_enabled`         | `true`  | harden `sshd_config`: disable root login, password auth, keepalives        |
 | `machine_system_enabled`      | `true`  | hostname + aliases in /etc/hosts, locale, motd, /usr/local/bin in PATH     |
 | `machine_swap_enabled`        | `true`  | swap file at `/swapfile` (size configurable)                               |
+| `machine_disks_enabled`       | `true`  | mount extra block devices listed in `machine_disks` via fstab (no-op when `machine_disks` is empty) |
 | `machine_packages_enabled`    | `true`  | upgrade + install curated package set                                      |
 | `machine_zsh_enabled`         | `false` | install oh-my-zsh and (optionally) copy theme/aliases                      |
 | `machine_firewall_enabled`    | `true`  | firewalld services/ports + port forwarding + masquerade                    |
@@ -60,6 +61,14 @@ machine_localbin_in_path: true # /etc/profile.d/localbin.sh
 # Swap
 swap_file_path: "/swapfile"
 swap_file_size: "2G"
+
+# Disks (only mounted when `machine_disks_enabled: true`; the role never
+# formats the device). Each entry maps to `ansible.posix.mount` params.
+machine_disks: []
+# e.g.:
+# machine_disks:
+#   - {src: "UUID=<uuid>", path: "/var/lib/longhorn", fstype: "xfs", opts: "defaults,pquota"}
+#   - {src: "/dev/nvme1n1p1", path: "/data",          fstype: "ext4"}
 
 # Packages
 machine_extra_packages: []
@@ -171,8 +180,8 @@ ansible-playbook site.yml --tags "users,ssh"
 ```
 
 Available tags: `always`, `root_user`, `users`, `setup_user_cleanup`, `ssh`, `locale`, `hostname`, `motd`,
-`path`, `swap`, `package`, `zsh`, `firewall`, `selinux`, `raspberry`, `journald`, `fail2ban`, `dns`, `docker`,
-`cockpit`, `nvidia`, `tmux`, `tmux_conf`, `claude_code`, `codex`, `scripts`, `reboot`.
+`path`, `swap`, `disks`, `package`, `zsh`, `firewall`, `selinux`, `raspberry`, `journald`, `fail2ban`, `dns`,
+`docker`, `cockpit`, `nvidia`, `tmux`, `tmux_conf`, `claude_code`, `codex`, `scripts`, `reboot`.
 
 `tmux_conf` is a subtag that runs only the `~/.tmux.conf` rewrite — handy for pushing config tweaks
 without re-checking / rebuilding tmux itself.

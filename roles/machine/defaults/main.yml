@@ -5,6 +5,7 @@ machine_users_enabled: true
 machine_ssh_enabled: true
 machine_system_enabled: true
 machine_swap_enabled: true
+machine_disks_enabled: true # no-op when machine_disks is empty
 machine_packages_enabled: true
 machine_zsh_enabled: false
 machine_firewall_enabled: true
@@ -141,6 +142,21 @@ swap_file_size: "2G"
 # `lvremove`'d without further prompting). Off by default — flip per host
 # after confirming /dev/dm-1 really is the swap LV you want to drop.
 swap_migrate_legacy_dm1: false
+
+# ===== Disks =====
+# Mount additional block devices (extra SSD/NVMe/HDD, network shares, etc.)
+# via /etc/fstab. The role only mounts existing filesystems — it never runs
+# mkfs, so an already-formatted device is required. Each entry maps to
+# `ansible.posix.mount` params:
+#   - src        device path, "UUID=..." or "LABEL=..." (required)
+#   - path       mount point (required)
+#   - fstype     filesystem type (required; e.g. ext4, xfs)
+#   - opts       mount options (default: "defaults")
+#   - state      "mounted" (default) | "present" | "unmounted" | "absent"
+#   - dump       fstab dump field (default: 0)
+#   - passno     fstab passno field (default: 2)
+#   - owner/group/mode  mount point dir attrs (default: root/root/0755)
+machine_disks: []
 
 # ===== Packages =====
 machine_extra_packages: []

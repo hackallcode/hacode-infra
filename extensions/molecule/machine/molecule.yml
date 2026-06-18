@@ -74,6 +74,16 @@ provisioner:
         machine_nvidia_enabled: false
         machine_reboot_enabled: false
 
+        # tmpfs sidesteps the need for a real block device in the
+        # docker driver while still exercising the fstab + mount logic.
+        machine_disks_enabled: true
+        machine_disks:
+          - src: "tmpfs"
+            path: "/mnt/molecule-disk"
+            fstype: "tmpfs"
+            opts: "size=8M,mode=0755"
+            passno: 0
+
         machine_scripts_enabled: true
         machine_scripts:
           - name: "molecule-script"
