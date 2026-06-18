@@ -127,6 +127,17 @@ machine_scripts: []                # e.g. [{name: "ovpn", completion: "ovpn init
 # NVIDIA / CUDA
 cuda_version: "12.5"
 nvidia_container_toolkit_version: "1.17.8"
+
+# Raspberry Pi config.txt block (rendered between BEGIN/END ANSIBLE-MANAGED
+# markers at the bottom of /boot/firmware/config.txt; auto-skipped on
+# non-Pi hosts).
+machine_raspberry_config_template: "raspberry/config.txt.j2"
+machine_raspberry_use_defaults: true   # false -> drop bundled opinions
+machine_raspberry_extra_config: ""     # raw lines appended to the block
+
+# Raspberry Pi OS Desktop LightDM autologin (no-op on Pi OS Lite / non-Pi).
+# Set to a username to boot straight to a desktop session without a prompt.
+raspberry_autologin_user: ""
 ```
 
 ## `machine_users` schema
@@ -196,6 +207,7 @@ bootstrap without the rest of the role.
 - ZSH files (`hacode.zsh-theme`, `hacode.zsh`, `zshrc`, `aliases`, `exports`) are shipped in `files/zsh/` as a sample.
   Override or extend via `machine_zsh_files`. By default `machine_zsh_users` is `[root] + machine_users[*].name`.
 - The NVIDIA task currently supports RHEL 9/10 only. Debian/Ubuntu paths need a separate implementation.
-- The role detects Raspberry Pi OS automatically by the presence of `/etc/apt/sources.list.d/raspi.list`.
+- The role detects Raspberry Pi OS automatically by the presence of `/etc/apt/sources.list.d/raspi.list`
+  (pre-Bookworm one-line format) or `/etc/apt/sources.list.d/raspi.sources` (Bookworm+ DEB822 format).
 - `tmux` is built from source pinned to `tmux_version`; the distro's package is skipped because it lags by years.
 - `claude_code` / `codex` install nodejs + npm on first run (idempotent thereafter).

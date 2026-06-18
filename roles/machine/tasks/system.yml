@@ -12,16 +12,19 @@
 - name: "Check Raspberry repository"
   tags: ["always"]
   ansible.builtin.stat:
-    path: "/etc/apt/sources.list.d/raspi.list"
+    path: "{{ item }}"
     get_checksum: false
     get_attributes: false
     get_mime: false
   register: "raspi_repo"
+  loop:
+    - "/etc/apt/sources.list.d/raspi.list" # pre-Bookworm one-line format
+    - "/etc/apt/sources.list.d/raspi.sources" # Bookworm+ DEB822 format
 
 - name: "Set Raspberry OS"
   tags: ["always"]
   ansible.builtin.set_fact:
-    is_raspberry_os: "{{ raspi_repo.stat.exists }}"
+    is_raspberry_os: "{{ raspi_repo.results | selectattr('stat.exists') | list | length > 0 }}"
 
 - name: "Install glibc langpack for `{{ locale_lang }}` (RHEL family)"
   tags: ["locale"]

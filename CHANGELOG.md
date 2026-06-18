@@ -9,6 +9,15 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `machine` role: opt-in LightDM autologin for Raspberry Pi OS Desktop
+  hosts. Set `raspberry_autologin_user` to a username and the role
+  writes `autologin-user=<name>` + `autologin-user-timeout=0` into
+  `[Seat:*]` in `/etc/lightdm/lightdm.conf`, so the host boots
+  straight to a desktop session without a prompt (kiosk-style Pi-as-
+  display setups). Empty (default) leaves the file untouched. Gated
+  on `is_raspberry_os`, so non-Pi hosts are a no-op even if set at
+  the group level.
+
 - `machine` role: optional `disks` subrole mounts extra block devices
   (extra SSD/NVMe/HDD, network shares) listed in `machine_disks` via
   `/etc/fstab`. Each entry maps to `ansible.posix.mount` params
@@ -89,6 +98,18 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   independent of Ansible's jinja2-native default.
 
 ### Changed
+
+- `machine` role: the Raspberry Pi `config.txt` block is now rendered
+  from a Jinja template (`templates/raspberry/config.txt.j2`) instead
+  of a static file, with the same customization knobs as the tmux
+  subrole — `machine_raspberry_config_template` to swap in a fully
+  custom config without forking the collection,
+  `machine_raspberry_use_defaults` (default `true`) to keep the
+  delivery wiring but drop the bundled opinions, and
+  `machine_raspberry_extra_config` for raw lines appended to the
+  block. The default block (watchdog, USB max current, PCIe gen2,
+  Pi 5 cooling-fan thresholds) is unchanged, so existing inventories
+  see identical output.
 
 - `maria_db` role: backup directory renamed from `maria_db` to `maria-db`
   (remote `/opt/backups/maria-db/`, controller-side
@@ -185,6 +206,15 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   the template file.
 
 ### Fixed
+
+- `machine` role: Raspberry Pi OS auto-detection (`is_raspberry_os`)
+  now also recognises Pi OS Bookworm and later, which moved the apt
+  source from `/etc/apt/sources.list.d/raspi.list` (legacy one-line
+  format) to `/etc/apt/sources.list.d/raspi.sources` (DEB822). The
+  detect-stat task `loop`s over both paths and sets `is_raspberry_os`
+  true if either exists. Without this, the `raspberry` subrole and
+  the `is_raspberry_os` gate elsewhere in the role silently no-op'd
+  on a Bookworm Pi.
 
 - `machine` role: `files/tmux.conf` no longer pipes mouse-drag selections
   through `pbcopy` — that binary only exists on macOS, so on the Linux

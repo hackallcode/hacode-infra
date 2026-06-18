@@ -3,5 +3,22 @@
   ansible.builtin.blockinfile:
     path: "/boot/firmware/config.txt"
     insertafter: "EOF"
-    block: "{{ lookup('ansible.builtin.file', 'raspberry/config.txt') }}"
+    block: "{{ lookup('ansible.builtin.template', machine_raspberry_config_template) }}"
   when: "is_raspberry_os"
+
+- name: "Configure LightDM autologin"
+  tags: ["raspberry"]
+  community.general.ini_file:
+    path: "/etc/lightdm/lightdm.conf"
+    section: "Seat:*"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    no_extra_spaces: true
+    state: "present"
+    mode: "0644"
+  loop:
+    - {option: "autologin-user", value: "{{ raspberry_autologin_user }}"}
+    - {option: "autologin-user-timeout", value: "0"}
+  when:
+    - "is_raspberry_os"
+    - "raspberry_autologin_user | default('') | length > 0"
