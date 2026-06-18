@@ -21,3 +21,14 @@
     name: "wg-quick@{{ wg_server.name }}"
     state: "restarted"
   when: "_wg_client_config_res is changed or (force | default(false) | bool)"
+
+- name: "Assign WireGuard interface to firewalld zone"
+  tags: ["servers-add"]
+  ansible.posix.firewalld:
+    interface: "{{ wg_server.name }}"
+    zone: "{{ wg_server.firewall_zone }}"
+    permanent: true
+    immediate: true
+    state: "enabled"
+  when: "wg_server.firewall_zone | default('') | length > 0"
+  notify: "Reload firewalld"
