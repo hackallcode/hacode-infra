@@ -1,3 +1,4 @@
+{% if machine_raspberry_use_defaults | default(true) | bool %}
 # Prevent OS from freezing
 dtparam=watchdog=on
 
@@ -30,3 +31,11 @@ dtparam=fan_temp2_speed=204
 dtparam=fan_temp3=70000
 dtparam=fan_temp3_hyst=7500
 dtparam=fan_temp3_speed=255
+{% endif %}
+{% if (machine_raspberry_extra_config | default('') | trim) %}
+{% if machine_raspberry_use_defaults | default(true) | bool %}
+
+{% endif %}
+# Inventory extras
+{{ machine_raspberry_extra_config }}
+{% endif %}

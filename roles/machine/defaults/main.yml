@@ -392,3 +392,38 @@ cockpit_key_path: >-
 # ===== NVIDIA / CUDA =====
 cuda_version: "12.5"
 nvidia_container_toolkit_version: "1.17.8"
+
+# ===== Raspberry =====
+# Jinja template rendered into a BEGIN/END ANSIBLE-MANAGED block at the
+# bottom of `/boot/firmware/config.txt` on Raspberry Pi OS hosts (auto-
+# detected via `is_raspberry_os`). The default `"raspberry/config.txt.j2"`
+# resolves via Ansible's template search path to the bundled
+# `roles/machine/templates/raspberry/config.txt.j2`; override per-inventory
+# to a playbook-side path — e.g.
+# `machine_raspberry_config_template: "{{ playbook_dir }}/templates/pi5-config.txt.j2"` —
+# to swap in a fully custom config without forking the collection.
+machine_raspberry_config_template: "raspberry/config.txt.j2"
+
+# Whether the bundled template emits its default options (watchdog,
+# `usb_max_current_enable`, PCIe gen2, cooling-fan PWM thresholds tuned
+# for the Pi 5 active cooler). Flip to `false` to keep the same delivery
+# mechanism but drop the role's opinions — the rendered block then
+# contains only `machine_raspberry_extra_config` (if set). Useful when
+# you want our wiring but your own opinions, without forking
+# `machine_raspberry_config_template`.
+machine_raspberry_use_defaults: true
+
+# Raw config snippet appended to the bundled template. Use this when you
+# only want to extend the defaults (extra dtoverlay lines, gpio configs)
+# instead of replacing the whole block via `machine_raspberry_config_template`.
+machine_raspberry_extra_config: ""
+
+# LightDM autologin user for Raspberry Pi OS Desktop ("with-GUI") hosts.
+# Empty (default) -> autologin is left untouched. Set to a username to
+# write `autologin-user=<name>` + `autologin-user-timeout=0` into
+# `/etc/lightdm/lightdm.conf` under `[Seat:*]`. Useful for kiosk-style
+# Pi-as-display setups where the host should boot straight to a desktop
+# session without a password prompt. Only meaningful on Pi OS Desktop;
+# the task is also gated on `is_raspberry_os` so non-Pi hosts are a
+# no-op even if this is set inadvertently at the group level.
+raspberry_autologin_user: ""
