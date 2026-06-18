@@ -9,6 +9,16 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `machine` role: optional `disks` subrole mounts extra block devices
+  (extra SSD/NVMe/HDD, network shares) listed in `machine_disks` via
+  `/etc/fstab`. Each entry maps to `ansible.posix.mount` params
+  (`src`, `path`, `fstype`, `opts`, `state`, `dump`, `passno` plus
+  mount point dir `owner` / `group` / `mode`). The role only manages
+  fstab + mount state; it never runs mkfs (formatting an already-
+  populated FS would be destructive). `machine_disks_enabled` (default
+  `true`) is a no-op until `machine_disks` is populated, so existing
+  inventories are unaffected. `disks` tag for targeted re-runs.
+
 - `k3s` role: preflight auto-enables XFS project quotas on the root
   filesystem (`rootflags=pquota`) when it's xfs, so kubelet's
   `LocalStorageCapacityIsolation` and Longhorn replicas have

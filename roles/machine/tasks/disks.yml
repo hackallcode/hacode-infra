@@ -1,0 +1,31 @@
+# Mount block devices listed in `machine_disks` (schema documented in
+# defaults/main.yml). The role only manages fstab + mount state; it
+# never runs mkfs — formatting an already-populated FS would be
+# destructive and is intentionally left out of the automation.
+
+- name: "Ensure mount points exist"
+  tags: ["disks"]
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: "directory"
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop: "{{ machine_disks }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: "(item.state | default('mounted')) in ['mounted', 'present']"
+
+- name: "Manage fstab and mount state"
+  tags: ["disks"]
+  ansible.posix.mount:
+    src: "{{ item.src }}"
+    path: "{{ item.path }}"
+    fstype: "{{ item.fstype }}"
+    opts: "{{ item.opts | default('defaults') }}"
+    dump: "{{ item.dump | default(0) }}"
+    passno: "{{ item.passno | default(2) }}"
+    state: "{{ item.state | default('mounted') }}"
+  loop: "{{ machine_disks }}"
+  loop_control:
+    label: "{{ item.path }} ({{ item.src }})"

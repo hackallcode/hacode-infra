@@ -10,6 +10,11 @@
 - ansible.builtin.import_tasks: "swap.yml"
   when: "machine_swap_enabled | bool"
 
+- ansible.builtin.import_tasks: "disks.yml"
+  when:
+    - "machine_disks_enabled | bool"
+    - "machine_disks | length > 0"
+
 - ansible.builtin.import_tasks: "packages.yml"
   when: "machine_packages_enabled | bool"
 

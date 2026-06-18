@@ -82,3 +82,15 @@
       failed_when: >-
         "molecule ALL=NOPASSWD: /usr/local/bin/molecule-script"
         not in (sudoers_drop_in.content | b64decode)
+
+    - name: "Disks subrole wrote the fstab entry"
+      ansible.builtin.command: "grep -E '^tmpfs[[:space:]]+/mnt/molecule-disk[[:space:]]+tmpfs' /etc/fstab"
+      register: "disks_fstab"
+      changed_when: false
+      failed_when: "disks_fstab.rc != 0"
+
+    - name: "Disks subrole mounted the tmpfs"
+      ansible.builtin.command: "findmnt -no FSTYPE /mnt/molecule-disk"
+      register: "disks_mounted"
+      changed_when: false
+      failed_when: "disks_mounted.stdout.strip() != 'tmpfs'"
