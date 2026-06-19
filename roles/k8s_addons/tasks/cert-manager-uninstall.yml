@@ -1,0 +1,13 @@
+# Note: leaves CRDs in place (chart installed them with keep=true) to avoid
+# nuking Certificate/Issuer objects other workloads may still rely on.
+- name: "Uninstall cert-manager chart"
+  tags: ["cert-manager-uninstall"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "cert-manager"
+    release_namespace: "{{ k8s_addons_cert_manager_namespace }}"
+    state: "absent"
+    wait: true
+  delegate_to: "localhost"
+  run_once: true
+  become: false

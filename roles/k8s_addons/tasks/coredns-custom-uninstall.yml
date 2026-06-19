@@ -1,0 +1,12 @@
+- name: "Remove coredns-custom ConfigMap"
+  tags: ["coredns-custom-uninstall"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "v1"
+    kind: "ConfigMap"
+    name: "coredns-custom"
+    namespace: "kube-system"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
