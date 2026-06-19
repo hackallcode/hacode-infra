@@ -1,9 +1,11 @@
 # hacode.infra.k8s_addons
 
 Install opinionated Kubernetes addons (Cilium CNI, Longhorn block
-storage, Headlamp, Ingress-NGINX) into an existing cluster via Helm and
-raw manifests. Each addon is gated by its own `k8s_addons_<name>_enabled`
-flag and lives in its own `tasks/<addon>-install.yml` /
+storage, Headlamp, Ingress-NGINX, CoreDNS custom server blocks,
+cert-manager, trust-manager) into an existing cluster via Helm and
+raw manifests.
+Each addon is gated by its own `k8s_addons_<name>_enabled` flag and
+lives in its own `tasks/<addon>-install.yml` /
 `tasks/<addon>-uninstall.yml` pair.
 
 Cluster-level tasks (helm, k8s) delegate to localhost + `run_once`, so
@@ -211,6 +213,116 @@ baremetal / on-prem clusters with no cloud LB controller).
 | `k8s_addons_ingress_nginx_https_node_port` | `""` | same for HTTPS |
 | `k8s_addons_ingress_nginx_extra_values` | `{}` | extra Helm values deep-merged on top of the role's NodePort defaults (user wins on conflicts). Use to tune resources, enable metrics, switch IngressClass name, etc. |
 
+### CoreDNS custom server blocks
+
+k3s ships CoreDNS with the `import` plugin pre-wired against a
+`coredns-custom` ConfigMap in `kube-system`. Drop extra server blocks
+into that ConfigMap and CoreDNS picks them up without a restart —
+useful for resolving internal zones (e.g. `*.k.int-net`) that aren't
+served by the cluster's default upstreams. Each entry in
+`k8s_addons_coredns_custom_servers` becomes a `<name>.server` key in
+the ConfigMap.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `k8s_addons_coredns_custom_enabled` | `false` | opt-in flag |
+| `k8s_addons_coredns_custom_servers` | `[]` | list of server blocks (see schema below); empty = no-op |
+
+Each entry:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `name` | yes | ConfigMap data key prefix; final key becomes `<name>.server` |
+| `zone` | yes | CoreDNS zone the block serves (e.g. `k.int-net:53`) |
+| `forward` | yes | upstream resolver(s); string `"10.0.1.10"` or list `["10.0.1.10", "10.0.1.11"]` |
+| `cache` | no | cache TTL in seconds; default `30` |
+
+```yaml
+k8s_addons_coredns_custom_enabled: true
+k8s_addons_coredns_custom_servers:
+  - name: "k-int-net"
+    zone: "k.int-net:53"
+    forward: ["10.0.1.10", "10.0.1.11"]
+```
+
+Uninstall removes the `coredns-custom` ConfigMap; CoreDNS reverts to
+the stock cluster zones.
+
+### cert-manager
+
+[cert-manager](https://cert-manager.io/) is the de-facto PKI
+controller for Kubernetes. It's a hard prerequisite for
+trust-manager (which serves its webhook via a `cert-manager`
+`Certificate` + `Issuer`), but you may also want it for its own
+sake (`Certificate` resources, ACME issuers, etc.).
+
+The role installs the upstream Jetstack chart with CRDs bundled
+(`crds.enabled: true`, `crds.keep: true` so an uninstall doesn't
+nuke `Certificate` / `Issuer` objects other workloads still rely
+on).
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `k8s_addons_cert_manager_enabled` | `false` | opt-in flag |
+| `k8s_addons_cert_manager_chart_version` | `""` | empty = track latest; pin once you've validated a version |
+| `k8s_addons_cert_manager_chart_timeout` | `5m0s` | helm `--timeout` |
+| `k8s_addons_cert_manager_namespace` | `cert-manager` | release namespace |
+| `k8s_addons_cert_manager_extra_values` | `{}` | deep-merged over `{crds: {enabled: true, keep: true}}` (user wins on conflicts) |
+
+When both cert-manager and trust-manager are enabled in the same
+play, the role installs cert-manager first and uninstalls it last
+(reverse-order), so trust-manager's webhook serving cert always
+sees the cert-manager controller during both lifecycles.
+
+### trust-manager
+
+[trust-manager](https://cert-manager.io/docs/trust/trust-manager/) is
+the Jetstack project that publishes a CA bundle into namespaces as a
+`ConfigMap` workloads can mount or pass to their HTTP clients. Use
+this addon to fan a corporate / internal CA out to selected
+namespaces without manually maintaining a per-namespace ConfigMap.
+
+**Prerequisite**: cert-manager (above) must be installed first —
+trust-manager's webhook serving cert is a cert-manager
+`Certificate` / `Issuer`. The role's install order honors this when
+both addons are enabled in the same play.
+
+The role installs the OCI chart, seeds a source ConfigMap with the CA
+cert read from the controller, waits for the `Bundle` CRD to be
+`Established` (not just registered — a freshly-registered CRD is
+missing from the apiserver's discovery doc until the controller
+flips the `Established` condition), and creates a `Bundle` whose
+`namespaceSelector` matches on a label. The Bundle apply itself
+retries with backoff to ride out the python kubernetes client's
+discovery-cache lag right after CRD registration.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `k8s_addons_trust_manager_enabled` | `false` | opt-in flag |
+| `k8s_addons_trust_manager_chart_ref` | `oci://quay.io/jetstack/charts/trust-manager` | OCI chart reference |
+| `k8s_addons_trust_manager_chart_version` | `""` | empty = track latest; pin once you've validated a version |
+| `k8s_addons_trust_manager_chart_timeout` | `5m0s` | helm `--timeout` |
+| `k8s_addons_trust_manager_namespace` | `cert-manager` | release namespace; co-located with cert-manager because trust-manager's webhook serving cert is issued by it |
+| `k8s_addons_trust_manager_ca_source_file` | `""` | **required when enabled.** Controller-side path to the CA cert (PEM) to publish |
+| `k8s_addons_trust_manager_ca_source_name` | `cute-ca-source` | name of the source ConfigMap (in `_namespace`) seeded with the CA cert |
+| `k8s_addons_trust_manager_bundle_name` | `cute-ca` | name of the `Bundle` resource |
+| `k8s_addons_trust_manager_target_label_key` | `cute-ca` | namespace label key that opts a namespace into the CA |
+| `k8s_addons_trust_manager_target_label_value` | `enabled` | label value paired with `_target_label_key` |
+| `k8s_addons_trust_manager_target_configmap_key` | `ca.crt` | data key under which the CA lands in the target ConfigMap |
+
+```yaml
+k8s_addons_trust_manager_enabled: true
+k8s_addons_trust_manager_ca_source_file: "{{ playbook_dir }}/configs/ca/corp-ca.crt"
+# Label any namespace that should receive the CA bundle:
+#   kubectl label namespace my-app cute-ca=enabled
+```
+
+Workloads then mount the ConfigMap (named after `_bundle_name`,
+default `cute-ca`) or read `data["ca.crt"]` directly. Uninstall
+removes the Bundle, the source ConfigMap, and the trust-manager Helm
+release; the target ConfigMaps in labeled namespaces are garbage-
+collected by trust-manager itself before the chart is removed.
+
 ## Security warning
 
 The default admin ServiceAccount is bound to the built-in **`cluster-admin`**
@@ -303,18 +415,33 @@ Token files land next to each kubeconfig
 
 The uninstall path runs unconditionally (regardless of the `_enabled`
 flag) so you can tear an addon down without flipping the flag back on.
-Use `--tags <addon>-uninstall` (`headlamp-uninstall`,
-`ingress-nginx-uninstall`, `longhorn-uninstall`, `cilium-uninstall`)
-to scope to a specific addon. Install and uninstall lifecycles use
-**separate tags** (`<addon>-install` vs `<addon>-uninstall`) on purpose —
-the bare `<addon>` tag matches nothing, so `--tags cilium` will never
-accidentally fire both install and uninstall in the same run. Removal
-order is the reverse of install (Headlamp, Ingress-NGINX, Longhorn,
+Use `--tags <addon>-uninstall` (`trust-manager-uninstall`,
+`cert-manager-uninstall`, `coredns-custom-uninstall`,
+`headlamp-uninstall`, `ingress-nginx-uninstall`,
+`longhorn-uninstall`, `cilium-uninstall`) to scope to a specific
+addon. Install and uninstall lifecycles use **separate tags**
+(`<addon>-install` vs `<addon>-uninstall`) on purpose — the bare
+`<addon>` tag matches nothing, so `--tags cilium` will never
+accidentally fire both install and uninstall in the same run.
+Removal order is the reverse of install (trust-manager,
+cert-manager, CoreDNS-custom, Headlamp, Ingress-NGINX, Longhorn,
 then Cilium last), so the CNI stays up while the others talk to the
-apiserver during teardown.
+apiserver during teardown — and cert-manager stays up while
+trust-manager hands its CRs back to the apiserver.
 
 Per-addon teardown details:
 
+- **trust-manager** — removes the `Bundle`, the source ConfigMap, and
+  the Helm release. trust-manager garbage-collects the target
+  ConfigMaps in labeled namespaces during the Bundle's own teardown
+  hook, so they vanish before the chart is removed.
+- **cert-manager** — removes the Helm release. The chart installed
+  CRDs with `keep: true`, so `Certificate` / `Issuer` /
+  `ClusterIssuer` objects other workloads may still rely on are
+  preserved across the uninstall.
+- **CoreDNS custom** — removes the `coredns-custom` ConfigMap;
+  CoreDNS picks up the absence and stops serving the custom zones
+  without needing a restart.
 - **Headlamp** — removes the Helm release, the cluster-scoped
   `ClusterRoleBinding`, the namespace, and the saved token file on the
   controller.

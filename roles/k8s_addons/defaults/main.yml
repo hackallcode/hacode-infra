@@ -201,3 +201,52 @@ k8s_addons_ingress_nginx_https_node_port: ""
 # (deep-merge, user wins on conflicts). Use to tune resources, enable
 # metrics, switch IngressClass name, etc.
 k8s_addons_ingress_nginx_extra_values: {}
+
+# ===== CoreDNS custom server blocks =====
+# Writes a `coredns-custom` ConfigMap in kube-system. k3s/CoreDNS auto-imports
+# it (import plugin ships with k3s), so extra zones load without a restart.
+# Per-cluster opt-in.
+k8s_addons_coredns_custom_enabled: false
+
+# List of server blocks. Each item:
+#   - name: "k-int-net"      # ConfigMap data key prefix (-> `<name>.server`)
+#     zone: "k.int-net:53"   # CoreDNS zone the block serves
+#     forward: "10.0.1.10"   # upstream resolver(s); string or list of IPs
+#     cache: 30              # optional, seconds (default 30)
+k8s_addons_coredns_custom_servers: []
+
+# ===== trust-manager (publish a corporate/internal CA) =====
+# Installs trust-manager and fans a CA cert out to namespaces that carry the
+# target label, as a ConfigMap workloads can trust. Per-cluster opt-in.
+k8s_addons_trust_manager_enabled: false
+
+# OCI chart reference. Leave chart_version empty to track the chart's latest;
+# pin it once a known-good version is chosen.
+k8s_addons_trust_manager_chart_ref: "oci://quay.io/jetstack/charts/trust-manager"
+k8s_addons_trust_manager_chart_version: ""
+k8s_addons_trust_manager_chart_timeout: "5m0s"
+k8s_addons_trust_manager_namespace: "cert-manager"
+
+# REQUIRED when enabled: controller-side path to the CA cert (PEM) to publish.
+k8s_addons_trust_manager_ca_source_file: ""
+# Name of the source ConfigMap (in `_namespace`) seeded with the CA cert.
+k8s_addons_trust_manager_ca_source_name: "cute-ca-source"
+
+# Bundle name and the namespace label that opts a namespace into the CA.
+# trust-manager then writes a ConfigMap (key `_target_configmap_key`) into each
+# matching namespace with the CA bundle.
+k8s_addons_trust_manager_bundle_name: "cute-ca"
+k8s_addons_trust_manager_target_label_key: "cute-ca"
+k8s_addons_trust_manager_target_label_value: "enabled"
+k8s_addons_trust_manager_target_configmap_key: "ca.crt"
+
+# ===== cert-manager (PKI; prerequisite for trust-manager) =====
+# trust-manager's webhook serving cert is a cert-manager Certificate/Issuer, so
+# cert-manager must be present before trust-manager. Per-cluster opt-in.
+k8s_addons_cert_manager_enabled: false
+# Leave chart_version empty to track latest; pin once a known-good version chosen.
+k8s_addons_cert_manager_chart_version: ""
+k8s_addons_cert_manager_chart_timeout: "5m0s"
+k8s_addons_cert_manager_namespace: "cert-manager"
+# Extra helm values (deep-merged over {crds: {enabled, keep}}).
+k8s_addons_cert_manager_extra_values: {}

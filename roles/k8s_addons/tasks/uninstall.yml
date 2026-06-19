@@ -15,6 +15,19 @@
       Set `k8s_addons_kubeconfig` (or define `k3s_cluster_name` in scope
       so the default resolves) to uninstall any addon.
 
+- name: "Uninstall trust-manager"
+  tags: ["trust-manager-uninstall"]
+  ansible.builtin.include_tasks: "trust-manager-uninstall.yml"
+
+# cert-manager after trust-manager (trust-manager depends on it).
+- name: "Uninstall cert-manager"
+  tags: ["cert-manager-uninstall"]
+  ansible.builtin.include_tasks: "cert-manager-uninstall.yml"
+
+- name: "Remove CoreDNS custom server blocks"
+  tags: ["coredns-custom-uninstall"]
+  ansible.builtin.include_tasks: "coredns-custom-uninstall.yml"
+
 - name: "Uninstall Headlamp"
   tags: ["headlamp-uninstall"]
   ansible.builtin.include_tasks: "headlamp-uninstall.yml"

@@ -9,6 +9,36 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `k8s_addons` role: three new opt-in addons.
+  - `coredns-custom` writes a `coredns-custom` ConfigMap in
+    `kube-system` from `k8s_addons_coredns_custom_servers`, so k3s's
+    bundled CoreDNS `import` plugin picks up extra server blocks
+    without a restart. Each list entry maps to a `<name>.server`
+    ConfigMap key with `zone` / `forward` / optional `cache`.
+  - `cert-manager` installs the upstream Jetstack chart with CRDs
+    bundled (`crds.enabled: true`, `crds.keep: true`) so an
+    uninstall doesn't nuke `Certificate` / `Issuer` /
+    `ClusterIssuer` objects other workloads still rely on. Standalone
+    useful, and a hard prerequisite for trust-manager (whose webhook
+    serving cert is a cert-manager `Certificate` + `Issuer`).
+  - `trust-manager` installs the Jetstack OCI chart, seeds a source
+    ConfigMap with a controller-side CA cert (PEM), waits for the
+    `Bundle` CRD to be `Established` (not just registered — a
+    freshly-registered CRD is missing from the apiserver's discovery
+    doc until the controller flips the `Established` condition), and
+    creates a `Bundle` that fans the CA out as a ConfigMap into every
+    namespace carrying the configured label. The Bundle's
+    `matchLabels` are templated via a dict expression because Jinja
+    doesn't render mapping *keys* (only values), and the apply itself
+    retries to ride out the python kubernetes client's discovery-
+    cache lag right after CRD registration. Check-mode-safe: tasks
+    that depend on the freshly-installed namespace / CRD skip when
+    `ansible_check_mode`.
+    All three opt-in via `_enabled` flags; install order is
+    cert-manager → trust-manager, uninstall is the reverse. The
+    kubeconfig validator picks them all up so the friendly assert
+    message fires when the kubeconfig isn't in scope.
+
 - `wireguard` role: each entry in `wg_servers` accepts an optional
   `firewall_zone` field. When set, the client-side
   `client-server-add` task binds the resulting WireGuard interface to

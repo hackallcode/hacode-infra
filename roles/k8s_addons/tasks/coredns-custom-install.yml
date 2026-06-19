@@ -1,0 +1,46 @@
+# Builds a `coredns-custom` ConfigMap in kube-system from
+# `k8s_addons_coredns_custom_servers`. k3s/CoreDNS auto-imports `coredns-custom`
+# (the import plugin ships with k3s), so extra server blocks load without a
+# CoreDNS restart. Each list item -> one `<name>.server` key:
+#   - name: "k-int-net"          # ConfigMap data key prefix
+#     zone: "k.int-net:53"       # CoreDNS zone the block serves
+#     forward: "10.0.1.10"       # upstream(s); string or list of IPs
+#     cache: 30                  # optional, default 30
+- name: "Build coredns-custom ConfigMap data"
+  tags: ["coredns-custom-install"]
+  ansible.builtin.set_fact:
+    _coredns_custom_data: >-
+      {{
+        _coredns_custom_data | default({})
+        | combine({(item.name ~ '.server'): _block})
+      }}
+  loop: "{{ k8s_addons_coredns_custom_servers }}"
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    _fwd: "{{ item.forward if (item.forward is string) else (item.forward | join(' ')) }}"
+    _block: |
+      {{ item.zone }} {
+          errors
+          cache {{ item.cache | default(30) }}
+          forward . {{ _fwd }}
+      }
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Apply coredns-custom ConfigMap"
+  tags: ["coredns-custom-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition:
+      apiVersion: "v1"
+      kind: "ConfigMap"
+      metadata:
+        name: "coredns-custom"
+        namespace: "kube-system"
+      data: "{{ _coredns_custom_data | default({}) }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false

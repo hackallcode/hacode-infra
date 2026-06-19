@@ -7,6 +7,12 @@
   ansible.builtin.include_tasks: "cilium-install.yml"
   when: "k8s_addons_cilium_enabled | default(false) | bool"
 
+# DNS server blocks: pods can resolve internal zones (e.g. *.k.int-net).
+- name: "Apply CoreDNS custom server blocks"
+  tags: ["coredns-custom-install"]
+  ansible.builtin.include_tasks: "coredns-custom-install.yml"
+  when: "k8s_addons_coredns_custom_enabled | default(false) | bool"
+
 - name: "Install Longhorn"
   tags: ["longhorn-install"]
   ansible.builtin.include_tasks: "longhorn-install.yml"
@@ -21,3 +27,16 @@
   tags: ["ingress-nginx-install"]
   ansible.builtin.include_tasks: "ingress-nginx-install.yml"
   when: "k8s_addons_ingress_nginx_enabled | default(false) | bool"
+
+# cert-manager: PKI; must precede trust-manager (its webhook cert is a
+# cert-manager Certificate/Issuer).
+- name: "Install cert-manager"
+  tags: ["cert-manager-install"]
+  ansible.builtin.include_tasks: "cert-manager-install.yml"
+  when: "k8s_addons_cert_manager_enabled | default(false) | bool"
+
+# trust-manager: publish corporate/internal CA into labeled namespaces.
+- name: "Install trust-manager"
+  tags: ["trust-manager-install"]
+  ansible.builtin.include_tasks: "trust-manager-install.yml"
+  when: "k8s_addons_trust_manager_enabled | default(false) | bool"
