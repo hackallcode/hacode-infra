@@ -9,6 +9,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `machine` role: `hacode-update` zsh helper that refreshes the
+  bundled theme files (hacode.zsh, hacode.zsh-theme, zshrc) from
+  `$HACODE_ZSH_URL` (default `https://hacode.ru/zsh`). The same
+  install script the role uses on first deploy, so the user-owned
+  `aliases.zsh` / `exports.zsh` seeds aren't touched. Restart the
+  shell after running to pick up the new helpers.
+
 - `machine` role: three new subroles for inventory-driven host
   hygiene, all auto-skipped when their list is empty.
   - `cron` (`machine_cron_jobs`) maps each entry 1:1 to
@@ -157,6 +164,15 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   independent of Ansible's jinja2-native default.
 
 ### Changed
+
+- `machine` role: the zsh `sw-make` workspace helper now generates
+  suffix-style command names (`sw-make w …` → `swsw / swvw / mksw
+  / mkvw / rmvw`) instead of the old prefix-style (`wsws / wswv /
+  wmks / wmkv / wrmv`). Tab-completion follows. **Migration**: any
+  inventory or local user dotfile calling `sw-make` keeps the same
+  three positional args; only the *generated* command names need
+  to be updated wherever they're referenced from muscle memory or
+  scripts.
 
 - `app` role: the firewall port-open tasks now gate on the live
   firewalld state (`systemctl is-active firewalld`) instead of

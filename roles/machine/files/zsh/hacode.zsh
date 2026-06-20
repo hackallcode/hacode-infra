@@ -16,6 +16,7 @@ Hackallcode shell helpers:
 
 Misc:
   hacode-help           print this help
+  hacode-update         refresh the bundled theme/helpers from $HACODE_ZSH_URL (default https://hacode.ru/zsh)
   ssh-add-apple [key]   ssh-add --apple-use-keychain (macOS)
   g-rm [args]           git rebase master: fetch + rebase onto origin's default branch (args go to `git rebase`)
   g-bc                  git branch cleanup: delete locals whose upstream is gone
@@ -34,9 +35,21 @@ Kubernetes:
   swk <name>            switch k8s: switch KUBECONFIG to ~/.kube/<name>
 
 Multi-workspace:
-  sw-make <prefix> <SOURCES_DIR> <VENV_DIR>
-                        generate <prefix>{mks,sws,mkv,swv,rmv} commands bound to those dirs
+  sw-make <suffix> <SOURCES_DIR> <VENV_DIR>
+                        generate {mks,sws,mkv,swv,rmv}<suffix> commands bound to those dirs
 EOF
+}
+
+# Pull the framework-owned theme files from $HACODE_ZSH_URL (default
+# https://hacode.ru/zsh). The remote endpoint serves the same install
+# script the role uses on first deploy, so this command refreshes
+# hacode.zsh / hacode.zsh-theme / zshrc without touching the user-owned
+# aliases.zsh / exports.zsh seeds. Restart the shell (or `exec zsh`)
+# afterwards to pick up the new helpers.
+hacode-update() {
+    local url="${HACODE_ZSH_URL:-https://hacode.ru/zsh}"
+    sh -c "$(curl -fsSL "${url}")" || return $?
+    echo "hacode-update: refreshed from ${url}. Run \`exec zsh\` to reload."
 }
 
 # --- Utilities ---
@@ -95,33 +108,33 @@ fi
 
 # --- Projects & venvs ---
 
-# Generate prefix variants of sws/swv/mks/mkv/rmv bound to a specific workspace.
+# Generate suffix variants of sws/swv/mks/mkv/rmv bound to a specific workspace.
 # Each wrapper exports SOURCES_DIR/VENV_DIR (persists after the call) and runs
-# the base command. Completion is reused from the unprefixed versions.
-#   sw-make w "$HOME/Workspace/sources" "$HOME/Workspace/venv"  ->  wsws / wswv / wmks / wmkv / wrmv
+# the base command. Completion is reused from the unsuffixed versions.
+#   sw-make w "$HOME/Workspace/sources" "$HOME/Workspace/venv"  ->  swsw / swvw / mksw / mkvw / rmvw
 sw-make() {
     if [ $# -lt 3 ]; then
-        echo "usage: sw-make <prefix> <sources_dir> <venv_dir>" >&2
-        echo "  generates <prefix>{sws,swv,mks,mkv,rmv} wrappers" >&2
+        echo "usage: sw-make <suffix> <sources_dir> <venv_dir>" >&2
+        echo "  generates {sws,swv,mks,mkv,rmv}<suffix> wrappers" >&2
         return 1
     fi
-    local prefix="$1" src="$2" venv="$3" cmd
+    local suffix="$1" src="$2" venv="$3" cmd
     for cmd in sws swv mks mkv rmv; do
-        eval "${prefix}${cmd}() { export SOURCES_DIR='${src}' VENV_DIR='${venv}'; ${cmd} \"\$@\"; }"
+        eval "${cmd}${suffix}() { export SOURCES_DIR='${src}' VENV_DIR='${venv}'; ${cmd} \"\$@\"; }"
     done
-    # Per-prefix completion functions with hardcoded dirs (so tab-suggestions
+    # Per-suffix completion functions with hardcoded dirs (so tab-suggestions
     # don't depend on the current SOURCES_DIR/VENV_DIR).
-    eval "_${prefix}sws() { _path_files -W '${src}' -/ }"
-    eval "_${prefix}swv() {
+    eval "_sws${suffix}() { _path_files -W '${src}' -/ }"
+    eval "_swv${suffix}() {
         if [[ -n \"\${VIRTUAL_ENV-}\" && \"\${VIRTUAL_ENV}/\" == '${venv%/}/'*/ ]]; then
             compadd -- \"\${VIRTUAL_ENV#${venv%/}/}\"
         fi
         _path_files -W '${venv}' -/
     }"
-    compdef "_${prefix}sws" "${prefix}sws"
-    compdef "_${prefix}sws" "${prefix}mkv"
-    compdef "_${prefix}swv" "${prefix}swv"
-    compdef "_${prefix}swv" "${prefix}rmv"
+    compdef "_sws${suffix}" "sws${suffix}"
+    compdef "_sws${suffix}" "mkv${suffix}"
+    compdef "_swv${suffix}" "swv${suffix}"
+    compdef "_swv${suffix}" "rmv${suffix}"
 }
 
 # Create a new project directory.
