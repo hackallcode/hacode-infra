@@ -94,3 +94,23 @@
       register: "disks_mounted"
       changed_when: false
       failed_when: "disks_mounted.stdout.strip() != 'tmpfs'"
+
+    - name: "Templated script rendered with inventory hostname embedded"
+      ansible.builtin.command: "/usr/local/bin/molecule-template-script"
+      register: "tpl_script_run"
+      changed_when: false
+      failed_when: "tpl_script_run.stdout != 'molecule-template-ok host=molecule-test'"
+
+    - name: "Cron subrole installed the crontab entry"
+      ansible.builtin.command: "crontab -u root -l"
+      register: "cron_list"
+      changed_when: false
+      failed_when: >-
+        '#Ansible: molecule cron probe' not in cron_list.stdout
+        or '*/7 * * * * /bin/true' not in cron_list.stdout
+
+    - name: "Systemd drop-in fragment is on disk with the expected body"
+      ansible.builtin.slurp:
+        src: "/etc/systemd/system/systemd-journald.service.d/molecule-dropin.conf"
+      register: "dropin_body"
+      failed_when: "'Environment=MOLECULE_DROPIN=ok' not in (dropin_body.content | b64decode)"

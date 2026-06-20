@@ -1,0 +1,63 @@
+# Drop systemd unit override fragments under
+# /etc/systemd/system/<unit>.d/<basename>.conf. Each entry:
+#   - unit       systemd unit name (e.g. "bluetooth.service") - required
+#   - name       drop-in filename without `.conf` (default: "override")
+#   - content    raw text of the drop-in (required)
+#   - state      "present" (default) | "absent"
+#
+# Reloads systemd daemon and restarts the unit when its drop-in changed.
+
+- name: "Ensure systemd drop-in directories"
+  tags: ["systemd_dropins"]
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item.unit }}.d"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  loop: "{{ machine_systemd_dropins }}"
+  loop_control:
+    label: "{{ item.unit }}.d"
+  when: "(item.state | default('present')) == 'present'"
+
+- name: "Render systemd drop-in fragments"
+  tags: ["systemd_dropins"]
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.unit }}.d/{{ item.name | default('override') }}.conf"
+    content: "{{ item.content }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  loop: "{{ machine_systemd_dropins }}"
+  loop_control:
+    label: "{{ item.unit }}/{{ item.name | default('override') }}.conf"
+  when: "(item.state | default('present')) == 'present'"
+  register: "_dropin_present_res"
+  notify:
+    - "Reload systemd"
+    - "Restart units with changed drop-ins"
+
+- name: "Remove systemd drop-in fragments"
+  tags: ["systemd_dropins"]
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item.unit }}.d/{{ item.name | default('override') }}.conf"
+    state: "absent"
+  loop: "{{ machine_systemd_dropins }}"
+  loop_control:
+    label: "{{ item.unit }}/{{ item.name | default('override') }}.conf"
+  when: "(item.state | default('present')) == 'absent'"
+  register: "_dropin_absent_res"
+  notify:
+    - "Reload systemd"
+    - "Restart units with changed drop-ins"
+
+- name: "Stash changed unit list for restart handler"
+  tags: ["systemd_dropins"]
+  ansible.builtin.set_fact:
+    _changed_dropin_units: >-
+      {{ ((_dropin_present_res.results | default([]))
+          + (_dropin_absent_res.results | default([])))
+         | selectattr('changed', 'equalto', true)
+         | map(attribute='item')
+         | map(attribute='unit')
+         | unique | list }}

@@ -5,11 +5,12 @@
   become: true
   gather_facts: true
   tasks:
-    - name: "Install sshd and sudo on RHEL family"
+    - name: "Install sshd, sudo and cronie on RHEL family"
       ansible.builtin.dnf:
         name:
           - "openssh-server"
           - "sudo"
+          - "cronie" # ships /usr/bin/crontab, which the cron subrole needs
         state: "present"
       when: "ansible_os_family == 'RedHat'"
 
@@ -29,11 +30,12 @@
         force: false
       when: "ansible_os_family == 'RedHat'"
 
-    - name: "Install sshd and sudo on Debian family"
+    - name: "Install sshd, sudo and cron on Debian family"
       ansible.builtin.apt:
         name:
           - "openssh-server"
           - "sudo"
+          - "cron" # ships /usr/bin/crontab, which the cron subrole needs
         state: "present"
         update_cache: true
       when: "ansible_os_family == 'Debian'"

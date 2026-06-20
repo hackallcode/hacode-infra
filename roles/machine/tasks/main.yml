@@ -68,5 +68,15 @@
 - ansible.builtin.import_tasks: "scripts.yml"
   when: "machine_scripts_enabled | bool"
 
+- ansible.builtin.import_tasks: "cron.yml"
+  when:
+    - "machine_cron_enabled | bool"
+    - "machine_cron_jobs | length > 0"
+
+- ansible.builtin.import_tasks: "systemd_dropins.yml"
+  when:
+    - "machine_systemd_dropins_enabled | bool"
+    - "machine_systemd_dropins | length > 0"
+
 - ansible.builtin.import_tasks: "reboot.yml"
   when: "machine_reboot_enabled | bool"

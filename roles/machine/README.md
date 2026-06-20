@@ -28,7 +28,9 @@ off by default.
 | `machine_tmux_enabled`        | `false` | build tmux `tmux_version` from source, drop `~/.tmux.conf` per user        |
 | `machine_claude_code_enabled` | `false` | install `@anthropic-ai/claude-code` globally via npm (installs nodejs+npm) |
 | `machine_codex_enabled`       | `false` | install `@openai/codex` globally via npm (installs nodejs+npm)             |
-| `machine_scripts_enabled`     | `false` | copy entries in `machine_scripts` into `/usr/local/bin`                    |
+| `machine_scripts_enabled`     | `true`  | copy entries in `machine_scripts` into `/usr/local/bin` (no-op when empty); supports both plain files and Jinja templates per-entry |
+| `machine_cron_enabled`        | `true`  | manage crontab entries listed in `machine_cron_jobs` (no-op when empty)    |
+| `machine_systemd_dropins_enabled` | `true` | drop `/etc/systemd/system/<unit>.d/<name>.conf` overrides listed in `machine_systemd_dropins` (no-op when empty) |
 | `machine_reboot_enabled`      | `true`  | reboot at the end if required                                              |
 
 ## Key variables
@@ -112,17 +114,43 @@ machine_tmux_use_defaults: true
 machine_tmux_extra_conf: ""
 
 # Scripts dropped onto the host. Each entry:
-# {name (required), src?, dest?, mode?, owner?, group?, completion?}.
-# Default src is "{{ machine_scripts_src_dir }}/{{ name }}"; default dest
-# is "/usr/local/bin" (PATH-wide for login shells via
-# `machine_localbin_in_path`). Set `dest: "/usr/local/sbin"` for root-only
-# helpers. When `completion` is set the role evals its output (e.g.
-# "kubectl completion bash", "ovpn init") on login: for bash via
+# {name (required), src?, dest?, mode?, owner?, group?, completion?, template?}.
+# Default src is "{{ machine_scripts_src_dir }}/{{ name }}" (or
+# "<name>.j2" when `template: true`); default dest is "/usr/local/bin"
+# (PATH-wide for login shells via `machine_localbin_in_path`). Set
+# `dest: "/usr/local/sbin"` for root-only helpers. `template: true`
+# renders the source through Jinja before dropping it on the host —
+# useful for scripts that need to embed inventory values (a hostname,
+# a port, etc.). When `completion` is set the role evals its output
+# (e.g. "kubectl completion bash", "ovpn init") on login: for bash via
 # /etc/profile.d/<name>-completion.sh, and for zsh (when
 # `machine_zsh_enabled`) via each user's
 # ~/.oh-my-zsh/custom/<name>-completion.zsh so it loads after compinit.
 machine_scripts_src_dir: "{{ playbook_dir }}/sources/scripts"
 machine_scripts: []                # e.g. [{name: "ovpn", completion: "ovpn init"}]
+
+# Crontab entries managed via `ansible.builtin.cron`. Each entry maps 1:1
+# to the module params. Minimal schema:
+#   - name: "rotate-stuff"         # required (cron-comment uniqueness key)
+#     user: "root"                 # optional, default root
+#     job: "/usr/local/bin/rotate" # required for state=present
+#     minute: "*/5"                # any of minute/hour/day/month/weekday,
+#                                  # default "*"
+#     state: "present"             # "present" (default) | "absent"
+#     disabled: false              # keep entry but prefix with `# `
+#     env: false                   # write VAR=value into cron env block
+machine_cron_jobs: []
+
+# Systemd drop-in overrides. Each entry:
+#   - unit: "bluetooth.service"    # required
+#     name: "override"             # optional, default "override"
+#     content: |                   # required (raw `.conf` body)
+#       [Service]
+#       Environment=…
+#     state: "present"             # "present" (default) | "absent"
+# Drops to /etc/systemd/system/<unit>.d/<name>.conf, reloads systemd,
+# and restarts only the units whose drop-ins actually changed.
+machine_systemd_dropins: []
 
 # NVIDIA / CUDA
 cuda_version: "12.5"
@@ -192,7 +220,8 @@ ansible-playbook site.yml --tags "users,ssh"
 
 Available tags: `always`, `root_user`, `users`, `setup_user_cleanup`, `ssh`, `locale`, `hostname`, `motd`,
 `path`, `swap`, `disks`, `package`, `zsh`, `firewall`, `selinux`, `raspberry`, `journald`, `fail2ban`, `dns`,
-`docker`, `cockpit`, `nvidia`, `tmux`, `tmux_conf`, `claude_code`, `codex`, `scripts`, `reboot`.
+`docker`, `cockpit`, `nvidia`, `tmux`, `tmux_conf`, `claude_code`, `codex`, `scripts`, `cron`,
+`systemd_dropins`, `reboot`.
 
 `tmux_conf` is a subtag that runs only the `~/.tmux.conf` rewrite — handy for pushing config tweaks
 without re-checking / rebuilding tmux itself.

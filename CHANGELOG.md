@@ -9,6 +9,27 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `machine` role: three new subroles for inventory-driven host
+  hygiene, all auto-skipped when their list is empty.
+  - `cron` (`machine_cron_jobs`) maps each entry 1:1 to
+    `ansible.builtin.cron` (`name`, `user`, `job`, schedule fields,
+    `state`, `disabled`, `env`) for inventory-driven crontab
+    management — replacing the `cron_d` files operators were dropping
+    by hand via the scripts subrole.
+  - `systemd_dropins` (`machine_systemd_dropins`) drops
+    `/etc/systemd/system/<unit>.d/<name>.conf` fragments
+    (`unit`, optional `name`, `content`, `state`), reloads systemd
+    once, and restarts only the units whose drop-ins actually
+    changed (computed from the rendered task's `results`).
+  - `scripts` (existing) now accepts `template: true` per entry to
+    render the source through Jinja before dropping it on the host
+    — for helpers that need to embed inventory values. Default src
+    becomes `<name>.j2` in template mode, `<name>` otherwise. The
+    `cron` and `systemd_dropins` subroles default to enabled
+    (`machine_cron_enabled`, `machine_systemd_dropins_enabled`) but
+    no-op until their respective lists are populated, mirroring the
+    `disks` pattern from earlier.
+
 - `k8s_addons` role: three new opt-in addons.
   - `coredns-custom` writes a `coredns-custom` ConfigMap in
     `kube-system` from `k8s_addons_coredns_custom_servers`, so k3s's

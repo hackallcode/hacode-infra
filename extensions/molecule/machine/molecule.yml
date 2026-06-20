@@ -90,6 +90,24 @@ provisioner:
             completion: "echo complete -W ok molecule-script"
           - name: "molecule-sbin-script"
             dest: "/usr/local/sbin"
+          - name: "molecule-template-script"
+            template: true
+
+        machine_cron_jobs:
+          - name: "molecule cron probe"
+            user: "root"
+            job: "/bin/true"
+            minute: "*/7"
+
+        # systemd-journald.service is present on every platform image
+        # (so the "restart changed units" handler doesn't fail on a
+        # missing unit) and restarting it just rotates its log buffer.
+        machine_systemd_dropins:
+          - unit: "systemd-journald.service"
+            name: "molecule-dropin"
+            content: |
+              [Service]
+              Environment=MOLECULE_DROPIN=ok
 
         machine_sudoers:
           - name: "10-molecule-script"
