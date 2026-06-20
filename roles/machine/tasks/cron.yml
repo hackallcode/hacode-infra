@@ -1,0 +1,28 @@
+# Manage user crontab entries via `ansible.builtin.cron`. Each entry maps
+# 1:1 to module params:
+#   - name      cron-comment marker (required; uniqueness key for idempotency)
+#     user      target user crontab (default: root)
+#     job       command line (required for state=present)
+#     minute    "*" | "*/5" | "0,30" | ... (default: "*")
+#     hour/day/month/weekday  same conventions (default: "*")
+#     state     "present" (default) | "absent"
+#     disabled  bool — keep entry but prefix with `# `
+#     env       bool — write VAR=value into crontab env block instead
+
+- name: "Manage cron jobs"
+  tags: ["cron"]
+  ansible.builtin.cron:
+    name: "{{ item.name }}"
+    user: "{{ item.user | default('root') }}"
+    job: "{{ item.job | default(omit) }}"
+    minute: "{{ item.minute | default('*') }}"
+    hour: "{{ item.hour | default('*') }}"
+    day: "{{ item.day | default('*') }}"
+    month: "{{ item.month | default('*') }}"
+    weekday: "{{ item.weekday | default('*') }}"
+    state: "{{ item.state | default('present') }}"
+    disabled: "{{ item.disabled | default(false) }}"
+    env: "{{ item.env | default(false) }}"
+  loop: "{{ machine_cron_jobs }}"
+  loop_control:
+    label: "{{ item.name }} ({{ item.user | default('root') }})"

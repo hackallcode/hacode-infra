@@ -1,4 +1,4 @@
-- name: "Install scripts"
+- name: "Install scripts (plain copy)"
   tags: ["scripts"]
   ansible.builtin.copy:
     src: "{{ item.src | default(machine_scripts_src_dir ~ '/' ~ item.name) }}"
@@ -9,6 +9,20 @@
   loop: "{{ machine_scripts }}"
   loop_control:
     label: "{{ item.name }} -> {{ item.dest | default('/usr/local/bin') }}"
+  when: "not (item.template | default(false) | bool)"
+
+- name: "Install scripts (jinja template)"
+  tags: ["scripts"]
+  ansible.builtin.template:
+    src: "{{ item.src | default(machine_scripts_src_dir ~ '/' ~ item.name ~ '.j2') }}"
+    dest: "{{ item.dest | default('/usr/local/bin') }}/{{ item.name }}"
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop: "{{ machine_scripts }}"
+  loop_control:
+    label: "{{ item.name }} (template) -> {{ item.dest | default('/usr/local/bin') }}"
+  when: "item.template | default(false) | bool"
 
 - name: "Drop bash completion snippets to /etc/profile.d"
   tags: ["scripts"]

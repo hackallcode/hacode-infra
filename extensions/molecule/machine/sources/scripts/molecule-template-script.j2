@@ -1,0 +1,5 @@
+#!/bin/sh
+# Test fixture: exercises `template: true` on the scripts subrole — the
+# source is rendered through Jinja before being dropped on the host, so
+# the inventory hostname lands inside the script body.
+echo "molecule-template-ok host={{ hostname }}"

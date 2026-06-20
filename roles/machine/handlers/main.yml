@@ -6,3 +6,15 @@
 - name: "Reboot after driver install"
   ansible.builtin.reboot:
     msg: "Rebooting to load NVIDIA driver"
+
+- name: "Reload systemd"
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: "Restart units with changed drop-ins"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: "restarted"
+  loop: "{{ _changed_dropin_units | default([]) }}"
+  loop_control:
+    label: "{{ item }}"
