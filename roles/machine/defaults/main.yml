@@ -405,6 +405,20 @@ cockpit_key_path: >-
 cuda_version: "12.5"
 nvidia_container_toolkit_version: "1.17.8"
 
+# dnf `nvidia-driver` module stream enabled before installing `cuda-<ver>`.
+# The cuda repo ships its driver packages as modular artifacts, so they stay
+# hidden by dnf modular filtering until the owning stream is enabled. The
+# stream must be self-contained (ship its own `nvidia-kmod`): enabling one
+# stream filters every other stream's artifacts, and the plain `latest`
+# stream's userspace pulls an `nvidia-kmod` only its sibling `*-dkms` streams
+# provide, so it can't resolve alone.
+#
+# Default `latest-dkms` rebuilds the kernel module against the *running*
+# kernel via DKMS, dodging the recurring "kernel outran the prebuilt kmod"
+# failure after an OS minor bump. Requires gcc / make / kernel-devel / dkms
+# on the host; override (e.g. "560", "560-open", "latest-open") if not.
+nvidia_driver_module_stream: "latest-dkms"
+
 # ===== Raspberry =====
 # Jinja template rendered into a BEGIN/END ANSIBLE-MANAGED block at the
 # bottom of `/boot/firmware/config.txt` on Raspberry Pi OS hosts (auto-
