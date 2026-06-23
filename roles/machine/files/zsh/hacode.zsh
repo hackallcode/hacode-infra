@@ -23,13 +23,16 @@ Misc:
   g-aliases             install handy git aliases (co, ci, st, br, hist, type, dump, wdiff) into global git config
 
 Python environments:
-  mkv <name>            make venv: create venv at $VENV_DIR/<name> and activate it
-  swv <name>            switch venv: activate $VENV_DIR/<name>
-  rmv <name>            remove venv: delete $VENV_DIR/<name> (deactivates first if active)
+  mkv [<name>]          make venv: create venv at $VENV_DIR/<name> and activate it
+  swv [<name>]          switch venv: activate $VENV_DIR/<name>
+  rmv [<name>]          remove venv: delete $VENV_DIR/<name> (deactivates first if active)
 
 Projects:
   mks <name>            make sources: mkdir $SOURCES_DIR/<name>
-  sws <name>            switch sources: cd $SOURCES_DIR/<name> + swv <name>
+  sws [<name>]          switch sources: cd $SOURCES_DIR/<name> + swv <name>
+
+  Note: mkv / swv / rmv / sws default <name> to the current project when
+  run from inside $SOURCES_DIR/<project>/...
 
 Kubernetes:
   swk <name>            switch k8s: switch KUBECONFIG to ~/.kube/<name>
@@ -108,6 +111,22 @@ fi
 
 # --- Projects & venvs ---
 
+# Derive a project name from PWD when it sits under $SOURCES_DIR — used as
+# the implicit arg by mkv/swv/rmv/sws when called from inside a project
+# directory. Prints the first path segment under $SOURCES_DIR; returns
+# non-zero (and prints nothing) when PWD is outside $SOURCES_DIR or
+# $SOURCES_DIR is unset.
+_hacode_project_from_pwd() {
+    [ -n "${SOURCES_DIR-}" ] || return 1
+    case "${PWD}/" in
+        "${SOURCES_DIR%/}/"?*) ;;
+        *) return 1 ;;
+    esac
+    local rel="${PWD#${SOURCES_DIR%/}/}"
+    [ -n "${rel}" ] || return 1
+    printf '%s\n' "${rel%%/*}"
+}
+
 # Generate suffix variants of sws/swv/mks/mkv/rmv bound to a specific workspace.
 # Each wrapper exports SOURCES_DIR/VENV_DIR (persists after the call) and runs
 # the base command. Completion is reused from the unsuffixed versions.
@@ -148,10 +167,15 @@ mks() {
 
 # Create a new venv, upgrade pip inside it, and activate it.
 # Completion suggests project paths under $SOURCES_DIR so you can mkv test/sub/myproj.
+# Bare `mkv` (no arg) falls back to the current project when run inside $SOURCES_DIR/<project>.
 mkv() {
     if [ $# -eq 0 ]; then
-        echo "usage: mkv <name>   - create venv at \$VENV_DIR/<name> and activate it" >&2
-        return 1
+        local _name
+        _name="$(_hacode_project_from_pwd)" || {
+            echo "usage: mkv <name>   - create venv at \$VENV_DIR/<name> and activate it" >&2
+            return 1
+        }
+        set -- "${_name}"
     fi
     mkdir -p "$(dirname "${VENV_DIR}/${1}")" && \
         python -m venv "${VENV_DIR}/${1}" && \
@@ -167,10 +191,15 @@ _mkv() {
 compdef _mkv mkv
 
 # Remove a venv by name. Deactivates first if the venv being removed is active.
+# Bare `rmv` (no arg) falls back to the current project when run inside $SOURCES_DIR/<project>.
 rmv() {
     if [ $# -eq 0 ]; then
-        echo "usage: rmv <name>   - delete \$VENV_DIR/<name>" >&2
-        return 1
+        local _name
+        _name="$(_hacode_project_from_pwd)" || {
+            echo "usage: rmv <name>   - delete \$VENV_DIR/<name>" >&2
+            return 1
+        }
+        set -- "${_name}"
     fi
     local target="${VENV_DIR}/${1}"
     if [ ! -d "${target}" ]; then
@@ -184,10 +213,15 @@ rmv() {
 }
 
 # Activate a venv by name.
+# Bare `swv` (no arg) falls back to the current project when run inside $SOURCES_DIR/<project>.
 swv() {
     if [ $# -eq 0 ]; then
-        echo "usage: swv <name>   - activate \$VENV_DIR/<name>" >&2
-        return 1
+        local _name
+        _name="$(_hacode_project_from_pwd)" || {
+            echo "usage: swv <name>   - activate \$VENV_DIR/<name>" >&2
+            return 1
+        }
+        set -- "${_name}"
     fi
     [ -n "${VIRTUAL_ENV-}" ] && deactivate
     [ -f "${VENV_DIR}/${1}/bin/activate" ] && source "${VENV_DIR}/${1}/bin/activate"
@@ -202,10 +236,16 @@ compdef _swv swv
 compdef _swv rmv
 
 # Switch to project <name>: deactivate current venv, cd, activate matching venv if present.
+# Bare `sws` (no arg) falls back to the current project when run inside $SOURCES_DIR/<project>
+# — the cd is then a no-op, so it effectively just (re-)activates the matching venv.
 sws() {
     if [ $# -eq 0 ]; then
-        echo "usage: sws <name>   - cd \$SOURCES_DIR/<name> and activate matching venv" >&2
-        return 1
+        local _name
+        _name="$(_hacode_project_from_pwd)" || {
+            echo "usage: sws <name>   - cd \$SOURCES_DIR/<name> and activate matching venv" >&2
+            return 1
+        }
+        set -- "${_name}"
     fi
     cd "${SOURCES_DIR}/${1}" || return $?
     [ -f "${VENV_DIR}/${1}/bin/activate" ] && swv "$1"

@@ -165,6 +165,15 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Changed
 
+- `machine` role: `mkv` / `swv` / `rmv` / `sws` now default
+  `<name>` to the current project when invoked without arguments
+  from inside `$SOURCES_DIR/<project>/...`. The fallback uses a
+  small `_hacode_project_from_pwd` helper that returns the first
+  path segment below `$SOURCES_DIR`; the usage message is still
+  printed when PWD is outside (or `$SOURCES_DIR` is unset). Plays
+  nicely with `sw-make`-generated suffix variants since they
+  export their own `$SOURCES_DIR` before delegating.
+
 - `machine` role: the zsh `sw-make` workspace helper now generates
   suffix-style command names (`sw-make w …` → `swsw / swvw / mksw
   / mkvw / rmvw`) instead of the old prefix-style (`wsws / wswv /
