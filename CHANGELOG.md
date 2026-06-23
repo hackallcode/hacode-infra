@@ -7,21 +7,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-23
+
 ### Fixed
 
-- `machine` role: NVIDIA install on RHEL9 now enables the
-  `nvidia-driver` dnf module stream (`latest-dkms` by default) before
-  installing `cuda-<ver>`. The cuda-rhelN repo ships its driver
-  packages as modular artifacts and dnf modular filtering otherwise
-  hides them, so the install used to fail with `filtered out by
-  modular filtering`. `module_stream_switch=1` lets the task converge
-  from any prior module state. The cuda install gains
-  `allowerasing: true` so a stale cross-channel driver
-  (elrepo-style) is swapped instead of aborting the depsolve. A
-  follow-up shell task compares the loaded `nvidia` kernel module
-  version against the installed `nvidia-kmod-common` and re-notifies
-  the reboot handler on mismatch — self-heals hosts left on a stale
-  module after an out-of-band upgrade or an interrupted converge.
+- `machine`: enable nvidia-driver dnf module stream so cuda driver installs on RHEL9 ([2191c85](https://github.com/hackallcode/hacode-infra/commit/2191c85))
 
 ## [0.2.0] - 2026-06-23
 
