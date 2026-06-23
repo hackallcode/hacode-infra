@@ -11,7 +11,7 @@
     msg: "NVIDIA CUDA install in this role currently supports only RHEL-family hosts."
   when: "ansible_os_family != 'RedHat'"
 
-- name: "Add NVIDIA CUDA repo (gated)"
+- name: "Add NVIDIA CUDA repo"
   tags: ["nvidia"]
   vars:
     _cuda_repo_base: "https://developer.download.nvidia.com/compute/cuda/repos"
@@ -33,7 +33,7 @@
     mode: "0644"
   when: "not ansible_check_mode"
 
-- name: "Add nvidia-container-toolkit repo (gated)"
+- name: "Add nvidia-container-toolkit repo"
   tags: ["nvidia"]
   ansible.builtin.get_url:
     url: "https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo"
@@ -61,6 +61,30 @@
     - "nvidia-container-toolkit-experimental"
   when: "not ansible_check_mode"
 
+# dnf modular filtering hides the cuda-rhelN repo's driver packages until
+# the owning `nvidia-driver` stream is *enabled* (reset/disable both leave
+# the stream un-enabled, which keeps the filter on). Enable it before the
+# install so `cuda-<ver>` can resolve its `nvidia-driver-cuda` →
+# `nvidia-kmod` chain. `module_stream_switch=1` makes the task converge
+# from any prior module state — including a different stream already
+# enabled — without a manual `module reset`.
+- name: "Enable nvidia-driver dnf module stream (un-filter cuda driver packages)"
+  tags: ["nvidia"]
+  vars:
+    _cuda_rhel_ver: "rhel{{ ansible_distribution_major_version }}"
+  ansible.builtin.command:
+    cmd: >-
+      dnf -y --enablerepo=cuda-{{ _cuda_rhel_ver }}-{{ ansible_architecture }}
+      --setopt=module_stream_switch=1
+      module enable nvidia-driver:{{ nvidia_driver_module_stream }}
+  register: _nvidia_module_enable
+  changed_when: "'Nothing to do' not in (_nvidia_module_enable.stdout | default(''))"
+  when: "not ansible_check_mode"
+
+# `allowerasing` lets dnf swap a stale cross-channel driver (e.g. elrepo's
+# `kmod-nvidia` built for an older kernel ABI) for the cuda-repo's
+# `nvidia-kmod` that matches the running kernel, instead of aborting the
+# depsolve on the conflict.
 - name: "Install CUDA {{ cuda_version }} (with driver)"
   tags: ["nvidia"]
   vars:
@@ -71,8 +95,36 @@
       - "nvidia-container-toolkit-{{ nvidia_container_toolkit_version }}-1"
       - "libnvidia-container-tools-{{ nvidia_container_toolkit_version }}-1"
     state: "present"
+    allowerasing: true
     enablerepo:
       - "cuda-{{ _cuda_rhel_ver }}-{{ ansible_architecture }}"
       - "nvidia-container-toolkit"
+  notify: "Reboot after driver install"
+  when: "not ansible_check_mode"
+
+# Self-heal a host left running a stale in-kernel `nvidia` module when the
+# installed package version has moved past it — out-of-band upgrade,
+# interrupted converge, or the kernel outran the prebuilt kmod after an
+# OS bump. Compares the loaded module version against the installed
+# `nvidia-kmod-common` and re-notifies the reboot handler on mismatch.
+- name: "Request reboot if loaded nvidia driver does not match installed package"
+  tags: ["nvidia"]
+  ansible.builtin.shell:
+    # Prints "reboot ..." (drives `changed_when` below, which fires the reboot
+    # handler) when the loaded `nvidia` module version differs from the
+    # installed `nvidia-kmod-common` — covers both "installed but never
+    # loaded" and "loaded an older module". Otherwise prints "ok ...".
+    cmd: >-
+      set -o pipefail;
+      loaded="$(cat /sys/module/nvidia/version 2>/dev/null || true)";
+      installed="$(rpm -q --qf '%{VERSION}' nvidia-kmod-common 2>/dev/null || true)";
+      if [ -n "$installed" ] && [ "$loaded" != "$installed" ]; then
+        echo "reboot loaded=${loaded:-none} installed=${installed}";
+      else
+        echo "ok loaded=${loaded:-none} installed=${installed:-none}";
+      fi
+  register: _nvidia_driver_state
+  changed_when: "(_nvidia_driver_state.stdout | default('')) is search('^reboot')"
+  failed_when: false
   notify: "Reboot after driver install"
   when: "not ansible_check_mode"
