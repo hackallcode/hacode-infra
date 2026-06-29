@@ -7,6 +7,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Fixed
+
+- `machine`: tmux wheel scroll forwards the wheel to apps that request mouse reporting (Claude Code, vim, htop)
+  instead of sending arrow keys
+
 ## [0.2.1] - 2026-06-23
 
 ### Fixed
