@@ -101,6 +101,11 @@ Each role has its own `README.md` under `roles/<name>/README.md` with variables 
 This collection follows [Semantic Versioning](https://semver.org/).
 The current version is in `galaxy.yml`. Releases are tagged in git as `vX.Y.Z`.
 
+## Contributing
+
+Repo conventions (branch + PR workflow, commit style, CHANGELOG,
+release process, lint / CI) live in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 Apache-2.0 - see [LICENSE](LICENSE).
