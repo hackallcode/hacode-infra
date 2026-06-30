@@ -239,6 +239,8 @@ that follows the same Kubernetes shape.
 | `k8s_addons_gateway_envoy_ingress_enabled` | `false` | create an Ingress pointing `/` at the Envoy Service |
 | `k8s_addons_gateway_envoy_ingress_class_name` | `nginx` | `ingressClassName` for the generated Ingress |
 | `k8s_addons_gateway_envoy_ingress_host` | `""` | FQDN served by the Ingress; required when ingress is enabled |
+| `k8s_addons_gateway_envoy_ingress_extra_annotations` | `{}` | deep-merged on top of the default Ingress annotations (long `proxy-read-timeout` / `proxy-send-timeout` suited to SSE / long-lived upstreams); inventory wins on key conflicts |
+| `k8s_addons_gateway_envoy_deployment_extra_spec` | `{}` | deep-merged into the generated Deployment's `spec` (inventory wins). Use to pin `resources`, set `tolerations` / `nodeSelector` / `affinity`, change the rolling-update `strategy`, etc. — the role doesn't override the selector or the envoy container itself |
 | `k8s_addons_gateway_envoy_config` | `""` | required when enabled; full Envoy bootstrap config written verbatim to the ConfigMap |
 
 ```yaml

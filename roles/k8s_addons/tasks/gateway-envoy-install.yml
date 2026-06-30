@@ -27,7 +27,7 @@
   run_once: true
   become: false
 
-- name: "Apply Gateway Envoy ConfigMap, Deployment and Service"
+- name: "Apply Gateway Envoy ConfigMap and Service"
   tags: ["gateway-envoy-install"]
   kubernetes.core.k8s:
     kubeconfig: "{{ k8s_addons_kubeconfig }}"
@@ -44,62 +44,6 @@
           app.kubernetes.io/component: "gateway"
       data:
         envoy.yaml: "{{ k8s_addons_gateway_envoy_config }}"
-    - apiVersion: "apps/v1"
-      kind: "Deployment"
-      metadata:
-        name: "{{ k8s_addons_gateway_envoy_name }}"
-        namespace: "{{ k8s_addons_gateway_envoy_namespace }}"
-        labels:
-          app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
-          app.kubernetes.io/component: "gateway"
-      spec:
-        replicas: "{{ k8s_addons_gateway_envoy_replicas | int }}"
-        selector:
-          matchLabels:
-            app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
-            app.kubernetes.io/component: "gateway"
-        template:
-          metadata:
-            annotations:
-              checksum/config: "{{ k8s_addons_gateway_envoy_config | hash('sha256') }}"
-            labels:
-              app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
-              app.kubernetes.io/component: "gateway"
-          spec:
-            containers:
-              - name: "envoy"
-                image: "{{ k8s_addons_gateway_envoy_image }}"
-                imagePullPolicy: "IfNotPresent"
-                args:
-                  - "-c"
-                  - "/etc/envoy/envoy.yaml"
-                ports:
-                  - name: "http"
-                    containerPort: "{{ k8s_addons_gateway_envoy_listener_port | int }}"
-                    protocol: "TCP"
-                  - name: "admin"
-                    containerPort: "{{ k8s_addons_gateway_envoy_admin_port | int }}"
-                    protocol: "TCP"
-                livenessProbe:
-                  httpGet:
-                    path: "/ready"
-                    port: "admin"
-                  initialDelaySeconds: 10
-                  periodSeconds: 30
-                readinessProbe:
-                  httpGet:
-                    path: "/ready"
-                    port: "admin"
-                  initialDelaySeconds: 5
-                  periodSeconds: 10
-                volumeMounts:
-                  - name: "config"
-                    mountPath: "/etc/envoy"
-                    readOnly: true
-            volumes:
-              - name: "config"
-                configMap:
-                  name: "{{ k8s_addons_gateway_envoy_name }}-config"
     - apiVersion: "v1"
       kind: "Service"
       metadata:
@@ -124,8 +68,90 @@
   run_once: true
   become: false
 
+# The Deployment is its own task so `_deployment_extra_spec` can be
+# deep-merged into the role's default `spec` — inventory overrides
+# `resources` / `tolerations` / `nodeSelector` / etc. without having
+# to copy-paste the entire manifest.
+- name: "Apply Gateway Envoy Deployment"
+  tags: ["gateway-envoy-install"]
+  vars:
+    _envoy_deployment_spec_default:
+      replicas: "{{ k8s_addons_gateway_envoy_replicas | int }}"
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
+          app.kubernetes.io/component: "gateway"
+      template:
+        metadata:
+          annotations:
+            checksum/config: "{{ k8s_addons_gateway_envoy_config | hash('sha256') }}"
+          labels:
+            app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
+            app.kubernetes.io/component: "gateway"
+        spec:
+          containers:
+            - name: "envoy"
+              image: "{{ k8s_addons_gateway_envoy_image }}"
+              imagePullPolicy: "IfNotPresent"
+              args:
+                - "-c"
+                - "/etc/envoy/envoy.yaml"
+              ports:
+                - name: "http"
+                  containerPort: "{{ k8s_addons_gateway_envoy_listener_port | int }}"
+                  protocol: "TCP"
+                - name: "admin"
+                  containerPort: "{{ k8s_addons_gateway_envoy_admin_port | int }}"
+                  protocol: "TCP"
+              livenessProbe:
+                httpGet:
+                  path: "/ready"
+                  port: "admin"
+                initialDelaySeconds: 10
+                periodSeconds: 30
+              readinessProbe:
+                httpGet:
+                  path: "/ready"
+                  port: "admin"
+                initialDelaySeconds: 5
+                periodSeconds: 10
+              volumeMounts:
+                - name: "config"
+                  mountPath: "/etc/envoy"
+                  readOnly: true
+          volumes:
+            - name: "config"
+              configMap:
+                name: "{{ k8s_addons_gateway_envoy_name }}-config"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition:
+      apiVersion: "apps/v1"
+      kind: "Deployment"
+      metadata:
+        name: "{{ k8s_addons_gateway_envoy_name }}"
+        namespace: "{{ k8s_addons_gateway_envoy_namespace }}"
+        labels:
+          app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
+          app.kubernetes.io/component: "gateway"
+      spec: >-
+        {{ _envoy_deployment_spec_default
+           | combine(k8s_addons_gateway_envoy_deployment_extra_spec, recursive=true) }}
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+# Ingress annotation defaults are deep-merged with
+# `_ingress_extra_annotations` so inventory can shorten the long
+# proxy-read/send timeouts or add extra annotations (rate-limit,
+# client-buffer, body-size, etc.) without forking the task.
 - name: "Apply Gateway Envoy Ingress"
   tags: ["gateway-envoy-install"]
+  vars:
+    _envoy_ingress_annotations_default:
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   kubernetes.core.k8s:
     kubeconfig: "{{ k8s_addons_kubeconfig }}"
     state: "present"
@@ -138,9 +164,9 @@
         labels:
           app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
           app.kubernetes.io/component: "gateway"
-        annotations:
-          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+        annotations: >-
+          {{ _envoy_ingress_annotations_default
+             | combine(k8s_addons_gateway_envoy_ingress_extra_annotations) }}
       spec:
         ingressClassName: "{{ k8s_addons_gateway_envoy_ingress_class_name }}"
         rules:

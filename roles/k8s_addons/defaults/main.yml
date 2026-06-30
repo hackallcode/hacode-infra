@@ -226,6 +226,18 @@ k8s_addons_gateway_envoy_admin_port: 9901
 k8s_addons_gateway_envoy_ingress_enabled: false
 k8s_addons_gateway_envoy_ingress_class_name: "nginx"
 k8s_addons_gateway_envoy_ingress_host: ""
+# Annotations on the generated Ingress. Deep-merged on top of the role's
+# defaults (long proxy read/send timeouts suited to SSE / long-lived
+# upstream connections); inventory wins on key conflicts. Pass an empty
+# dict to keep the defaults.
+k8s_addons_gateway_envoy_ingress_extra_annotations: {}
+# Extra fields merged into the generated Deployment's `spec` (deep-merge,
+# inventory wins). Use this to pin `resources`, set `tolerations` /
+# `nodeSelector` / `affinity`, change the rolling-update `strategy`,
+# etc. — anything beyond `replicas` that the role doesn't expose as its
+# own knob. The selector and the envoy container itself are left to the
+# role to keep the Service's `targetPort: http` valid.
+k8s_addons_gateway_envoy_deployment_extra_spec: {}
 k8s_addons_gateway_envoy_config: ""
 
 # ===== CoreDNS custom server blocks =====
