@@ -1,0 +1,180 @@
+- name: "Validate Gateway Envoy config is set"
+  tags: ["gateway-envoy-install"]
+  ansible.builtin.assert:
+    that: "(k8s_addons_gateway_envoy_config | string | length) > 0"
+    fail_msg: "`k8s_addons_gateway_envoy_config` must contain a valid Gateway Envoy bootstrap config."
+
+- name: "Validate Gateway Envoy ingress host is set when ingress is enabled"
+  tags: ["gateway-envoy-install"]
+  ansible.builtin.assert:
+    that: "(k8s_addons_gateway_envoy_ingress_host | string | length) > 0"
+    fail_msg: >-
+      `k8s_addons_gateway_envoy_ingress_host` must be set when
+      `k8s_addons_gateway_envoy_ingress_enabled` is true.
+  when: "k8s_addons_gateway_envoy_ingress_enabled | bool"
+
+- name: "Create Gateway Envoy namespace"
+  tags: ["gateway-envoy-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition:
+      apiVersion: "v1"
+      kind: "Namespace"
+      metadata:
+        name: "{{ k8s_addons_gateway_envoy_namespace }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Apply Gateway Envoy ConfigMap, Deployment and Service"
+  tags: ["gateway-envoy-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition: "{{ item }}"
+  loop:
+    - apiVersion: "v1"
+      kind: "ConfigMap"
+      metadata:
+        name: "{{ k8s_addons_gateway_envoy_name }}-config"
+        namespace: "{{ k8s_addons_gateway_envoy_namespace }}"
+        labels:
+          app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
+          app.kubernetes.io/component: "gateway"
+      data:
+        envoy.yaml: "{{ k8s_addons_gateway_envoy_config }}"
+    - apiVersion: "apps/v1"
+      kind: "Deployment"
+      metadata:
+        name: "{{ k8s_addons_gateway_envoy_name }}"
+        namespace: "{{ k8s_addons_gateway_envoy_namespace }}"
+        labels:
+          app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
+          app.kubernetes.io/component: "gateway"
+      spec:
+        replicas: "{{ k8s_addons_gateway_envoy_replicas | int }}"
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
+            app.kubernetes.io/component: "gateway"
+        template:
+          metadata:
+            annotations:
+              checksum/config: "{{ k8s_addons_gateway_envoy_config | hash('sha256') }}"
+            labels:
+              app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
+              app.kubernetes.io/component: "gateway"
+          spec:
+            containers:
+              - name: "envoy"
+                image: "{{ k8s_addons_gateway_envoy_image }}"
+                imagePullPolicy: "IfNotPresent"
+                args:
+                  - "-c"
+                  - "/etc/envoy/envoy.yaml"
+                ports:
+                  - name: "http"
+                    containerPort: "{{ k8s_addons_gateway_envoy_listener_port | int }}"
+                    protocol: "TCP"
+                  - name: "admin"
+                    containerPort: "{{ k8s_addons_gateway_envoy_admin_port | int }}"
+                    protocol: "TCP"
+                livenessProbe:
+                  httpGet:
+                    path: "/ready"
+                    port: "admin"
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                readinessProbe:
+                  httpGet:
+                    path: "/ready"
+                    port: "admin"
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                volumeMounts:
+                  - name: "config"
+                    mountPath: "/etc/envoy"
+                    readOnly: true
+            volumes:
+              - name: "config"
+                configMap:
+                  name: "{{ k8s_addons_gateway_envoy_name }}-config"
+    - apiVersion: "v1"
+      kind: "Service"
+      metadata:
+        name: "{{ k8s_addons_gateway_envoy_name }}"
+        namespace: "{{ k8s_addons_gateway_envoy_namespace }}"
+        labels:
+          app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
+          app.kubernetes.io/component: "gateway"
+      spec:
+        type: "ClusterIP"
+        ports:
+          - name: "http"
+            port: "{{ k8s_addons_gateway_envoy_service_port | int }}"
+            targetPort: "http"
+            protocol: "TCP"
+        selector:
+          app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
+          app.kubernetes.io/component: "gateway"
+  loop_control:
+    label: "{{ item.kind }}/{{ item.metadata.name }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Apply Gateway Envoy Ingress"
+  tags: ["gateway-envoy-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition:
+      apiVersion: "networking.k8s.io/v1"
+      kind: "Ingress"
+      metadata:
+        name: "{{ k8s_addons_gateway_envoy_name }}"
+        namespace: "{{ k8s_addons_gateway_envoy_namespace }}"
+        labels:
+          app.kubernetes.io/name: "{{ k8s_addons_gateway_envoy_name }}"
+          app.kubernetes.io/component: "gateway"
+        annotations:
+          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      spec:
+        ingressClassName: "{{ k8s_addons_gateway_envoy_ingress_class_name }}"
+        rules:
+          - host: "{{ k8s_addons_gateway_envoy_ingress_host }}"
+            http:
+              paths:
+                - path: "/"
+                  pathType: "Prefix"
+                  backend:
+                    service:
+                      name: "{{ k8s_addons_gateway_envoy_name }}"
+                      port:
+                        number: "{{ k8s_addons_gateway_envoy_service_port | int }}"
+  when: "k8s_addons_gateway_envoy_ingress_enabled | bool"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Wait for Gateway Envoy Deployment"
+  tags: ["gateway-envoy-install"]
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    api_version: "apps/v1"
+    kind: "Deployment"
+    name: "{{ k8s_addons_gateway_envoy_name }}"
+    namespace: "{{ k8s_addons_gateway_envoy_namespace }}"
+  register: "k8s_addons_gateway_envoy_deployment"
+  retries: 60
+  delay: 5
+  until:
+    - "k8s_addons_gateway_envoy_deployment.resources | length > 0"
+    - >-
+      (k8s_addons_gateway_envoy_deployment.resources[0].status.readyReplicas
+       | default(0) | int) >= (k8s_addons_gateway_envoy_replicas | int)
+  delegate_to: "localhost"
+  run_once: true
+  become: false

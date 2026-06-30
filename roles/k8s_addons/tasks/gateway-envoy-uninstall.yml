@@ -1,0 +1,27 @@
+- name: "Remove Gateway Envoy Ingress, Service, Deployment and ConfigMap"
+  tags: ["gateway-envoy-uninstall"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "{{ item.api_version }}"
+    kind: "{{ item.kind }}"
+    name: "{{ item.name }}"
+    namespace: "{{ k8s_addons_gateway_envoy_namespace }}"
+  loop:
+    - api_version: "networking.k8s.io/v1"
+      kind: "Ingress"
+      name: "{{ k8s_addons_gateway_envoy_name }}"
+    - api_version: "v1"
+      kind: "Service"
+      name: "{{ k8s_addons_gateway_envoy_name }}"
+    - api_version: "apps/v1"
+      kind: "Deployment"
+      name: "{{ k8s_addons_gateway_envoy_name }}"
+    - api_version: "v1"
+      kind: "ConfigMap"
+      name: "{{ k8s_addons_gateway_envoy_name }}-config"
+  loop_control:
+    label: "{{ item.kind }}/{{ item.name }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false

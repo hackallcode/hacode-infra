@@ -28,6 +28,11 @@
   ansible.builtin.include_tasks: "ingress-nginx-install.yml"
   when: "k8s_addons_ingress_nginx_enabled | default(false) | bool"
 
+- name: "Install Gateway Envoy"
+  tags: ["gateway-envoy-install"]
+  ansible.builtin.include_tasks: "gateway-envoy-install.yml"
+  when: "k8s_addons_gateway_envoy_enabled | default(false) | bool"
+
 # cert-manager: PKI; must precede trust-manager (its webhook cert is a
 # cert-manager Certificate/Issuer).
 - name: "Install cert-manager"

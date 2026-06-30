@@ -202,6 +202,23 @@ k8s_addons_ingress_nginx_https_node_port: ""
 # metrics, switch IngressClass name, etc.
 k8s_addons_ingress_nginx_extra_values: {}
 
+# ===== Gateway Envoy (static Envoy gateway) =====
+# Envoy gateway deployed from a caller-provided bootstrap config.
+# The role owns the Kubernetes wrapper (ConfigMap/Deployment/Service/Ingress)
+# and deliberately leaves routing policy in `k8s_addons_gateway_envoy_config`.
+k8s_addons_gateway_envoy_enabled: false
+k8s_addons_gateway_envoy_namespace: "default"
+k8s_addons_gateway_envoy_name: "envoy"
+k8s_addons_gateway_envoy_replicas: 2
+k8s_addons_gateway_envoy_image: "envoyproxy/envoy:v1.31-latest"
+k8s_addons_gateway_envoy_service_port: 8080
+k8s_addons_gateway_envoy_listener_port: 5000
+k8s_addons_gateway_envoy_admin_port: 9901
+k8s_addons_gateway_envoy_ingress_enabled: false
+k8s_addons_gateway_envoy_ingress_class_name: "nginx"
+k8s_addons_gateway_envoy_ingress_host: ""
+k8s_addons_gateway_envoy_config: ""
+
 # ===== CoreDNS custom server blocks =====
 # Writes a `coredns-custom` ConfigMap in kube-system. k3s/CoreDNS auto-imports
 # it (import plugin ships with k3s), so extra zones load without a restart.

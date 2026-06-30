@@ -7,6 +7,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added
+
+- `k8s_addons`: Gateway Envoy addon for deploying a static Envoy gateway from inventory-provided bootstrap config.
+
 ## [0.2.2] - 2026-06-29
 
 ### Fixed
