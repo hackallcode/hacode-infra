@@ -49,3 +49,43 @@
       failed_when: >-
         (_crb_info.resources | length) == 0
         or _crb_info.resources[0].roleRef.name != 'cluster-admin'
+
+    - name: "Gateway Envoy ConfigMap exists"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "v1"
+        kind: "ConfigMap"
+        name: "gateway-envoy-config"
+        namespace: "gateway-envoy"
+      register: "_gateway_envoy_configmap"
+      failed_when: >-
+        (_gateway_envoy_configmap.resources | length) == 0
+        or 'static_resources' not in
+        (_gateway_envoy_configmap.resources[0].data['envoy.yaml'] | default(''))
+
+    - name: "Gateway Envoy Service points at the http target port"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "v1"
+        kind: "Service"
+        name: "gateway-envoy"
+        namespace: "gateway-envoy"
+      register: "_gateway_envoy_service"
+      failed_when: >-
+        (_gateway_envoy_service.resources | length) == 0
+        or (_gateway_envoy_service.resources[0].spec.ports[0].port | int) != 8080
+        or _gateway_envoy_service.resources[0].spec.ports[0].targetPort != 'http'
+
+    - name: "Gateway Envoy Deployment is ready"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "apps/v1"
+        kind: "Deployment"
+        name: "gateway-envoy"
+        namespace: "gateway-envoy"
+      register: "_gateway_envoy_deployment"
+      failed_when: >-
+        (_gateway_envoy_deployment.resources | length) == 0
+        or
+        (_gateway_envoy_deployment.resources[0].status.readyReplicas
+         | default(0) | int) != 1

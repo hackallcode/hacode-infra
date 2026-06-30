@@ -32,6 +32,10 @@
   tags: ["headlamp-uninstall"]
   ansible.builtin.include_tasks: "headlamp-uninstall.yml"
 
+- name: "Uninstall Gateway Envoy"
+  tags: ["gateway-envoy-uninstall"]
+  ansible.builtin.include_tasks: "gateway-envoy-uninstall.yml"
+
 - name: "Uninstall Ingress-NGINX"
   tags: ["ingress-nginx-uninstall"]
   ansible.builtin.include_tasks: "ingress-nginx-uninstall.yml"

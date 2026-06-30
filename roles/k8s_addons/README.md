@@ -1,9 +1,9 @@
 # hacode.infra.k8s_addons
 
 Install opinionated Kubernetes addons (Cilium CNI, Longhorn block
-storage, Headlamp, Ingress-NGINX, CoreDNS custom server blocks,
-cert-manager, trust-manager) into an existing cluster via Helm and
-raw manifests.
+storage, Headlamp, Ingress-NGINX, Gateway Envoy, CoreDNS custom server
+blocks, cert-manager, trust-manager) into an existing cluster via Helm
+and raw manifests.
 Each addon is gated by its own `k8s_addons_<name>_enabled` flag and
 lives in its own `tasks/<addon>-install.yml` /
 `tasks/<addon>-uninstall.yml` pair.
@@ -213,6 +213,47 @@ baremetal / on-prem clusters with no cloud LB controller).
 | `k8s_addons_ingress_nginx_https_node_port` | `""` | same for HTTPS |
 | `k8s_addons_ingress_nginx_extra_values` | `{}` | extra Helm values deep-merged on top of the role's NodePort defaults (user wins on conflicts). Use to tune resources, enable metrics, switch IngressClass name, etc. |
 
+### Gateway Envoy
+
+Gateway Envoy deploys a plain Envoy Deployment from a caller-provided
+bootstrap config and exposes it through a ClusterIP Service. Enable its
+Ingress when traffic should enter through the cluster's ingress
+controller first and then be routed by Envoy.
+
+The addon intentionally does not synthesize route or cluster config:
+`k8s_addons_gateway_envoy_config` is written verbatim to
+`/etc/envoy/envoy.yaml`. That keeps environment-specific routing policy
+in inventory and makes the wrapper reusable for any Envoy bootstrap
+that follows the same Kubernetes shape.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `k8s_addons_gateway_envoy_enabled` | `false` | opt-in flag |
+| `k8s_addons_gateway_envoy_namespace` | `default` | namespace for the ConfigMap, Deployment, Service and optional Ingress |
+| `k8s_addons_gateway_envoy_name` | `envoy` | Kubernetes object name and `app.kubernetes.io/name` selector value |
+| `k8s_addons_gateway_envoy_replicas` | `2` | Deployment replica count |
+| `k8s_addons_gateway_envoy_image` | `envoyproxy/envoy:v1.31.5` | Envoy container image |
+| `k8s_addons_gateway_envoy_service_port` | `8080` | ClusterIP Service port that upstream ingress/controllers target |
+| `k8s_addons_gateway_envoy_listener_port` | `5000` | Envoy listener container port; must match the listener in `_config` |
+| `k8s_addons_gateway_envoy_admin_port` | `9901` | Envoy admin container port used by liveness/readiness probes (`/ready`) |
+| `k8s_addons_gateway_envoy_ingress_enabled` | `false` | create an Ingress pointing `/` at the Envoy Service |
+| `k8s_addons_gateway_envoy_ingress_class_name` | `nginx` | `ingressClassName` for the generated Ingress |
+| `k8s_addons_gateway_envoy_ingress_host` | `""` | FQDN served by the Ingress; required when ingress is enabled |
+| `k8s_addons_gateway_envoy_ingress_extra_annotations` | `{}` | deep-merged on top of the default Ingress annotations (long `proxy-read-timeout` / `proxy-send-timeout` suited to SSE / long-lived upstreams); inventory wins on key conflicts |
+| `k8s_addons_gateway_envoy_deployment_extra_spec` | `{}` | deep-merged into the generated Deployment's `spec` (inventory wins). Use to pin `resources`, set `tolerations` / `nodeSelector` / `affinity`, change the rolling-update `strategy`, etc. — the role doesn't override the selector or the envoy container itself |
+| `k8s_addons_gateway_envoy_config` | `""` | required when enabled; full Envoy bootstrap config written verbatim to the ConfigMap |
+
+```yaml
+k8s_addons_gateway_envoy_enabled: true
+k8s_addons_gateway_envoy_namespace: "app"
+k8s_addons_gateway_envoy_ingress_enabled: true
+k8s_addons_gateway_envoy_ingress_host: "assistant.example.test"
+k8s_addons_gateway_envoy_config: |
+  static_resources:
+    listeners: []
+    clusters: []
+```
+
 ### CoreDNS custom server blocks
 
 k3s ships CoreDNS with the `import` plugin pre-wired against a
@@ -418,15 +459,15 @@ flag) so you can tear an addon down without flipping the flag back on.
 Use `--tags <addon>-uninstall` (`trust-manager-uninstall`,
 `cert-manager-uninstall`, `coredns-custom-uninstall`,
 `headlamp-uninstall`, `ingress-nginx-uninstall`,
-`longhorn-uninstall`, `cilium-uninstall`) to scope to a specific
-addon. Install and uninstall lifecycles use **separate tags**
+`gateway-envoy-uninstall`, `longhorn-uninstall`, `cilium-uninstall`)
+to scope to a specific addon. Install and uninstall lifecycles use **separate tags**
 (`<addon>-install` vs `<addon>-uninstall`) on purpose — the bare
 `<addon>` tag matches nothing, so `--tags cilium` will never
 accidentally fire both install and uninstall in the same run.
 Removal order is the reverse of install (trust-manager,
-cert-manager, CoreDNS-custom, Headlamp, Ingress-NGINX, Longhorn,
-then Cilium last), so the CNI stays up while the others talk to the
-apiserver during teardown — and cert-manager stays up while
+cert-manager, CoreDNS-custom, Headlamp, Gateway Envoy, Ingress-NGINX,
+Longhorn, then Cilium last), so the CNI stays up while the others talk
+to the apiserver during teardown — and cert-manager stays up while
 trust-manager hands its CRs back to the apiserver.
 
 Per-addon teardown details:
@@ -445,6 +486,9 @@ Per-addon teardown details:
 - **Headlamp** — removes the Helm release, the cluster-scoped
   `ClusterRoleBinding`, the namespace, and the saved token file on the
   controller.
+- **Gateway Envoy** — removes the generated Ingress, Service,
+  Deployment, and ConfigMap. The namespace is left in place because it
+  usually belongs to the application, not the gateway wrapper.
 - **Ingress-NGINX** — removes the Helm release and the namespace.
 - **Longhorn** — removes the Helm release and the namespace. Host
   packages (`iscsi-initiator-utils` / `open-iscsi`, optional NFS) and
