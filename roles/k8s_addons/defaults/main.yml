@@ -209,11 +209,20 @@ k8s_addons_ingress_nginx_extra_values: {}
 k8s_addons_gateway_envoy_enabled: false
 k8s_addons_gateway_envoy_namespace: "default"
 k8s_addons_gateway_envoy_name: "envoy"
+# One Envoy pod per replica so the gateway can roll and stay available
+# without coupling the role to any custom HPA logic.
 k8s_addons_gateway_envoy_replicas: 2
-k8s_addons_gateway_envoy_image: "envoyproxy/envoy:v1.31-latest"
+# Pin to a concrete Envoy release for reproducibility; bump intentionally
+# when the collection is updated.
+k8s_addons_gateway_envoy_image: "envoyproxy/envoy:v1.31.5"
+# The Service is the stable target for ingress/controllers; the Envoy
+# container can listen on whatever port the bootstrap config expects.
 k8s_addons_gateway_envoy_service_port: 8080
+# Must match the listener port in `k8s_addons_gateway_envoy_config`.
 k8s_addons_gateway_envoy_listener_port: 5000
+# Standard Envoy admin listener used by readiness/liveness probes.
 k8s_addons_gateway_envoy_admin_port: 9901
+# Optional ingress route in front of the Envoy service.
 k8s_addons_gateway_envoy_ingress_enabled: false
 k8s_addons_gateway_envoy_ingress_class_name: "nginx"
 k8s_addons_gateway_envoy_ingress_host: ""

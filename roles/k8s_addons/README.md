@@ -232,7 +232,7 @@ that follows the same Kubernetes shape.
 | `k8s_addons_gateway_envoy_namespace` | `default` | namespace for the ConfigMap, Deployment, Service and optional Ingress |
 | `k8s_addons_gateway_envoy_name` | `envoy` | Kubernetes object name and `app.kubernetes.io/name` selector value |
 | `k8s_addons_gateway_envoy_replicas` | `2` | Deployment replica count |
-| `k8s_addons_gateway_envoy_image` | `envoyproxy/envoy:v1.31-latest` | Envoy container image |
+| `k8s_addons_gateway_envoy_image` | `envoyproxy/envoy:v1.31.5` | Envoy container image |
 | `k8s_addons_gateway_envoy_service_port` | `8080` | ClusterIP Service port that upstream ingress/controllers target |
 | `k8s_addons_gateway_envoy_listener_port` | `5000` | Envoy listener container port; must match the listener in `_config` |
 | `k8s_addons_gateway_envoy_admin_port` | `9901` | Envoy admin container port used by liveness/readiness probes (`/ready`) |
