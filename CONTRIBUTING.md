@@ -74,11 +74,19 @@ and rots.
 
 What's worth writing down: the reason a default is what it is, a
 subtle edge case the code handles, a workaround for a bug in something
-upstream, an invariant that isn't enforced by the type system. The
-file that needs the most care is `roles/<name>/defaults/main.yml` —
-those comments aren't internal notes, they're documentation an
+upstream, an invariant that isn't enforced by the type system.
+
+The file that needs the most care is `roles/<name>/defaults/main.yml`
+— those comments aren't internal notes, they're documentation an
 operator reads when they wonder "what does this variable do." Treat
-them like API docs.
+them like API docs. Concretely: every non-obvious default gets an
+inline WHY-comment above it. A `# ===== <subrole> =====` block header
+introduces a section; per-variable comments cover the rationale for
+each value, edge cases, and any cross-variable constraints (e.g. "must
+match the listener port in `_config`"). The exception is a small
+cluster of variables whose names already tell the whole story —
+`*_namespace: "default"`, `*_ingress_class_name: "nginx"` — where the
+header comment is enough.
 
 Avoid commentary about who calls what or when it was added. That
 context belongs in commit messages and PRs, not in code that lives
@@ -105,6 +113,22 @@ dict) of items. If the list is empty by default and the task is a
 no-op on empty input — `cron`, `disks`, `systemd_dropins` — the
 toggle can default to `true`. Otherwise default it to `false` so
 existing inventories don't suddenly start doing new things.
+
+When a role exposes a customizable resource (Helm values, a
+Kubernetes manifest spec, Ingress annotations, a sysctl set, an
+nginx vhost block, etc.), expose the customization point via an
+`_extra_*` knob that deep-merges over sensible defaults. The
+canonical names are `_extra_values` for Helm-based addons
+(cilium / longhorn / headlamp / ingress-nginx / cert-manager all
+use this), and `_<field>_extra_*` for raw manifests —
+`_ingress_extra_annotations`, `_deployment_extra_spec` on
+gateway-envoy. The role keeps its opinionated defaults; inventory
+overrides on key conflicts via `combine(extra, recursive=true)`.
+Operators then reach for the knob instead of forking the install
+task to pin `resources`, change a timeout, or add a tolerated
+annotation. Lock the fields the role's own assumptions depend on
+(the Service `targetPort`, the Helm `release_name`, the selector
+labels), and document those in the knob's comment.
 
 ## CHANGELOG
 
