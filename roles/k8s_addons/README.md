@@ -1,7 +1,7 @@
 # hacode.infra.k8s_addons
 
 Install opinionated Kubernetes addons (Cilium CNI, Longhorn block
-storage, Headlamp, Ingress-NGINX, Gateway Envoy, CoreDNS custom server
+storage, Headlamp, Ingress-NGINX, Envoy Gateway, CoreDNS custom server
 blocks, cert-manager, trust-manager) into an existing cluster via Helm
 and raw manifests.
 Each addon is gated by its own `k8s_addons_<name>_enabled` flag and
@@ -213,45 +213,66 @@ baremetal / on-prem clusters with no cloud LB controller).
 | `k8s_addons_ingress_nginx_https_node_port` | `""` | same for HTTPS |
 | `k8s_addons_ingress_nginx_extra_values` | `{}` | extra Helm values deep-merged on top of the role's NodePort defaults (user wins on conflicts). Use to tune resources, enable metrics, switch IngressClass name, etc. |
 
-### Gateway Envoy
+### Envoy Gateway
 
-Gateway Envoy deploys a plain Envoy Deployment from a caller-provided
-bootstrap config and exposes it through a ClusterIP Service. Enable its
-Ingress when traffic should enter through the cluster's ingress
-controller first and then be routed by Envoy.
+Installs the upstream Envoy Gateway product (`gateway.envoyproxy.io`): a
+dynamic Gateway API controller. The chart ships the control plane plus the
+Gateway API and Envoy Gateway CRDs; the role then reconciles a
+`GatewayClass` and a `Gateway`, at which point the controller provisions
+the Envoy data-plane (Deployment + Service) itself and starts watching
+`HTTPRoute`s. Unlike a static Envoy, routing is dynamic: new HTTPRoutes are
+picked up from the API without redeploying anything.
 
-The addon intentionally does not synthesize route or cluster config:
-`k8s_addons_gateway_envoy_config` is written verbatim to
-`/etc/envoy/envoy.yaml`. That keeps environment-specific routing policy
-in inventory and makes the wrapper reusable for any Envoy bootstrap
-that follows the same Kubernetes shape.
+Routing policy is deliberately not owned by this role. The role stands up
+the controller and one shared Gateway with an all-namespaces listener;
+workload charts attach their own `HTTPRoute`s (and `BackendTrafficPolicy` /
+filters) by `parentRef`, keeping environment-specific policy out of the
+collection.
+
+The data-plane Service defaults to `NodePort` (a baremetal cluster has no
+cloud LoadBalancer), applied through an `EnvoyProxy` resource attached to
+the GatewayClass `parametersRef`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `k8s_addons_gateway_envoy_enabled` | `false` | opt-in flag |
-| `k8s_addons_gateway_envoy_namespace` | `default` | namespace for the ConfigMap, Deployment, Service and optional Ingress |
-| `k8s_addons_gateway_envoy_name` | `envoy` | Kubernetes object name and `app.kubernetes.io/name` selector value |
-| `k8s_addons_gateway_envoy_replicas` | `2` | Deployment replica count |
-| `k8s_addons_gateway_envoy_image` | `envoyproxy/envoy:v1.31.5` | Envoy container image |
-| `k8s_addons_gateway_envoy_service_port` | `8080` | ClusterIP Service port that upstream ingress/controllers target |
-| `k8s_addons_gateway_envoy_listener_port` | `5000` | Envoy listener container port; must match the listener in `_config` |
-| `k8s_addons_gateway_envoy_admin_port` | `9901` | Envoy admin container port used by liveness/readiness probes (`/ready`) |
-| `k8s_addons_gateway_envoy_ingress_enabled` | `false` | create an Ingress pointing `/` at the Envoy Service |
-| `k8s_addons_gateway_envoy_ingress_class_name` | `nginx` | `ingressClassName` for the generated Ingress |
-| `k8s_addons_gateway_envoy_ingress_host` | `""` | FQDN served by the Ingress; required when ingress is enabled |
-| `k8s_addons_gateway_envoy_ingress_extra_annotations` | `{}` | deep-merged on top of the default Ingress annotations (long `proxy-read-timeout` / `proxy-send-timeout` suited to SSE / long-lived upstreams); inventory wins on key conflicts |
-| `k8s_addons_gateway_envoy_deployment_extra_spec` | `{}` | deep-merged into the generated Deployment's `spec` (inventory wins). Use to pin `resources`, set `tolerations` / `nodeSelector` / `affinity`, change the rolling-update `strategy`, etc. — the role doesn't override the selector or the envoy container itself |
-| `k8s_addons_gateway_envoy_config` | `""` | required when enabled; full Envoy bootstrap config written verbatim to the ConfigMap |
+| `k8s_addons_envoy_gateway_enabled` | `false` | opt-in flag |
+| `k8s_addons_envoy_gateway_chart_ref` | `oci://docker.io/envoyproxy/gateway-helm` | official OCI Helm chart (control plane + CRDs) |
+| `k8s_addons_envoy_gateway_chart_version` | `v1.8.2` | pinned chart/app version; bump intentionally |
+| `k8s_addons_envoy_gateway_chart_timeout` | `5m0s` | helm `--timeout` for chart install |
+| `k8s_addons_envoy_gateway_namespace` | `envoy-gateway-system` | control-plane release namespace |
+| `k8s_addons_envoy_gateway_class_name` | `envoy-gateway` | GatewayClass name (also names the EnvoyProxy the class references) |
+| `k8s_addons_envoy_gateway_controller_name` | `gateway.envoyproxy.io/gatewayclass-controller` | fixed controllerName the chart's controller reconciles; do not change |
+| `k8s_addons_envoy_gateway_gateway_name` | `eg` | name of the shared Gateway the role reconciles |
+| `k8s_addons_envoy_gateway_gateway_namespace` | `envoy-gateway-system` | namespace of the Gateway; where the data-plane is provisioned |
+| `k8s_addons_envoy_gateway_listeners` | one HTTP `:80` listener, `allowedRoutes.namespaces.from: All` | Gateway listener list; override to add HTTPS/TLS or restrict route namespaces |
+| `k8s_addons_envoy_gateway_service_type` | `NodePort` | data-plane Service type; `NodePort` avoids a pending LoadBalancer on baremetal |
+| `k8s_addons_envoy_gateway_node_ports` | `{}` | map of listener-name to fixed nodePort; empty = auto-assign. Applied via a StrategicMerge patch on the data-plane Service |
+| `k8s_addons_envoy_gateway_extra_values` | `{}` | extra Helm values deep-merged over defaults (user wins). Tune control-plane resources, metrics, log level |
+| `k8s_addons_envoy_gateway_proxy_extra_spec` | `{}` | deep-merged into the EnvoyProxy `spec.provider.kubernetes` (user wins). Pin data-plane replicas/resources/tolerations; the role locks `envoyService` |
 
 ```yaml
-k8s_addons_gateway_envoy_enabled: true
-k8s_addons_gateway_envoy_namespace: "app"
-k8s_addons_gateway_envoy_ingress_enabled: true
-k8s_addons_gateway_envoy_ingress_host: "assistant.example.test"
-k8s_addons_gateway_envoy_config: |
-  static_resources:
-    listeners: []
-    clusters: []
+k8s_addons_envoy_gateway_enabled: true
+k8s_addons_envoy_gateway_node_ports:
+  http: 30080
+  https: 30443
+k8s_addons_envoy_gateway_listeners:
+  - name: "http"
+    port: 80
+    protocol: "HTTP"
+    allowedRoutes:
+      namespaces:
+        from: "All"
+  - name: "https"
+    port: 443
+    protocol: "HTTPS"
+    tls:
+      mode: "Terminate"
+      certificateRefs:
+        - kind: "Secret"
+          name: "wildcard-tls"
+    allowedRoutes:
+      namespaces:
+        from: "All"
 ```
 
 ### CoreDNS custom server blocks
@@ -459,13 +480,13 @@ flag) so you can tear an addon down without flipping the flag back on.
 Use `--tags <addon>-uninstall` (`trust-manager-uninstall`,
 `cert-manager-uninstall`, `coredns-custom-uninstall`,
 `headlamp-uninstall`, `ingress-nginx-uninstall`,
-`gateway-envoy-uninstall`, `longhorn-uninstall`, `cilium-uninstall`)
+`envoy-gateway-uninstall`, `longhorn-uninstall`, `cilium-uninstall`)
 to scope to a specific addon. Install and uninstall lifecycles use **separate tags**
 (`<addon>-install` vs `<addon>-uninstall`) on purpose — the bare
 `<addon>` tag matches nothing, so `--tags cilium` will never
 accidentally fire both install and uninstall in the same run.
 Removal order is the reverse of install (trust-manager,
-cert-manager, CoreDNS-custom, Headlamp, Gateway Envoy, Ingress-NGINX,
+cert-manager, CoreDNS-custom, Headlamp, Envoy Gateway, Ingress-NGINX,
 Longhorn, then Cilium last), so the CNI stays up while the others talk
 to the apiserver during teardown — and cert-manager stays up while
 trust-manager hands its CRs back to the apiserver.
@@ -486,9 +507,9 @@ Per-addon teardown details:
 - **Headlamp** — removes the Helm release, the cluster-scoped
   `ClusterRoleBinding`, the namespace, and the saved token file on the
   controller.
-- **Gateway Envoy** — removes the generated Ingress, Service,
-  Deployment, and ConfigMap. The namespace is left in place because it
-  usually belongs to the application, not the gateway wrapper.
+- **Envoy Gateway** — removes the `Gateway`, `GatewayClass`, and
+  `EnvoyProxy` the role created (which deprovisions the Envoy data-plane),
+  then the Helm release. The control-plane namespace is left in place.
 - **Ingress-NGINX** — removes the Helm release and the namespace.
 - **Longhorn** — removes the Helm release and the namespace. Host
   packages (`iscsi-initiator-utils` / `open-iscsi`, optional NFS) and

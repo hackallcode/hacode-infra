@@ -1,0 +1,176 @@
+- ansible.builtin.import_tasks: "_helm-preflight.yml"
+  tags: ["envoy-gateway-install"]
+  vars:
+    _helm_preflight_release_name: "envoy-gateway"
+    _helm_preflight_release_namespace: "{{ k8s_addons_envoy_gateway_namespace }}"
+
+# The chart bundles the Gateway API + Envoy Gateway CRDs and the control
+# plane. `wait: true` blocks until the controller Deployment is Available,
+# so the GatewayClass/Gateway below reconcile against a live controller.
+- name: "Install/upgrade Envoy Gateway chart"
+  tags: ["envoy-gateway-install"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "envoy-gateway"
+    chart_ref: "{{ k8s_addons_envoy_gateway_chart_ref }}"
+    chart_version: "{{ k8s_addons_envoy_gateway_chart_version }}"
+    release_namespace: "{{ k8s_addons_envoy_gateway_namespace }}"
+    create_namespace: true
+    wait: true
+    atomic: true
+    timeout: "{{ k8s_addons_envoy_gateway_chart_timeout }}"
+    values: "{{ k8s_addons_envoy_gateway_extra_values }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+# The controller only serves the Gateway API CRDs once its webhook is up;
+# the chart's `wait` covers the Deployment but the CRD-backed resources
+# below can still race a just-started apiserver aggregation. Wait for the
+# GatewayClass CRD to be Established before creating instances of it.
+- name: "Wait for the GatewayClass CRD to be Established"
+  tags: ["envoy-gateway-install"]
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    api_version: "apiextensions.k8s.io/v1"
+    kind: "CustomResourceDefinition"
+    name: "gatewayclasses.gateway.networking.k8s.io"
+  register: "_k8s_addons_eg_crd"
+  retries: 30
+  delay: 5
+  until:
+    - "(_k8s_addons_eg_crd.resources | length) > 0"
+    - >-
+      (_k8s_addons_eg_crd.resources[0].status.conditions | default([])
+       | selectattr('type', 'eq', 'Established')
+       | selectattr('status', 'eq', 'True') | list | length) > 0
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+# `Service.spec.ports` is a strategic-merge list keyed on `port`, so each
+# patch entry must carry `port` as well as the target `nodePort`. The
+# data-plane Service names its ports after the listener, so join each
+# requested nodePort to its listener by name to recover the port number.
+- name: "Build data-plane Service nodePort patch entries"
+  tags: ["envoy-gateway-install"]
+  ansible.builtin.set_fact:
+    _k8s_addons_eg_node_port_ports: >-
+      {{ _k8s_addons_eg_node_port_ports | default([])
+         + [{'name': item.key,
+             'port': (k8s_addons_envoy_gateway_listeners
+                      | selectattr('name', 'eq', item.key)
+                      | map(attribute='port') | first),
+             'nodePort': item.value | int}] }}
+  loop: "{{ k8s_addons_envoy_gateway_node_ports | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}={{ item.value }}"
+  when: "k8s_addons_envoy_gateway_node_ports | length > 0"
+  delegate_to: "localhost"
+  run_once: true
+
+# EnvoyProxy carries the data-plane provisioning parameters. It is attached
+# to the GatewayClass via `parametersRef` (next task) so every Gateway on
+# the class inherits the NodePort exposure. The nodePort patch is only added
+# when explicit NodePorts are requested; otherwise Kubernetes allocates.
+- name: "Apply EnvoyProxy data-plane parameters"
+  tags: ["envoy-gateway-install"]
+  vars:
+    _node_port_patch:
+      patch:
+        type: "StrategicMerge"
+        value:
+          spec:
+            ports: "{{ _k8s_addons_eg_node_port_ports | default([]) }}"
+    _envoy_service: >-
+      {{ {'type': k8s_addons_envoy_gateway_service_type}
+         | combine(_node_port_patch
+                   if (k8s_addons_envoy_gateway_node_ports | length) > 0
+                   else {}) }}
+    _kubernetes_default:
+      envoyService: "{{ _envoy_service }}"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition:
+      apiVersion: "gateway.envoyproxy.io/v1alpha1"
+      kind: "EnvoyProxy"
+      metadata:
+        name: "{{ k8s_addons_envoy_gateway_class_name }}"
+        namespace: "{{ k8s_addons_envoy_gateway_namespace }}"
+      spec:
+        provider:
+          type: "Kubernetes"
+          kubernetes: >-
+            {{ _kubernetes_default
+               | combine(k8s_addons_envoy_gateway_proxy_extra_spec, recursive=true) }}
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Apply GatewayClass"
+  tags: ["envoy-gateway-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition:
+      apiVersion: "gateway.networking.k8s.io/v1"
+      kind: "GatewayClass"
+      metadata:
+        name: "{{ k8s_addons_envoy_gateway_class_name }}"
+      spec:
+        controllerName: "{{ k8s_addons_envoy_gateway_controller_name }}"
+        parametersRef:
+          group: "gateway.envoyproxy.io"
+          kind: "EnvoyProxy"
+          name: "{{ k8s_addons_envoy_gateway_class_name }}"
+          namespace: "{{ k8s_addons_envoy_gateway_namespace }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+# Creating the Gateway is what makes the controller provision the Envoy
+# data-plane Deployment + Service. Listeners come straight from inventory so
+# adding an HTTPS listener or tightening `allowedRoutes` never touches the
+# role.
+- name: "Apply Gateway"
+  tags: ["envoy-gateway-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition:
+      apiVersion: "gateway.networking.k8s.io/v1"
+      kind: "Gateway"
+      metadata:
+        name: "{{ k8s_addons_envoy_gateway_gateway_name }}"
+        namespace: "{{ k8s_addons_envoy_gateway_gateway_namespace }}"
+      spec:
+        gatewayClassName: "{{ k8s_addons_envoy_gateway_class_name }}"
+        listeners: "{{ k8s_addons_envoy_gateway_listeners }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+# Gateway Programmed=True means the controller accepted the config and the
+# data-plane is provisioned; this is the readiness signal an operator (and
+# the molecule verify) keys off, mirroring the old role's deployment wait.
+- name: "Wait for Gateway to be Programmed"
+  tags: ["envoy-gateway-install"]
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    api_version: "gateway.networking.k8s.io/v1"
+    kind: "Gateway"
+    name: "{{ k8s_addons_envoy_gateway_gateway_name }}"
+    namespace: "{{ k8s_addons_envoy_gateway_gateway_namespace }}"
+  register: "_k8s_addons_eg_gateway"
+  retries: 60
+  delay: 5
+  until:
+    - "(_k8s_addons_eg_gateway.resources | length) > 0"
+    - >-
+      (_k8s_addons_eg_gateway.resources[0].status.conditions | default([])
+       | selectattr('type', 'eq', 'Programmed')
+       | selectattr('status', 'eq', 'True') | list | length) > 0
+  delegate_to: "localhost"
+  run_once: true
+  become: false
