@@ -1,0 +1,158 @@
+- name: "Add prometheus-community Helm repo"
+  tags: ["kube-state-metrics-install"]
+  kubernetes.core.helm_repository:
+    name: "prometheus-community"
+    repo_url: "https://prometheus-community.github.io/helm-charts"
+  check_mode: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- ansible.builtin.import_tasks: "_helm-preflight.yml"
+  tags: ["kube-state-metrics-install"]
+  vars:
+    _helm_preflight_release_name: "kube-state-metrics"
+    _helm_preflight_release_namespace: "{{ k8s_addons_kube_state_metrics_namespace }}"
+
+- name: "Install/upgrade kube-state-metrics chart"
+  tags: ["kube-state-metrics-install"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "kube-state-metrics"
+    chart_ref: "prometheus-community/kube-state-metrics"
+    chart_version: "{{ k8s_addons_kube_state_metrics_chart_version }}"
+    release_namespace: "{{ k8s_addons_kube_state_metrics_namespace }}"
+    create_namespace: true
+    wait: true
+    atomic: true
+    timeout: "{{ k8s_addons_kube_state_metrics_chart_timeout }}"
+    values: "{{ k8s_addons_kube_state_metrics_extra_values }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Apply external Prometheus ServiceAccount + RBAC + token Secret"
+  tags: ["kube-state-metrics-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition: "{{ item }}"
+  loop:
+    - apiVersion: "v1"
+      kind: "ServiceAccount"
+      metadata:
+        name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+        namespace: "{{ k8s_addons_kube_state_metrics_namespace }}"
+    - apiVersion: "rbac.authorization.k8s.io/v1"
+      kind: "ClusterRole"
+      metadata:
+        name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+      rules:
+        - apiGroups: [""]
+          resources:
+            - "endpoints"
+            - "namespaces"
+            - "nodes"
+            - "pods"
+            - "services"
+          verbs: ["get", "list", "watch"]
+        - apiGroups: [""]
+          resources:
+            - "nodes/proxy"
+            - "services/proxy"
+          verbs: ["get"]
+        - nonResourceURLs:
+            - "/metrics"
+          verbs: ["get"]
+    - apiVersion: "rbac.authorization.k8s.io/v1"
+      kind: "ClusterRoleBinding"
+      metadata:
+        name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+      roleRef:
+        apiGroup: "rbac.authorization.k8s.io"
+        kind: "ClusterRole"
+        name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+      subjects:
+        - kind: "ServiceAccount"
+          name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+          namespace: "{{ k8s_addons_kube_state_metrics_namespace }}"
+    - apiVersion: "v1"
+      kind: "Secret"
+      type: "kubernetes.io/service-account-token"
+      metadata:
+        name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+        namespace: "{{ k8s_addons_kube_state_metrics_namespace }}"
+        annotations:
+          kubernetes.io/service-account.name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+  loop_control:
+    label: "{{ item.kind }}/{{ item.metadata.name }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Wait for external Prometheus token Secret to populate"
+  tags: ["kube-state-metrics-install"]
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    api_version: "v1"
+    kind: "Secret"
+    name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+    namespace: "{{ k8s_addons_kube_state_metrics_namespace }}"
+  register: "_k8s_addons_ksm_prometheus_secret"
+  retries: 60
+  delay: 5
+  until:
+    - "(_k8s_addons_ksm_prometheus_secret.resources | length) > 0"
+    - >-
+      ((_k8s_addons_ksm_prometheus_secret.resources[0].data.token
+        | default('')) | length) > 0
+    - >-
+      ((_k8s_addons_ksm_prometheus_secret.resources[0].data['ca.crt']
+        | default('')) | length) > 0
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+  no_log: true
+
+- name: "Ensure external Prometheus credential directories exist on controller"
+  tags: ["kube-state-metrics-install"]
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: "directory"
+    mode: "0700"
+  loop:
+    - "{{ k8s_addons_kube_state_metrics_prometheus_token_file }}"
+    - "{{ k8s_addons_kube_state_metrics_prometheus_ca_file }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Save external Prometheus bearer token on controller"
+  tags: ["kube-state-metrics-install"]
+  ansible.builtin.copy:
+    content: >-
+      {{
+        (_k8s_addons_ksm_prometheus_secret.resources[0].data.token
+         | b64decode) ~ '\n'
+      }}
+    dest: "{{ k8s_addons_kube_state_metrics_prometheus_token_file }}"
+    mode: "0600"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+  no_log: true
+
+- name: "Save external Prometheus CA certificate on controller"
+  tags: ["kube-state-metrics-install"]
+  ansible.builtin.copy:
+    content: >-
+      {{
+        (_k8s_addons_ksm_prometheus_secret.resources[0].data['ca.crt']
+         | b64decode) ~ '\n'
+      }}
+    dest: "{{ k8s_addons_kube_state_metrics_prometheus_ca_file }}"
+    mode: "0600"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+  no_log: true

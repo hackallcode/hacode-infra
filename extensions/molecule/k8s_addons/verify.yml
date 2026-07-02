@@ -50,6 +50,59 @@
         (_crb_info.resources | length) == 0
         or _crb_info.resources[0].roleRef.name != 'cluster-admin'
 
+    - name: "External Prometheus token and CA files exist next to kubeconfig"
+      ansible.builtin.stat:
+        path: "{{ item.path }}"
+      loop:
+        - path: "/tmp/molecule-k3s-kubeconfig/almalinux10-prometheus-token.txt"
+          mode: "0600"
+        - path: "/tmp/molecule-k3s-kubeconfig/almalinux10-prometheus-ca.crt"
+          mode: "0600"
+      loop_control:
+        label: "{{ item.path }}"
+      register: "_prometheus_credential_stats"
+      failed_when: >-
+        (_prometheus_credential_stats.results
+         | selectattr('stat.exists', 'ne', true) | list | length) > 0
+        or (_prometheus_credential_stats.results
+            | selectattr('stat.size', 'eq', 0) | list | length) > 0
+        or (_prometheus_credential_stats.results
+            | selectattr('stat.mode', 'ne', '0600') | list | length) > 0
+
+    - name: "Helm release `kube-state-metrics` is deployed"
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        name: "kube-state-metrics"
+        release_namespace: "kube-system"
+      register: "_ksm_helm_release"
+      failed_when: >-
+        (_ksm_helm_release.status is not defined)
+        or (_ksm_helm_release.status.status | default('')) != 'deployed'
+
+    - name: "Service `kube-state-metrics` exposes metrics on port 8080"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "v1"
+        kind: "Service"
+        name: "kube-state-metrics"
+        namespace: "kube-system"
+      register: "_ksm_service"
+      failed_when: >-
+        (_ksm_service.resources | length) == 0
+        or (_ksm_service.resources[0].spec.ports
+            | selectattr('port', 'eq', 8080) | list | length) == 0
+
+    - name: "ClusterRoleBinding `kube-state-metrics-prometheus-scrape` points at scrape role"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "rbac.authorization.k8s.io/v1"
+        kind: "ClusterRoleBinding"
+        name: "kube-state-metrics-prometheus-scrape"
+      register: "_ksm_crb_info"
+      failed_when: >-
+        (_ksm_crb_info.resources | length) == 0
+        or _ksm_crb_info.resources[0].roleRef.name != 'kube-state-metrics-prometheus-scrape'
+
     - name: "GatewayClass `envoy-gateway` is Accepted"
       kubernetes.core.k8s_info:
         kubeconfig: "{{ _kubeconfig }}"

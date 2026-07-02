@@ -11,6 +11,7 @@
       - "{{ k8s_addons_longhorn_enabled | default(false) | bool }}"
       - "{{ k8s_addons_headlamp_enabled | default(false) | bool }}"
       - "{{ k8s_addons_ingress_nginx_enabled | default(false) | bool }}"
+      - "{{ k8s_addons_kube_state_metrics_enabled | default(false) | bool }}"
       - "{{ k8s_addons_envoy_gateway_enabled | default(false) | bool }}"
       - "{{ k8s_addons_coredns_custom_enabled | default(false) | bool }}"
       - "{{ k8s_addons_cert_manager_enabled | default(false) | bool }}"

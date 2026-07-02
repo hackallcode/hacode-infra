@@ -7,6 +7,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added
+
+- `k8s_addons`: kube-state-metrics addon with scoped external Prometheus
+  API-server proxy credentials.
+
 ## [0.3.0] - 2026-07-02
 
 ### Added

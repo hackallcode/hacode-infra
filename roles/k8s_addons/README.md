@@ -1,9 +1,9 @@
 # hacode.infra.k8s_addons
 
 Install opinionated Kubernetes addons (Cilium CNI, Longhorn block
-storage, Headlamp, Ingress-NGINX, Envoy Gateway, CoreDNS custom server
-blocks, cert-manager, trust-manager) into an existing cluster via Helm
-and raw manifests.
+storage, Headlamp, Ingress-NGINX, kube-state-metrics, Envoy Gateway,
+CoreDNS custom server blocks, cert-manager, trust-manager) into an
+existing cluster via Helm and raw manifests.
 Each addon is gated by its own `k8s_addons_<name>_enabled` flag and
 lives in its own `tasks/<addon>-install.yml` /
 `tasks/<addon>-uninstall.yml` pair.
@@ -212,6 +212,80 @@ baremetal / on-prem clusters with no cloud LB controller).
 | `k8s_addons_ingress_nginx_http_node_port` | `""` | fixed NodePort for the controller's external HTTP listener. Empty = auto-assign from cluster's NodePort range (default `30000-32767`). Set when an upstream proxy / external nginx needs a deterministic target |
 | `k8s_addons_ingress_nginx_https_node_port` | `""` | same for HTTPS |
 | `k8s_addons_ingress_nginx_extra_values` | `{}` | extra Helm values deep-merged on top of the role's NodePort defaults (user wins on conflicts). Use to tune resources, enable metrics, switch IngressClass name, etc. |
+
+### kube-state-metrics
+
+[kube-state-metrics](https://github.com/kubernetes/kube-state-metrics)
+exports Kubernetes object state as Prometheus metrics: Pod phases,
+Deployment replica status, container restarts, Node conditions, PVC state,
+and similar API-derived facts. It complements kubelet/cAdvisor metrics,
+which report runtime resource usage.
+
+The role also creates a scoped ServiceAccount for an external Prometheus.
+Its token can be used for Kubernetes service discovery and API-server
+proxy scraping: kubelet/cAdvisor via `nodes/proxy`, and
+kube-state-metrics via `services/proxy`. This avoids exposing pod-network
+addresses or kubelet ports to a Prometheus running outside the cluster.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `k8s_addons_kube_state_metrics_enabled` | `false` | opt-in flag |
+| `k8s_addons_kube_state_metrics_chart_version` | `7.5.1` | pinned chart version from `https://prometheus-community.github.io/helm-charts` |
+| `k8s_addons_kube_state_metrics_chart_timeout` | `5m0s` | helm `--timeout` for chart install |
+| `k8s_addons_kube_state_metrics_namespace` | `kube-system` | release namespace |
+| `k8s_addons_kube_state_metrics_prometheus_sa` | `kube-state-metrics-prometheus-scrape` | ServiceAccount name for external Prometheus discovery and API-server proxy scraping |
+| `k8s_addons_kube_state_metrics_prometheus_token_file` | `<kubeconfig_dir>/<kubeconfig_basename>-prometheus-token.txt` | controller-side file for the decoded bearer token |
+| `k8s_addons_kube_state_metrics_prometheus_ca_file` | `<kubeconfig_dir>/<kubeconfig_basename>-prometheus-ca.crt` | controller-side file for the API server CA certificate |
+| `k8s_addons_kube_state_metrics_extra_values` | `{}` | extra Helm values deep-merged over chart defaults (user wins). Use to tune resources, collectors, metric allow/deny lists, etc. |
+
+External Prometheus can use the saved token and CA for Kubernetes
+discovery through the API server. For clusters where Prometheus cannot
+route pod or ClusterIP networks, relabel discovered targets back to the
+API-server proxy:
+
+```yaml
+- job_name: "kubernetes-kubelet"
+  scheme: "https"
+  bearer_token_file: "/etc/prometheus/kubernetes-token"
+  tls_config:
+    ca_file: "/etc/prometheus/kubernetes-ca.crt"
+  kubernetes_sd_configs:
+    - api_server: "https://10.0.1.11:6443"
+      role: "node"
+      bearer_token_file: "/etc/prometheus/kubernetes-token"
+      tls_config:
+        ca_file: "/etc/prometheus/kubernetes-ca.crt"
+  relabel_configs:
+    - target_label: "__address__"
+      replacement: "10.0.1.11:6443"
+    - source_labels: ["__meta_kubernetes_node_name"]
+      target_label: "__metrics_path__"
+      regex: "(.+)"
+      replacement: "/api/v1/nodes/${1}/proxy/metrics"
+
+- job_name: "kubernetes-kube-state-metrics"
+  scheme: "https"
+  bearer_token_file: "/etc/prometheus/kubernetes-token"
+  tls_config:
+    ca_file: "/etc/prometheus/kubernetes-ca.crt"
+  kubernetes_sd_configs:
+    - api_server: "https://10.0.1.11:6443"
+      role: "service"
+      bearer_token_file: "/etc/prometheus/kubernetes-token"
+      tls_config:
+        ca_file: "/etc/prometheus/kubernetes-ca.crt"
+  relabel_configs:
+    - action: "keep"
+      source_labels:
+        - "__meta_kubernetes_namespace"
+        - "__meta_kubernetes_service_name"
+        - "__meta_kubernetes_service_port_name"
+      regex: "kube-system;kube-state-metrics;http"
+    - target_label: "__address__"
+      replacement: "10.0.1.11:6443"
+    - target_label: "__metrics_path__"
+      replacement: "/api/v1/namespaces/kube-system/services/http:kube-state-metrics:8080/proxy/metrics"
+```
 
 ### Envoy Gateway
 
@@ -484,16 +558,18 @@ flag) so you can tear an addon down without flipping the flag back on.
 Use `--tags <addon>-uninstall` (`trust-manager-uninstall`,
 `cert-manager-uninstall`, `coredns-custom-uninstall`,
 `headlamp-uninstall`, `ingress-nginx-uninstall`,
-`envoy-gateway-uninstall`, `longhorn-uninstall`, `cilium-uninstall`)
+`kube-state-metrics-uninstall`, `envoy-gateway-uninstall`,
+`longhorn-uninstall`, `cilium-uninstall`)
 to scope to a specific addon. Install and uninstall lifecycles use **separate tags**
 (`<addon>-install` vs `<addon>-uninstall`) on purpose — the bare
 `<addon>` tag matches nothing, so `--tags cilium` will never
 accidentally fire both install and uninstall in the same run.
 Removal order is the reverse of install (trust-manager,
-cert-manager, CoreDNS-custom, Headlamp, Envoy Gateway, Ingress-NGINX,
-Longhorn, then Cilium last), so the CNI stays up while the others talk
-to the apiserver during teardown — and cert-manager stays up while
-trust-manager hands its CRs back to the apiserver.
+cert-manager, CoreDNS-custom, Headlamp, Envoy Gateway,
+kube-state-metrics, Ingress-NGINX, Longhorn, then Cilium last), so the
+CNI stays up while the others talk to the apiserver during teardown —
+and cert-manager stays up while trust-manager hands its CRs back to the
+apiserver.
 
 Per-addon teardown details:
 
@@ -514,6 +590,9 @@ Per-addon teardown details:
 - **Envoy Gateway** — removes the `Gateway`, `GatewayClass`, and
   `EnvoyProxy` the role created (which deprovisions the Envoy data-plane),
   then the Helm release. The control-plane namespace is left in place.
+- **kube-state-metrics** — removes the Helm release and the external
+  Prometheus ServiceAccount/RBAC/token Secret, then deletes the
+  controller-side token/CA files.
 - **Ingress-NGINX** — removes the Helm release and the namespace.
 - **Longhorn** — removes the Helm release and the namespace. Host
   packages (`iscsi-initiator-utils` / `open-iscsi`, optional NFS) and

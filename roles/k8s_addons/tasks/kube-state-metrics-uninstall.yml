@@ -1,0 +1,53 @@
+- name: "Delete external Prometheus scrape RBAC"
+  tags: ["kube-state-metrics-uninstall"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "{{ item.api_version }}"
+    kind: "{{ item.kind }}"
+    name: "{{ item.name }}"
+    namespace: "{{ item.namespace | default(omit) }}"
+  loop:
+    - api_version: "v1"
+      kind: "Secret"
+      name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+      namespace: "{{ k8s_addons_kube_state_metrics_namespace }}"
+    - api_version: "rbac.authorization.k8s.io/v1"
+      kind: "ClusterRoleBinding"
+      name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+    - api_version: "rbac.authorization.k8s.io/v1"
+      kind: "ClusterRole"
+      name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+    - api_version: "v1"
+      kind: "ServiceAccount"
+      name: "{{ k8s_addons_kube_state_metrics_prometheus_sa }}"
+      namespace: "{{ k8s_addons_kube_state_metrics_namespace }}"
+  loop_control:
+    label: "{{ item.kind }}/{{ item.name }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Uninstall kube-state-metrics chart"
+  tags: ["kube-state-metrics-uninstall"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "kube-state-metrics"
+    release_namespace: "{{ k8s_addons_kube_state_metrics_namespace }}"
+    state: "absent"
+    wait: true
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Remove external Prometheus credential files from controller"
+  tags: ["kube-state-metrics-uninstall"]
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "absent"
+  loop:
+    - "{{ k8s_addons_kube_state_metrics_prometheus_token_file }}"
+    - "{{ k8s_addons_kube_state_metrics_prometheus_ca_file }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
