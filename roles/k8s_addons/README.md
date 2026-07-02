@@ -230,8 +230,11 @@ filters) by `parentRef`, keeping environment-specific policy out of the
 collection.
 
 The data-plane Service defaults to `NodePort` (a baremetal cluster has no
-cloud LoadBalancer), applied through an `EnvoyProxy` resource attached to
-the GatewayClass `parametersRef`.
+cloud LoadBalancer) with `externalTrafficPolicy: Cluster`, applied through an
+`EnvoyProxy` resource attached to the GatewayClass `parametersRef`. `Cluster`
+lets any node route to the Envoy pod, which is what a single upstream proxy
+targeting one NodePort needs; `Local` would only answer on nodes running an
+Envoy pod.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -247,8 +250,9 @@ the GatewayClass `parametersRef`.
 | `k8s_addons_envoy_gateway_listeners` | one HTTP `:80` listener, `allowedRoutes.namespaces.from: All` | Gateway listener list; override to add HTTPS/TLS or restrict route namespaces |
 | `k8s_addons_envoy_gateway_service_type` | `NodePort` | data-plane Service type; `NodePort` avoids a pending LoadBalancer on baremetal |
 | `k8s_addons_envoy_gateway_node_ports` | `{}` | map of listener-name to fixed nodePort; empty = auto-assign. Applied via a StrategicMerge patch on the data-plane Service |
+| `k8s_addons_envoy_gateway_service_external_traffic_policy` | `Cluster` | data-plane Service `externalTrafficPolicy`. `Cluster` lets any node forward to the Envoy pod (right for a single upstream proxy hitting one NodePort target); `Local` only answers on nodes running an Envoy pod |
 | `k8s_addons_envoy_gateway_extra_values` | `{}` | extra Helm values deep-merged over defaults (user wins). Tune control-plane resources, metrics, log level |
-| `k8s_addons_envoy_gateway_proxy_extra_spec` | `{}` | deep-merged into the EnvoyProxy `spec.provider.kubernetes` (user wins). Pin data-plane replicas/resources/tolerations; the role locks `envoyService` |
+| `k8s_addons_envoy_gateway_proxy_extra_spec` | `{}` | deep-merged into the EnvoyProxy `spec.provider.kubernetes` (user wins). Pin data-plane replicas/resources/tolerations; the role seeds `envoyService` (`type`/`externalTrafficPolicy`/nodePorts) from the variables above and a matching key here wins |
 
 ```yaml
 k8s_addons_envoy_gateway_enabled: true

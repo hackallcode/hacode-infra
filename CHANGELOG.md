@@ -14,8 +14,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   reconciles a `GatewayClass` + shared `Gateway` (all-namespaces HTTP
   listener) so the controller provisions the Envoy data-plane dynamically
   and picks up `HTTPRoute`s from any namespace. Data-plane Service defaults
-  to `NodePort` via an `EnvoyProxy` attached to the GatewayClass
-  `parametersRef`. Replaces the never-released static Gateway Envoy addon.
+  to `NodePort` with `externalTrafficPolicy: Cluster` (configurable via
+  `k8s_addons_envoy_gateway_service_external_traffic_policy`) via an
+  `EnvoyProxy` attached to the GatewayClass `parametersRef`; `Cluster` lets
+  any node reach the Envoy pod so an upstream proxy hitting one NodePort
+  target does not hang when it lands on a pod-less node. Replaces the
+  never-released static Gateway Envoy addon.
 
 ## [0.2.2] - 2026-06-29
 
