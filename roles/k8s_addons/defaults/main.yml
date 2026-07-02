@@ -202,6 +202,41 @@ k8s_addons_ingress_nginx_https_node_port: ""
 # metrics, switch IngressClass name, etc.
 k8s_addons_ingress_nginx_extra_values: {}
 
+# ===== kube-state-metrics (Kubernetes object-state metrics) =====
+# Installs kube-state-metrics so an external Prometheus can scrape
+# Kubernetes object state (Deployments, Pods, Nodes, PVCs, etc.). The role
+# also creates a scoped ServiceAccount token for API-server proxy scraping:
+# kubelet/cAdvisor via nodes/proxy and kube-state-metrics via services/proxy.
+k8s_addons_kube_state_metrics_enabled: false
+
+# Pinned chart version. Repo: https://prometheus-community.github.io/helm-charts.
+k8s_addons_kube_state_metrics_chart_version: "7.5.1"
+
+# Helm chart install timeout, passed as `--timeout`.
+k8s_addons_kube_state_metrics_chart_timeout: "5m0s"
+
+k8s_addons_kube_state_metrics_namespace: "kube-system"
+
+# ServiceAccount used by an external Prometheus to perform Kubernetes
+# service discovery and scrape metrics through the API server proxy.
+k8s_addons_kube_state_metrics_prometheus_sa: "kube-state-metrics-prometheus-scrape"
+
+# Controller-side files written from the ServiceAccount token Secret. The
+# default names derive from the kubeconfig basename so multiple clusters can
+# coexist in the same output directory without clobbering each other.
+k8s_addons_kube_state_metrics_prometheus_token_file: >-
+  {{ k8s_addons_kubeconfig | dirname }}/{{
+    k8s_addons_kubeconfig | basename | regex_replace('\.ya?ml$', '')
+  }}-prometheus-token.txt
+k8s_addons_kube_state_metrics_prometheus_ca_file: >-
+  {{ k8s_addons_kubeconfig | dirname }}/{{
+    k8s_addons_kubeconfig | basename | regex_replace('\.ya?ml$', '')
+  }}-prometheus-ca.crt
+
+# Extra Helm values deep-merged over the chart defaults (user wins). Use to
+# set kube-state-metrics resources, collectors, metric allow/deny lists, etc.
+k8s_addons_kube_state_metrics_extra_values: {}
+
 # ===== Envoy Gateway (Gateway API controller) =====
 # The upstream Envoy Gateway product (gateway.envoyproxy.io): a dynamic
 # Gateway API controller that watches GatewayClass/Gateway/HTTPRoute and

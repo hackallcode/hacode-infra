@@ -36,6 +36,10 @@
   tags: ["envoy-gateway-uninstall"]
   ansible.builtin.include_tasks: "envoy-gateway-uninstall.yml"
 
+- name: "Uninstall kube-state-metrics"
+  tags: ["kube-state-metrics-uninstall"]
+  ansible.builtin.include_tasks: "kube-state-metrics-uninstall.yml"
+
 - name: "Uninstall Ingress-NGINX"
   tags: ["ingress-nginx-uninstall"]
   ansible.builtin.include_tasks: "ingress-nginx-uninstall.yml"

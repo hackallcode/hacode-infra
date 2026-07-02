@@ -28,6 +28,11 @@
   ansible.builtin.include_tasks: "ingress-nginx-install.yml"
   when: "k8s_addons_ingress_nginx_enabled | default(false) | bool"
 
+- name: "Install kube-state-metrics"
+  tags: ["kube-state-metrics-install"]
+  ansible.builtin.include_tasks: "kube-state-metrics-install.yml"
+  when: "k8s_addons_kube_state_metrics_enabled | default(false) | bool"
+
 - name: "Install Envoy Gateway"
   tags: ["envoy-gateway-install"]
   ansible.builtin.include_tasks: "envoy-gateway-install.yml"
