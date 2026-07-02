@@ -130,11 +130,7 @@
 - name: "Save external Prometheus bearer token on controller"
   tags: ["kube-state-metrics-install"]
   ansible.builtin.copy:
-    content: >-
-      {{
-        (_k8s_addons_ksm_prometheus_secret.resources[0].data.token
-         | b64decode) ~ '\n'
-      }}
+    content: "{{ _k8s_addons_ksm_prometheus_secret.resources[0].data.token | b64decode }}\n"
     dest: "{{ k8s_addons_kube_state_metrics_prometheus_token_file }}"
     mode: "0600"
   delegate_to: "localhost"
@@ -145,11 +141,7 @@
 - name: "Save external Prometheus CA certificate on controller"
   tags: ["kube-state-metrics-install"]
   ansible.builtin.copy:
-    content: >-
-      {{
-        (_k8s_addons_ksm_prometheus_secret.resources[0].data['ca.crt']
-         | b64decode) ~ '\n'
-      }}
+    content: "{{ _k8s_addons_ksm_prometheus_secret.resources[0].data['ca.crt'] | b64decode }}\n"
     dest: "{{ k8s_addons_kube_state_metrics_prometheus_ca_file }}"
     mode: "0600"
   delegate_to: "localhost"
