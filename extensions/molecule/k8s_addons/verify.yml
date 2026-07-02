@@ -50,24 +50,24 @@
         (_crb_info.resources | length) == 0
         or _crb_info.resources[0].roleRef.name != 'cluster-admin'
 
-    - name: "External Prometheus token and CA files exist next to kubeconfig"
+    # `failed_when` on a looped task evaluates per-iteration, and the
+    # per-iteration register value doesn't carry `.results` — that aggregate
+    # only appears once the loop is done. Split: stat in the loop, assert
+    # on the aggregated `.results` afterwards.
+    - name: "Stat external Prometheus token and CA files"
       ansible.builtin.stat:
-        path: "{{ item.path }}"
+        path: "{{ item }}"
       loop:
-        - path: "/tmp/molecule-k3s-kubeconfig/almalinux10-prometheus-token.txt"
-          mode: "0600"
-        - path: "/tmp/molecule-k3s-kubeconfig/almalinux10-prometheus-ca.crt"
-          mode: "0600"
-      loop_control:
-        label: "{{ item.path }}"
+        - "/tmp/molecule-k3s-kubeconfig/almalinux10-prometheus-token.txt"
+        - "/tmp/molecule-k3s-kubeconfig/almalinux10-prometheus-ca.crt"
       register: "_prometheus_credential_stats"
-      failed_when: >-
-        (_prometheus_credential_stats.results
-         | selectattr('stat.exists', 'ne', true) | list | length) > 0
-        or (_prometheus_credential_stats.results
-            | selectattr('stat.size', 'eq', 0) | list | length) > 0
-        or (_prometheus_credential_stats.results
-            | selectattr('stat.mode', 'ne', '0600') | list | length) > 0
+
+    - name: "External Prometheus token and CA files exist next to kubeconfig"
+      ansible.builtin.assert:
+        that:
+          - "(_prometheus_credential_stats.results | selectattr('stat.exists', 'ne', true) | list | length) == 0"
+          - "(_prometheus_credential_stats.results | selectattr('stat.size', 'eq', 0) | list | length) == 0"
+          - "(_prometheus_credential_stats.results | selectattr('stat.mode', 'ne', '0600') | list | length) == 0"
 
     - name: "Helm release `kube-state-metrics` is deployed"
       kubernetes.core.helm_info:
