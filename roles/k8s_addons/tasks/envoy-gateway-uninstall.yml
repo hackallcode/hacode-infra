@@ -1,0 +1,42 @@
+# Remove the CRs the role created before the chart, so the controller
+# deprovisions the Envoy data-plane cleanly instead of leaving orphaned
+# Deployments/Services once its CRDs disappear. Gateway first (drops the
+# data-plane), then GatewayClass, then the EnvoyProxy it referenced.
+- name: "Remove Gateway, GatewayClass and EnvoyProxy"
+  tags: ["envoy-gateway-uninstall"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "{{ item.api_version }}"
+    kind: "{{ item.kind }}"
+    name: "{{ item.name }}"
+    namespace: "{{ item.namespace | default(omit) }}"
+  loop:
+    - api_version: "gateway.networking.k8s.io/v1"
+      kind: "Gateway"
+      name: "{{ k8s_addons_envoy_gateway_gateway_name }}"
+      namespace: "{{ k8s_addons_envoy_gateway_gateway_namespace }}"
+    - api_version: "gateway.networking.k8s.io/v1"
+      kind: "GatewayClass"
+      name: "{{ k8s_addons_envoy_gateway_class_name }}"
+    - api_version: "gateway.envoyproxy.io/v1alpha1"
+      kind: "EnvoyProxy"
+      name: "{{ k8s_addons_envoy_gateway_class_name }}"
+      namespace: "{{ k8s_addons_envoy_gateway_namespace }}"
+  loop_control:
+    label: "{{ item.kind }}/{{ item.name }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Uninstall Envoy Gateway chart"
+  tags: ["envoy-gateway-uninstall"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "envoy-gateway"
+    release_namespace: "{{ k8s_addons_envoy_gateway_namespace }}"
+    state: "absent"
+    wait: true
+  delegate_to: "localhost"
+  run_once: true
+  become: false

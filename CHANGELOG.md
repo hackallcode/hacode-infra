@@ -9,7 +9,17 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
-- `k8s_addons`: Gateway Envoy addon for deploying a static Envoy gateway from inventory-provided bootstrap config.
+- `k8s_addons`: Envoy Gateway addon. Installs the upstream Envoy Gateway
+  control plane and Gateway API CRDs from the official OCI Helm chart, then
+  reconciles a `GatewayClass` + shared `Gateway` (all-namespaces HTTP
+  listener) so the controller provisions the Envoy data-plane dynamically
+  and picks up `HTTPRoute`s from any namespace. Data-plane Service defaults
+  to `NodePort` with `externalTrafficPolicy: Cluster` (configurable via
+  `k8s_addons_envoy_gateway_service_external_traffic_policy`) via an
+  `EnvoyProxy` attached to the GatewayClass `parametersRef`; `Cluster` lets
+  any node reach the Envoy pod so an upstream proxy hitting one NodePort
+  target does not hang when it lands on a pod-less node. Replaces the
+  never-released static Gateway Envoy addon.
 
 ## [0.2.2] - 2026-06-29
 

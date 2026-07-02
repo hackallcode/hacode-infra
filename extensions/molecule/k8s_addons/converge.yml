@@ -197,19 +197,12 @@
       vars:
         k8s_addons_kubeconfig: "/tmp/molecule-k3s-kubeconfig/almalinux10.yaml"
         k8s_addons_headlamp_enabled: true
-        k8s_addons_gateway_envoy_enabled: true
-        k8s_addons_gateway_envoy_namespace: "gateway-envoy"
-        k8s_addons_gateway_envoy_name: "gateway-envoy"
-        k8s_addons_gateway_envoy_replicas: 1
-        k8s_addons_gateway_envoy_config: |
-          admin:
-            address:
-              socket_address:
-                address: "0.0.0.0"
-                port_value: 9901
-          static_resources:
-            listeners: []
-            clusters: []
+        k8s_addons_envoy_gateway_enabled: true
+        # Fixed NodePort so verify can assert a deterministic value on the
+        # controller-provisioned data-plane Service.
+        k8s_addons_envoy_gateway_node_ports:
+          http: 30080
         # Constrained CI runners need more than the default 5m for the
-        # Headlamp pod to become Ready.
+        # Headlamp pod and the Envoy Gateway control plane to become Ready.
         k8s_addons_headlamp_chart_timeout: "15m0s"
+        k8s_addons_envoy_gateway_chart_timeout: "15m0s"

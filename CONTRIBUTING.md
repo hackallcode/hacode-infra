@@ -91,6 +91,20 @@ cluster of variables whose names already tell the whole story —
 `*_namespace: "default"`, `*_ingress_class_name: "nginx"` — where the
 header comment is enough.
 
+Comments in `defaults/main.yml` also have to *match the actual value
+shape*. If the variable is a dict, describe the empty form as `{}`,
+not `""`; a list as `[]`; a bool as `false`. A comment that says
+"leave empty (`\"\"`)" next to a dict variable is worse than no
+comment — it invites the wrong override. Same rule for any type
+name the comment mentions: match the code.
+
+Consistency within a file matters. Bullet lists that describe
+siblings (per-addon teardown notes, per-role variable rows, etc.)
+should use the same connective punctuation across every entry —
+if the pattern is `**Name** — description`, don't slip in a
+`**Name**: description` for one item. Same for blank-line spacing
+between variable blocks: the file's own precedent is the guide.
+
 Avoid commentary about who calls what or when it was added. That
 context belongs in commit messages and PRs, not in code that lives
 on forever.
@@ -122,16 +136,17 @@ Kubernetes manifest spec, Ingress annotations, a sysctl set, an
 nginx vhost block, etc.), expose the customization point via an
 `_extra_*` knob that deep-merges over sensible defaults. The
 canonical names are `_extra_values` for Helm-based addons
-(cilium / longhorn / headlamp / ingress-nginx / cert-manager all
-use this), and `_<field>_extra_*` for raw manifests —
-`_ingress_extra_annotations`, `_deployment_extra_spec` on
-gateway-envoy. The role keeps its opinionated defaults; inventory
+(cilium / longhorn / headlamp / ingress-nginx / cert-manager /
+envoy-gateway all use this), and `_<thing>_extra_spec` for a raw
+manifest spec merged by the role, e.g. `_proxy_extra_spec` on
+envoy-gateway (merged into the EnvoyProxy `spec.provider.kubernetes`).
+The role keeps its opinionated defaults; inventory
 overrides on key conflicts via `combine(extra, recursive=true)`.
 Operators then reach for the knob instead of forking the install
 task to pin `resources`, change a timeout, or add a tolerated
 annotation. Lock the fields the role's own assumptions depend on
-(the Service `targetPort`, the Helm `release_name`, the selector
-labels), and document those in the knob's comment.
+(the data-plane Service `type`, the Helm `release_name`, the
+GatewayClass `controllerName`), and document those in the knob's comment.
 
 ## CHANGELOG
 

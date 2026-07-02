@@ -202,43 +202,80 @@ k8s_addons_ingress_nginx_https_node_port: ""
 # metrics, switch IngressClass name, etc.
 k8s_addons_ingress_nginx_extra_values: {}
 
-# ===== Gateway Envoy (static Envoy gateway) =====
-# Envoy gateway deployed from a caller-provided bootstrap config.
-# The role owns the Kubernetes wrapper (ConfigMap/Deployment/Service/Ingress)
-# and deliberately leaves routing policy in `k8s_addons_gateway_envoy_config`.
-k8s_addons_gateway_envoy_enabled: false
-k8s_addons_gateway_envoy_namespace: "default"
-k8s_addons_gateway_envoy_name: "envoy"
-# One Envoy pod per replica so the gateway can roll and stay available
-# without coupling the role to any custom HPA logic.
-k8s_addons_gateway_envoy_replicas: 2
-# Pin to a concrete Envoy release for reproducibility; bump intentionally
-# when the collection is updated.
-k8s_addons_gateway_envoy_image: "envoyproxy/envoy:v1.31.5"
-# The Service is the stable target for ingress/controllers; the Envoy
-# container can listen on whatever port the bootstrap config expects.
-k8s_addons_gateway_envoy_service_port: 8080
-# Must match the listener port in `k8s_addons_gateway_envoy_config`.
-k8s_addons_gateway_envoy_listener_port: 5000
-# Standard Envoy admin listener used by readiness/liveness probes.
-k8s_addons_gateway_envoy_admin_port: 9901
-# Optional ingress route in front of the Envoy service.
-k8s_addons_gateway_envoy_ingress_enabled: false
-k8s_addons_gateway_envoy_ingress_class_name: "nginx"
-k8s_addons_gateway_envoy_ingress_host: ""
-# Annotations on the generated Ingress. Deep-merged on top of the role's
-# defaults (long proxy read/send timeouts suited to SSE / long-lived
-# upstream connections); inventory wins on key conflicts. Pass an empty
-# dict to keep the defaults.
-k8s_addons_gateway_envoy_ingress_extra_annotations: {}
-# Extra fields merged into the generated Deployment's `spec` (deep-merge,
-# inventory wins). Use this to pin `resources`, set `tolerations` /
-# `nodeSelector` / `affinity`, change the rolling-update `strategy`,
-# etc. — anything beyond `replicas` that the role doesn't expose as its
-# own knob. The selector and the envoy container itself are left to the
-# role to keep the Service's `targetPort: http` valid.
-k8s_addons_gateway_envoy_deployment_extra_spec: {}
-k8s_addons_gateway_envoy_config: ""
+# ===== Envoy Gateway (Gateway API controller) =====
+# The upstream Envoy Gateway product (gateway.envoyproxy.io): a dynamic
+# Gateway API controller that watches GatewayClass/Gateway/HTTPRoute and
+# provisions the Envoy data-plane itself. The role installs the official
+# chart (control plane + Gateway API CRDs) and then reconciles a
+# GatewayClass + Gateway so a data-plane comes up ready for HTTPRoutes.
+# Routing policy stays in the workload charts (HTTPRoute/*Policy), not here.
+k8s_addons_envoy_gateway_enabled: false
+
+# Official OCI chart (control plane + bundled Gateway API + Envoy Gateway
+# CRDs). Pinned so installs are reproducible; bump intentionally. The chart
+# version tracks the Envoy Gateway app version 1:1.
+k8s_addons_envoy_gateway_chart_ref: "oci://docker.io/envoyproxy/gateway-helm"
+k8s_addons_envoy_gateway_chart_version: "v1.8.2"
+k8s_addons_envoy_gateway_chart_timeout: "5m0s"
+k8s_addons_envoy_gateway_namespace: "envoy-gateway-system"
+
+# GatewayClass the controller owns. Its controllerName MUST be the fixed
+# Envoy Gateway string below (the chart's controller only reconciles
+# GatewayClasses carrying exactly this value); kept configurable only for
+# the name, not the controllerName.
+k8s_addons_envoy_gateway_class_name: "envoy-gateway"
+k8s_addons_envoy_gateway_controller_name: "gateway.envoyproxy.io/gatewayclass-controller"
+
+# The Gateway the role reconciles against the class above. Its namespace is
+# where the controller provisions the Envoy data-plane Deployment/Service.
+k8s_addons_envoy_gateway_gateway_name: "eg"
+k8s_addons_envoy_gateway_gateway_namespace: "envoy-gateway-system"
+
+# Gateway listeners. Default is a single plain-HTTP listener on :80 that
+# accepts HTTPRoutes from every namespace, so workload charts in any
+# namespace can attach by ParentRef without editing this role. Override the
+# whole list to add an HTTPS/TLS listener, restrict `allowedRoutes`, etc.
+# `allowedRoutes.namespaces.from: All` is what makes the shared-Gateway,
+# route-per-namespace pattern work.
+k8s_addons_envoy_gateway_listeners:
+  - name: "http"
+    port: 80
+    protocol: "HTTP"
+    allowedRoutes:
+      namespaces:
+        from: "All"
+
+# Envoy data-plane Service type. The chart provisions a LoadBalancer by
+# default, which stays <pending> on a baremetal cluster with no cloud LB;
+# NodePort matches how ingress-nginx/contour are exposed here so an upstream
+# proxy can target it directly. Applied via an EnvoyProxy resource attached
+# to the GatewayClass parametersRef.
+k8s_addons_envoy_gateway_service_type: "NodePort"
+# Fixed NodePorts for the data-plane Service. Leave empty (`{}`) to let
+# Kubernetes allocate from the service-node-port range; set when an upstream
+# proxy needs a stable target across reprovisions. Only listeners present on
+# the Gateway get a port; names must match a listener name above.
+k8s_addons_envoy_gateway_node_ports: {}
+# externalTrafficPolicy for the data-plane Service. "Cluster" (the default
+# here) lets any node forward to the Envoy pod, which is what a single
+# upstream proxy hitting one NodePort target needs. "Local" only answers on
+# nodes running an Envoy pod, so an upstream proxy aimed at a pod-less node
+# hangs; keep Cluster unless you front the NodePort with a per-node LB.
+k8s_addons_envoy_gateway_service_external_traffic_policy: "Cluster"
+
+# Extra Helm values deep-merged over the role's defaults (user wins on key
+# conflicts). Use to tune the control-plane `deployment.envoyGateway`
+# resources, enable metrics, set the log level, etc. The role does not pin
+# opinionated chart values today, so this is the sole Helm customization
+# point.
+k8s_addons_envoy_gateway_extra_values: {}
+
+# Extra fields deep-merged into the provisioned data-plane's EnvoyProxy
+# `spec.provider.kubernetes` (user wins). Use to pin the Envoy Deployment's
+# `envoyDeployment.pod`/`.container` resources, replicas, tolerations, etc.
+# The role sets `envoyService.type`, `externalTrafficPolicy` (and nodePorts
+# when set) from the variables above; a matching key here wins on merge.
+k8s_addons_envoy_gateway_proxy_extra_spec: {}
 
 # ===== CoreDNS custom server blocks =====
 # Writes a `coredns-custom` ConfigMap in kube-system. k3s/CoreDNS auto-imports

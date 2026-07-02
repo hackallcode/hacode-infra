@@ -50,42 +50,48 @@
         (_crb_info.resources | length) == 0
         or _crb_info.resources[0].roleRef.name != 'cluster-admin'
 
-    - name: "Gateway Envoy ConfigMap exists"
+    - name: "GatewayClass `envoy-gateway` is Accepted"
       kubernetes.core.k8s_info:
         kubeconfig: "{{ _kubeconfig }}"
-        api_version: "v1"
-        kind: "ConfigMap"
-        name: "gateway-envoy-config"
-        namespace: "gateway-envoy"
-      register: "_gateway_envoy_configmap"
+        api_version: "gateway.networking.k8s.io/v1"
+        kind: "GatewayClass"
+        name: "envoy-gateway"
+      register: "_eg_class"
       failed_when: >-
-        (_gateway_envoy_configmap.resources | length) == 0
-        or 'static_resources' not in
-        (_gateway_envoy_configmap.resources[0].data['envoy.yaml'] | default(''))
+        (_eg_class.resources | length) == 0
+        or (_eg_class.resources[0].status.conditions | default([])
+            | selectattr('type', 'eq', 'Accepted')
+            | selectattr('status', 'eq', 'True') | list | length) == 0
 
-    - name: "Gateway Envoy Service points at the http target port"
+    - name: "Gateway `eg` is Programmed"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "gateway.networking.k8s.io/v1"
+        kind: "Gateway"
+        name: "eg"
+        namespace: "envoy-gateway-system"
+      register: "_eg_gateway"
+      failed_when: >-
+        (_eg_gateway.resources | length) == 0
+        or (_eg_gateway.resources[0].status.conditions | default([])
+            | selectattr('type', 'eq', 'Programmed')
+            | selectattr('status', 'eq', 'True') | list | length) == 0
+
+    # The controller provisions the data-plane Service; its name is derived
+    # by Envoy Gateway (envoy-<gateway-namespace>-<gateway-name>-<hash>), so
+    # match by the well-known owning labels instead of a fixed name and
+    # assert the NodePort exposure the EnvoyProxy requested.
+    - name: "Envoy data-plane Service is NodePort on the requested port"
       kubernetes.core.k8s_info:
         kubeconfig: "{{ _kubeconfig }}"
         api_version: "v1"
         kind: "Service"
-        name: "gateway-envoy"
-        namespace: "gateway-envoy"
-      register: "_gateway_envoy_service"
+        namespace: "envoy-gateway-system"
+        label_selectors:
+          - "gateway.envoyproxy.io/owning-gateway-name=eg"
+      register: "_eg_service"
       failed_when: >-
-        (_gateway_envoy_service.resources | length) == 0
-        or (_gateway_envoy_service.resources[0].spec.ports[0].port | int) != 8080
-        or _gateway_envoy_service.resources[0].spec.ports[0].targetPort != 'http'
-
-    - name: "Gateway Envoy Deployment is ready"
-      kubernetes.core.k8s_info:
-        kubeconfig: "{{ _kubeconfig }}"
-        api_version: "apps/v1"
-        kind: "Deployment"
-        name: "gateway-envoy"
-        namespace: "gateway-envoy"
-      register: "_gateway_envoy_deployment"
-      failed_when: >-
-        (_gateway_envoy_deployment.resources | length) == 0
-        or
-        (_gateway_envoy_deployment.resources[0].status.readyReplicas
-         | default(0) | int) != 1
+        (_eg_service.resources | length) == 0
+        or _eg_service.resources[0].spec.type != 'NodePort'
+        or (_eg_service.resources[0].spec.ports
+            | selectattr('nodePort', 'eq', 30080) | list | length) == 0
