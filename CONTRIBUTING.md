@@ -154,8 +154,10 @@ The format is Keep-a-Changelog: one section per version with
 `### Added`, `### Changed`, `### Fixed`, etc. as needed. For shipped
 versions we keep entries short — one line per merged commit, with a
 link to the commit so anyone can click through for the full story.
-Long-form prose lives in commit messages and PR descriptions, not
-in the changelog.
+The shape is `` - `<scope>`: <subject> ([<short-sha>](<commit-url>)) ``
+— short SHA both in the link label and at the tail of the URL path.
+Long-form prose lives in commit messages and PR descriptions, not in
+the changelog.
 
 The `[Unreleased]` block at the top can hold longer entries while
 work is in flight; when a release is cut, those collapse to the
