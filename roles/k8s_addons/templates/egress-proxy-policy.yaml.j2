@@ -1,0 +1,90 @@
+{# Kyverno ClusterPolicy: inject a transparent egress-proxy sidecar into pods
+   of namespaces labelled <label>=<value>. An init container installs an
+   iptables REDIRECT of outbound TCP (all of it, or only include_cidrs) into a
+   local port inside the pod netns, minus exclude_cidrs and the sidecar's own
+   uid; the sidecar runs gost forwarding captured traffic to the forwarder. #}
+{% set fw = k8s_addons_egress_proxy_forwarder %}
+{% set lp = k8s_addons_egress_proxy_listen_port %}
+{% set uid = k8s_addons_egress_proxy_uid %}
+{% set excludes = k8s_addons_egress_proxy_exclude_cidrs %}
+{% set includes = k8s_addons_egress_proxy_include_cidrs %}
+{% set has_auth = (fw.user | default('') | length) > 0 %}
+{% set fw_url = fw.scheme ~ '://' ~ ('${EGRESS_PROXY_USER}:${EGRESS_PROXY_PASS}@' if has_auth else '') ~ fw.host ~ ':' ~ (fw.port | string) %}
+apiVersion: "kyverno.io/v1"
+kind: "ClusterPolicy"
+metadata:
+  name: "{{ k8s_addons_egress_proxy_policy_name }}"
+spec:
+  background: false
+  # If Kyverno is unavailable, don't block pod admission in matched
+  # namespaces - pods just come up without the sidecar rather than failing.
+  failurePolicy: "{{ k8s_addons_egress_proxy_policy_failure_policy }}"
+  rules:
+    - name: "inject-sidecar"
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaceSelector:
+                matchLabels:
+                  "{{ k8s_addons_egress_proxy_namespace_label }}": "{{ k8s_addons_egress_proxy_namespace_label_value }}"
+      preconditions:
+        all:
+          # skip pods that already carry the sidecar (idempotency / restarts)
+          - key: "egress-proxy-sidecar"
+            operator: "AnyNotIn"
+            value: "{{ '{{' }} request.object.spec.containers[].name {{ '}}' }}"
+      mutate:
+        patchStrategicMerge:
+          spec:
+            initContainers:
+              - name: "egress-proxy-init"
+                image: "{{ k8s_addons_egress_proxy_init_image }}"
+                imagePullPolicy: "IfNotPresent"
+                securityContext:
+                  runAsUser: 0
+                  capabilities:
+                    add: ["NET_ADMIN", "NET_RAW"]
+                command: ["sh", "-c"]
+                args:
+                  - |
+                    set -e
+                    iptables -t nat -N EGRESS_PROXY 2>/dev/null || true
+{% for cidr in excludes %}
+                    iptables -t nat -C EGRESS_PROXY -d {{ cidr }} -j RETURN 2>/dev/null || iptables -t nat -A EGRESS_PROXY -d {{ cidr }} -j RETURN
+{% endfor %}
+{% if includes | length > 0 %}
+{% for cidr in includes %}
+                    iptables -t nat -C EGRESS_PROXY -d {{ cidr }} -p tcp -j REDIRECT --to-ports {{ lp }} 2>/dev/null || iptables -t nat -A EGRESS_PROXY -d {{ cidr }} -p tcp -j REDIRECT --to-ports {{ lp }}
+{% endfor %}
+{% else %}
+                    iptables -t nat -C EGRESS_PROXY -p tcp -j REDIRECT --to-ports {{ lp }} 2>/dev/null || iptables -t nat -A EGRESS_PROXY -p tcp -j REDIRECT --to-ports {{ lp }}
+{% endif %}
+                    # exclude the sidecar's own traffic (its forwarder uplink), then hook OUTPUT
+                    iptables -t nat -C OUTPUT -m owner --uid-owner {{ uid }} -j RETURN 2>/dev/null || iptables -t nat -A OUTPUT -m owner --uid-owner {{ uid }} -j RETURN
+                    iptables -t nat -C OUTPUT -p tcp -j EGRESS_PROXY 2>/dev/null || iptables -t nat -A OUTPUT -p tcp -j EGRESS_PROXY
+              # native sidecar: starts before app containers and stays running
+              - name: "egress-proxy-sidecar"
+                image: "{{ k8s_addons_egress_proxy_sidecar_image }}"
+                imagePullPolicy: "IfNotPresent"
+                restartPolicy: "Always"
+                securityContext:
+                  runAsUser: {{ uid }}
+                # shell-expanded ${VAR} (not k8s $(VAR)) so Kyverno's policy
+                # validator leaves it alone and the creds stay in the Secret.
+                command: ["/bin/sh", "-c"]
+                args:
+                  - 'exec /bin/gost -L "redir://:{{ lp }}" -F "{{ fw_url }}"'
+{% if has_auth %}
+                env:
+                  - name: "EGRESS_PROXY_USER"
+                    valueFrom:
+                      secretKeyRef:
+                        name: "{{ k8s_addons_egress_proxy_secret_name }}"
+                        key: "user"
+                  - name: "EGRESS_PROXY_PASS"
+                    valueFrom:
+                      secretKeyRef:
+                        name: "{{ k8s_addons_egress_proxy_secret_name }}"
+                        key: "pass"
+{% endif %}

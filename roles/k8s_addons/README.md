@@ -2,8 +2,8 @@
 
 Install opinionated Kubernetes addons (Cilium CNI, Longhorn block
 storage, Headlamp, Ingress-NGINX, kube-state-metrics, Envoy Gateway,
-CoreDNS custom server blocks, cert-manager, trust-manager) into an
-existing cluster via Helm and raw manifests.
+CoreDNS custom server blocks, cert-manager, trust-manager, Kyverno,
+egress proxy) into an existing cluster via Helm and raw manifests.
 Each addon is gated by its own `k8s_addons_<name>_enabled` flag and
 lives in its own `tasks/<addon>-install.yml` /
 `tasks/<addon>-uninstall.yml` pair.
@@ -463,6 +463,48 @@ removes the Bundle, the source ConfigMap, and the trust-manager Helm
 release; the target ConfigMaps in labeled namespaces are garbage-
 collected by trust-manager itself before the chart is removed.
 
+### Kyverno
+
+Generic admission policy engine. `k8s_addons_kyverno_enabled: true`
+installs the Helm chart into the `kyverno` namespace. Other addons
+(currently egress-proxy) depend on it.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `k8s_addons_kyverno_enabled` | `false` | per-cluster opt-in |
+| `k8s_addons_kyverno_chart_version` | `3.2.6` | pinned chart version |
+| `k8s_addons_kyverno_chart_timeout` | `10m0s` | helm `--timeout`; Kyverno rolls out admission + reports + cleanup controllers before `--wait` returns |
+| `k8s_addons_kyverno_namespace` | `kyverno` | release namespace |
+| `k8s_addons_kyverno_extra_values` | `{}` | extra Helm values deep-merged over the chart defaults (user wins) |
+
+### Egress proxy
+
+Transparent per-pod egress through a forward proxy, injected as an
+init + native sidecar by a Kyverno `ClusterPolicy` (requires
+`k8s_addons_kyverno_enabled: true`). Pods in the labelled namespaces
+get an init container that installs an iptables REDIRECT of outbound
+TCP into a local port **inside the pod netns**, plus a `gost` sidecar
+forwarding to the configured forwarder. App manifests are never
+touched, and because the interception lives in the pod's own netns it
+works where host-level REDIRECT/routing cannot — e.g. a Cilium node
+whose datapath owns pod egress.
+
+Injection happens at pod admission, so **existing pods are not
+retrofitted** — recreate (roll) the workloads to pick up the sidecar.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `k8s_addons_egress_proxy_enabled` | `false` | per-cluster opt-in; requires Kyverno |
+| `k8s_addons_egress_proxy_forwarder` | `{scheme: socks5, host: "", port: 1080, user: "", pass: ""}` | any gost `-F` scheme; `user` / `pass` optional, stored in a Secret and read via env |
+| `k8s_addons_egress_proxy_namespaces` | `[]` | namespaces the role labels + drops the creds Secret into; empty = policy applied but nothing matched |
+| `k8s_addons_egress_proxy_namespace_label` / `_value` | `egress-proxy` / `socks` | label key / value the ClusterPolicy's `namespaceSelector` matches on; also what the role writes onto `_namespaces` |
+| `k8s_addons_egress_proxy_exclude_cidrs` | RFC1918 + loopback + link-local | always bypass the proxy (keeps pod↔pod/svc/DNS and the forwarder uplink direct) |
+| `k8s_addons_egress_proxy_include_cidrs` | `[]` | empty = all outbound TCP; else only these destinations are REDIRECTed |
+| `k8s_addons_egress_proxy_listen_port` / `_uid` | `15001` / `15001` | sidecar redir port / uid; the uid is excluded from the OUTPUT redirect so the sidecar's own uplink escapes |
+| `k8s_addons_egress_proxy_sidecar_image` | `docker.io/gogost/gost:3.2.4` | must contain `/bin/gost` and `/bin/sh` |
+| `k8s_addons_egress_proxy_init_image` | `docker.io/nicolaka/netshoot:v0.13` | must contain `iptables` |
+| `k8s_addons_egress_proxy_policy_failure_policy` | `Ignore` | Kyverno webhook `failurePolicy` for the injection — `Ignore` keeps pod admission working when Kyverno is down (pods just come up without the sidecar) |
+
 ## Security warning
 
 The default admin ServiceAccount is bound to the built-in **`cluster-admin`**
@@ -555,7 +597,8 @@ Token files land next to each kubeconfig
 
 The uninstall path runs unconditionally (regardless of the `_enabled`
 flag) so you can tear an addon down without flipping the flag back on.
-Use `--tags <addon>-uninstall` (`trust-manager-uninstall`,
+Use `--tags <addon>-uninstall` (`egress-proxy-uninstall`,
+`kyverno-uninstall`, `trust-manager-uninstall`,
 `cert-manager-uninstall`, `coredns-custom-uninstall`,
 `headlamp-uninstall`, `ingress-nginx-uninstall`,
 `kube-state-metrics-uninstall`, `envoy-gateway-uninstall`,
@@ -564,15 +607,26 @@ to scope to a specific addon. Install and uninstall lifecycles use **separate ta
 (`<addon>-install` vs `<addon>-uninstall`) on purpose — the bare
 `<addon>` tag matches nothing, so `--tags cilium` will never
 accidentally fire both install and uninstall in the same run.
-Removal order is the reverse of install (trust-manager,
-cert-manager, CoreDNS-custom, Headlamp, Envoy Gateway,
-kube-state-metrics, Ingress-NGINX, Longhorn, then Cilium last), so the
-CNI stays up while the others talk to the apiserver during teardown —
-and cert-manager stays up while trust-manager hands its CRs back to the
-apiserver.
+Removal order pulls the policy engine off the cluster first
+(egress-proxy → Kyverno) so the Kyverno webhook doesn't keep mutating
+pods while other addons churn during their own teardown, then reverses
+the install order for the rest (trust-manager, cert-manager,
+CoreDNS-custom, Headlamp, Envoy Gateway, kube-state-metrics,
+Ingress-NGINX, Longhorn, Cilium last) so the CNI stays up while the
+others talk to the apiserver and cert-manager stays up while
+trust-manager hands its CRs back.
 
 Per-addon teardown details:
 
+- **egress proxy** — removes the Kyverno `ClusterPolicy`, unlabels the
+  target namespaces, and deletes the forwarder-credentials `Secret` in
+  each. Running pods keep their injected sidecar until they restart —
+  the ClusterPolicy only fires at pod admission, so removing it stops
+  future injection but doesn't retrofit anything.
+- **Kyverno** — removes the Helm release. Any user-owned ClusterPolicy
+  / Policy custom resources are cluster-scoped and go with the release;
+  don't uninstall Kyverno while the egress-proxy ClusterPolicy is still
+  applied (the reverse-of-install order above handles that).
 - **trust-manager** — removes the `Bundle`, the source ConfigMap, and
   the Helm release. trust-manager garbage-collects the target
   ConfigMaps in labeled namespaces during the Bundle's own teardown

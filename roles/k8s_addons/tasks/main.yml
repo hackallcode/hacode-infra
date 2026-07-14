@@ -7,6 +7,18 @@
   ansible.builtin.include_tasks: "cilium-install.yml"
   when: "k8s_addons_cilium_enabled | default(false) | bool"
 
+# Kyverno (policy engine) before egress-proxy: the injection ClusterPolicy is
+# admitted by Kyverno's webhook, so it must be running first.
+- name: "Install Kyverno"
+  tags: ["kyverno-install"]
+  ansible.builtin.include_tasks: "kyverno-install.yml"
+  when: "k8s_addons_kyverno_enabled | default(false) | bool"
+
+- name: "Install egress proxy (Kyverno sidecar injection)"
+  tags: ["egress-proxy-install"]
+  ansible.builtin.include_tasks: "egress-proxy-install.yml"
+  when: "k8s_addons_egress_proxy_enabled | default(false) | bool"
+
 # DNS server blocks: pods can resolve internal zones (e.g. *.k.int-net).
 - name: "Apply CoreDNS custom server blocks"
   tags: ["coredns-custom-install"]

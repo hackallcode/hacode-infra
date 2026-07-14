@@ -1,0 +1,32 @@
+- name: "Add Kyverno Helm repo"
+  tags: ["kyverno-install"]
+  kubernetes.core.helm_repository:
+    name: "kyverno"
+    repo_url: "https://kyverno.github.io/kyverno/"
+  check_mode: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- ansible.builtin.import_tasks: "_helm-preflight.yml"
+  tags: ["kyverno-install"]
+  vars:
+    _helm_preflight_release_name: "kyverno"
+    _helm_preflight_release_namespace: "{{ k8s_addons_kyverno_namespace }}"
+
+- name: "Install/upgrade Kyverno chart"
+  tags: ["kyverno-install"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "kyverno"
+    chart_ref: "kyverno/kyverno"
+    chart_version: "{{ k8s_addons_kyverno_chart_version }}"
+    release_namespace: "{{ k8s_addons_kyverno_namespace }}"
+    create_namespace: true
+    wait: true
+    atomic: true
+    timeout: "{{ k8s_addons_kyverno_chart_timeout }}"
+    values: "{{ k8s_addons_kyverno_extra_values }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false

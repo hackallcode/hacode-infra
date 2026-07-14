@@ -15,6 +15,15 @@
       Set `k8s_addons_kubeconfig` (or define `k3s_cluster_name` in scope
       so the default resolves) to uninstall any addon.
 
+# egress-proxy before Kyverno (its ClusterPolicy is a Kyverno resource).
+- name: "Uninstall egress proxy"
+  tags: ["egress-proxy-uninstall"]
+  ansible.builtin.include_tasks: "egress-proxy-uninstall.yml"
+
+- name: "Uninstall Kyverno"
+  tags: ["kyverno-uninstall"]
+  ansible.builtin.include_tasks: "kyverno-uninstall.yml"
+
 - name: "Uninstall trust-manager"
   tags: ["trust-manager-uninstall"]
   ansible.builtin.include_tasks: "trust-manager-uninstall.yml"

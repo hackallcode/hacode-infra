@@ -1,0 +1,39 @@
+- name: "Remove egress-proxy injection ClusterPolicy"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "kyverno.io/v1"
+    kind: "ClusterPolicy"
+    name: "{{ k8s_addons_egress_proxy_policy_name }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Unlabel target namespaces"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "patched"
+    definition:
+      apiVersion: "v1"
+      kind: "Namespace"
+      metadata:
+        name: "{{ item }}"
+        # null value removes the label; dict built via Jinja to template the key
+        labels: "{{ {k8s_addons_egress_proxy_namespace_label: none} }}"
+  loop: "{{ k8s_addons_egress_proxy_namespaces }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Remove forwarder credentials Secret"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "v1"
+    kind: "Secret"
+    name: "{{ k8s_addons_egress_proxy_secret_name }}"
+    namespace: "{{ item }}"
+  loop: "{{ k8s_addons_egress_proxy_namespaces }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false

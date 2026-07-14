@@ -1,0 +1,10 @@
+- name: "Uninstall Kyverno release"
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "kyverno"
+    release_namespace: "{{ k8s_addons_kyverno_namespace }}"
+    state: "absent"
+    wait: true
+  delegate_to: "localhost"
+  run_once: true
+  become: false
