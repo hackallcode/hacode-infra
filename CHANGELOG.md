@@ -7,6 +7,15 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Fixed
+
+- `gost`: manage firewalld direct rules through the runtime config +
+  `firewall-cmd --runtime-to-permanent` instead of `--permanent` +
+  `--reload`. `--reload` rebuilds the whole iptables ruleset from
+  firewalld's permanent config and flushes direct rules other tools
+  own outside firewalld (Cilium's pod-egress masquerade on a k8s
+  node); runtime mutations leave those chains untouched.
+
 ## [0.4.0] - 2026-07-03
 
 ### Added
