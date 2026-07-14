@@ -103,3 +103,8 @@ Three independent gosts on the same host:
   instance, or `gost_default_exclude_cidrs` globally.
 - Rule priorities are: selective REDIRECT at `0`, default excludes at `1`, default catch-all at `100`. The role
   hard-codes these because firewalld direct rules apply in priority order.
+- Rules are applied to firewalld's **runtime** config and persisted with `firewall-cmd --runtime-to-permanent`,
+  never `firewall-cmd --reload`. A full reload rebuilds the whole ruleset from permanent config and flushes direct
+  iptables rules other tools own outside firewalld - on a Kubernetes node that wipes Cilium's pod-egress
+  masquerade chain (`pod → external` starts timing out while host egress still works). Runtime add/remove leaves
+  those chains untouched.

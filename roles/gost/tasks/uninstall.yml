@@ -21,72 +21,74 @@
 - name: "Remove gost firewall rules on RHEL family"
   when: "ansible_os_family == 'RedHat'"
   block:
+    # Mirror install: operate on the *runtime* config and persist with
+    # `--runtime-to-permanent` rather than `--reload`, so tearing gost down
+    # never flushes another tool's direct iptables rules (e.g. Cilium).
     - name: "Remove catch-all REDIRECT for default route (PREROUTING)"
       ansible.builtin.command: >
-        firewall-cmd --permanent --direct --remove-rule ipv4 nat PREROUTING 100
+        firewall-cmd --direct --remove-rule ipv4 nat PREROUTING 100
         -s {{ gost_docker_cidr }} -p tcp
         -j REDIRECT --to-ports {{ _gost_default_instance.listen_port }}
-      register: "fw_result"
-      changed_when: "'NOT_ENABLED' not in fw_result.stderr"
-      failed_when: "fw_result.rc != 0 and 'NOT_ENABLED' not in fw_result.stderr"
+      register: "fw_cat_pre_rm"
+      changed_when: "'NOT_ENABLED' not in fw_cat_pre_rm.stderr"
+      failed_when: "fw_cat_pre_rm.rc != 0 and 'NOT_ENABLED' not in fw_cat_pre_rm.stderr"
       when: "_gost_default_instance | length > 0"
 
     - name: "Remove catch-all REDIRECT for default route (OUTPUT)"
       ansible.builtin.command: >
-        firewall-cmd --permanent --direct --remove-rule ipv4 nat OUTPUT 100
+        firewall-cmd --direct --remove-rule ipv4 nat OUTPUT 100
         -p tcp -j REDIRECT --to-ports {{ _gost_default_instance.listen_port }}
-      register: "fw_result"
-      changed_when: "'NOT_ENABLED' not in fw_result.stderr"
-      failed_when: "fw_result.rc != 0 and 'NOT_ENABLED' not in fw_result.stderr"
+      register: "fw_cat_out_rm"
+      changed_when: "'NOT_ENABLED' not in fw_cat_out_rm.stderr"
+      failed_when: "fw_cat_out_rm.rc != 0 and 'NOT_ENABLED' not in fw_cat_out_rm.stderr"
       when: "_gost_default_instance | length > 0"
 
     - name: "Remove RETURN excludes for default-route (PREROUTING)"
       ansible.builtin.command: >
-        firewall-cmd --permanent --direct --remove-rule ipv4 nat PREROUTING 1
+        firewall-cmd --direct --remove-rule ipv4 nat PREROUTING 1
         -s {{ gost_docker_cidr }} -d {{ item }} -p tcp -j RETURN
-      register: "fw_result"
-      changed_when: "'NOT_ENABLED' not in fw_result.stderr"
-      failed_when: "fw_result.rc != 0 and 'NOT_ENABLED' not in fw_result.stderr"
+      register: "fw_ret_pre_rm"
+      changed_when: "'NOT_ENABLED' not in fw_ret_pre_rm.stderr"
+      failed_when: "fw_ret_pre_rm.rc != 0 and 'NOT_ENABLED' not in fw_ret_pre_rm.stderr"
       loop: "{{ _gost_default_excludes }}"
       when: "_gost_default_instance | length > 0"
 
     - name: "Remove RETURN excludes for default-route (OUTPUT)"
       ansible.builtin.command: >
-        firewall-cmd --permanent --direct --remove-rule ipv4 nat OUTPUT 1
+        firewall-cmd --direct --remove-rule ipv4 nat OUTPUT 1
         -d {{ item }} -p tcp -j RETURN
-      register: "fw_result"
-      changed_when: "'NOT_ENABLED' not in fw_result.stderr"
-      failed_when: "fw_result.rc != 0 and 'NOT_ENABLED' not in fw_result.stderr"
+      register: "fw_ret_out_rm"
+      changed_when: "'NOT_ENABLED' not in fw_ret_out_rm.stderr"
+      failed_when: "fw_ret_out_rm.rc != 0 and 'NOT_ENABLED' not in fw_ret_out_rm.stderr"
       loop: "{{ _gost_default_excludes }}"
       when: "_gost_default_instance | length > 0"
 
     - name: "Remove selective REDIRECT for instance IPs (PREROUTING)"
       ansible.builtin.command: >
-        firewall-cmd --permanent --direct --remove-rule ipv4 nat PREROUTING 0
+        firewall-cmd --direct --remove-rule ipv4 nat PREROUTING 0
         -s {{ gost_docker_cidr }} -d {{ item.1.ip }} -p tcp
         -j REDIRECT --to-ports {{ item.0.listen_port }}
-      register: "fw_result"
-      changed_when: "'NOT_ENABLED' not in fw_result.stderr"
-      failed_when: "fw_result.rc != 0 and 'NOT_ENABLED' not in fw_result.stderr"
+      register: "fw_sel_pre_rm"
+      changed_when: "'NOT_ENABLED' not in fw_sel_pre_rm.stderr"
+      failed_when: "fw_sel_pre_rm.rc != 0 and 'NOT_ENABLED' not in fw_sel_pre_rm.stderr"
       loop: "{{ gost_instances | subelements('redirects', skip_missing=True) }}"
       loop_control:
         label: "{{ item.0.name }} -> {{ item.1.ip }}"
 
     - name: "Remove selective REDIRECT for instance IPs (OUTPUT)"
       ansible.builtin.command: >
-        firewall-cmd --permanent --direct --remove-rule ipv4 nat OUTPUT 0
+        firewall-cmd --direct --remove-rule ipv4 nat OUTPUT 0
         -d {{ item.1.ip }} -p tcp -j REDIRECT --to-ports {{ item.0.listen_port }}
-      register: "fw_result"
-      changed_when: "'NOT_ENABLED' not in fw_result.stderr"
-      failed_when: "fw_result.rc != 0 and 'NOT_ENABLED' not in fw_result.stderr"
+      register: "fw_sel_out_rm"
+      changed_when: "'NOT_ENABLED' not in fw_sel_out_rm.stderr"
+      failed_when: "fw_sel_out_rm.rc != 0 and 'NOT_ENABLED' not in fw_sel_out_rm.stderr"
       loop: "{{ gost_instances | subelements('redirects', skip_missing=True) }}"
       loop_control:
         label: "{{ item.0.name }} -> {{ item.1.ip }}"
 
-    - name: "Reload firewalld"
-      ansible.builtin.service:
-        name: "firewalld"
-        state: "reloaded"
+    - name: "Persist runtime firewall rules (no reload — keeps CNI rules intact)"
+      ansible.builtin.command: "firewall-cmd --runtime-to-permanent"
+      changed_when: true
 
 - name: "Stop and disable gost instances"
   ansible.builtin.systemd:
