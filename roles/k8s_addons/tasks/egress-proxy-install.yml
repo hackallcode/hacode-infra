@@ -1,0 +1,76 @@
+# Requires Kyverno (k8s_addons_kyverno_enabled: true). Mutates pods in the
+# labelled namespaces to add an init container (iptables REDIRECT of outbound
+# TCP into a local port, inside the pod netns) plus a gost sidecar that
+# forwards captured traffic to the configured forwarder. App manifests are
+# never touched; interception in the pod netns is CNI-agnostic.
+
+- name: "Validate egress-proxy forwarder host is set"
+  tags: ["egress-proxy-install"]
+  ansible.builtin.assert:
+    that: "(k8s_addons_egress_proxy_forwarder.host | default('') | length) > 0"
+    fail_msg: >-
+      Set `k8s_addons_egress_proxy_forwarder.host` (and scheme/port; user/pass
+      optional) to install the egress proxy.
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Warn when no target namespaces are set"
+  tags: ["egress-proxy-install"]
+  ansible.builtin.debug:
+    msg: >-
+      k8s_addons_egress_proxy_namespaces is empty - the ClusterPolicy is
+      applied but nothing is labelled, so no pod gets the sidecar yet.
+  when: "(k8s_addons_egress_proxy_namespaces | length) == 0"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Create forwarder credentials Secret in each target namespace"
+  tags: ["egress-proxy-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition:
+      apiVersion: "v1"
+      kind: "Secret"
+      metadata:
+        name: "{{ k8s_addons_egress_proxy_secret_name }}"
+        namespace: "{{ item }}"
+      type: "Opaque"
+      stringData:
+        user: "{{ k8s_addons_egress_proxy_forwarder.user | default('') }}"
+        pass: "{{ k8s_addons_egress_proxy_forwarder.pass | default('') }}"
+  loop: "{{ k8s_addons_egress_proxy_namespaces }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+  no_log: true
+
+- name: "Label target namespaces for sidecar injection"
+  tags: ["egress-proxy-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition:
+      apiVersion: "v1"
+      kind: "Namespace"
+      metadata:
+        name: "{{ item }}"
+        # dict built via Jinja so the label KEY is templated (Ansible does not
+        # reliably template dict keys written inline).
+        labels: "{{ {k8s_addons_egress_proxy_namespace_label: k8s_addons_egress_proxy_namespace_label_value} }}"
+  loop: "{{ k8s_addons_egress_proxy_namespaces }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Apply egress-proxy injection ClusterPolicy"
+  tags: ["egress-proxy-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition: "{{ lookup('template', 'egress-proxy-policy.yaml.j2') | from_yaml }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false

@@ -360,3 +360,82 @@ k8s_addons_cert_manager_chart_timeout: "5m0s"
 k8s_addons_cert_manager_namespace: "cert-manager"
 # Extra helm values (deep-merged over {crds: {enabled, keep}}).
 k8s_addons_cert_manager_extra_values: {}
+
+# ===== Kyverno (policy engine; required by the egress-proxy addon) =====
+# Generic admission policy engine. Enabled on its own so other addons (e.g.
+# egress-proxy) or the operator can rely on it. Per-cluster opt-in.
+k8s_addons_kyverno_enabled: false
+
+# Pinned chart version. Repo: https://kyverno.github.io/kyverno/.
+k8s_addons_kyverno_chart_version: "3.2.6"
+
+# Helm chart install timeout. Kyverno rolls out admission + reports +
+# cleanup controllers before `helm --wait` returns Ready, so allow slack.
+k8s_addons_kyverno_chart_timeout: "10m0s"
+
+k8s_addons_kyverno_namespace: "kyverno"
+
+# Extra helm values deep-merged over the chart defaults (user wins).
+k8s_addons_kyverno_extra_values: {}
+
+# ===== Egress proxy (transparent per-pod egress via injected sidecar) =====
+# Kyverno mutates pods in the labelled namespaces to add an init container
+# (iptables REDIRECT of outbound TCP into a local port, inside the pod netns)
+# plus a gost sidecar forwarding captured traffic to `_forwarder`. App
+# manifests stay untouched; interception in the pod netns is CNI-agnostic
+# (works where host-level REDIRECT/routing can't, e.g. a Cilium node that owns
+# pod egress). Requires `k8s_addons_kyverno_enabled: true`.
+k8s_addons_egress_proxy_enabled: false
+
+# Forwarder the sidecar sends captured traffic to. `scheme` is any gost `-F`
+# scheme (socks5, http, socks4, ss, ...). user/pass optional; when set they
+# live in a Secret and are referenced via shell env (never baked into policy).
+k8s_addons_egress_proxy_forwarder:
+  scheme: "socks5"
+  host: ""
+  port: 1080
+  user: ""
+  pass: ""
+
+# Namespaces whose pods get the sidecar. The addon labels them; the policy
+# matches on that label. Leave empty to apply the policy but label manually.
+k8s_addons_egress_proxy_namespaces: []
+# Label key/value the ClusterPolicy's namespaceSelector matches on; also
+# what the role writes onto the namespaces in `_namespaces` above. Rename
+# both together to avoid dangling labels the policy no longer sees.
+k8s_addons_egress_proxy_namespace_label: "egress-proxy"
+k8s_addons_egress_proxy_namespace_label_value: "socks"
+
+# Destination scope. `exclude_cidrs` always RETURN (bypass) - cluster/RFC1918/
+# loopback/link-local by default so pod<->pod/svc/DNS and the forwarder uplink
+# stay direct. If `include_cidrs` is non-empty ONLY those destinations are
+# redirected; empty means "all outbound TCP except the excludes".
+k8s_addons_egress_proxy_exclude_cidrs:
+  - "10.0.0.0/8"
+  - "127.0.0.0/8"
+  - "169.254.0.0/16"
+  - "172.16.0.0/12"
+  - "192.168.0.0/16"
+k8s_addons_egress_proxy_include_cidrs: []
+
+# Redir port the sidecar listens on and the uid it runs as. The init
+# container's OUTPUT chain has `--uid-owner {{ uid }} -j RETURN` above the
+# EGRESS_PROXY hook so the sidecar's own forwarder uplink escapes the
+# redirect loop; port and uid MUST stay in sync with that chain.
+k8s_addons_egress_proxy_listen_port: 15001
+k8s_addons_egress_proxy_uid: 15001
+
+# Sidecar image must ship `/bin/gost` and `/bin/sh`; init image must ship
+# `iptables`. Pinned images so the injected pod spec is reproducible.
+k8s_addons_egress_proxy_sidecar_image: "docker.io/gogost/gost:3.2.4"
+k8s_addons_egress_proxy_init_image: "docker.io/nicolaka/netshoot:v0.13"
+
+# Names of the Secret (in each target namespace) and the ClusterPolicy the
+# role creates. Change only if they'd collide with something already in the
+# cluster.
+k8s_addons_egress_proxy_secret_name: "egress-proxy-forwarder"
+k8s_addons_egress_proxy_policy_name: "inject-egress-proxy-sidecar"
+
+# Kyverno webhook failurePolicy for the injection - Ignore keeps pod admission
+# working when Kyverno is down (pods just come up without the sidecar).
+k8s_addons_egress_proxy_policy_failure_policy: "Ignore"

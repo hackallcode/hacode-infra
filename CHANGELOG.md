@@ -7,6 +7,18 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added
+
+- `k8s_addons`: Kyverno addon (Helm chart) — generic admission policy
+  engine, opt-in via `k8s_addons_kyverno_enabled`.
+- `k8s_addons`: egress proxy addon. A Kyverno `ClusterPolicy` injects an
+  init container (iptables REDIRECT of outbound TCP inside the pod
+  netns, minus `_exclude_cidrs` and the sidecar's own uid) plus a
+  gost sidecar forwarding captured traffic to `_forwarder`. Interception
+  in the pod netns is CNI-agnostic (works where host-level REDIRECT can't,
+  e.g. a Cilium node that owns pod egress). Requires
+  `k8s_addons_kyverno_enabled: true`.
+
 ### Fixed
 
 - `gost`: manage firewalld direct rules through the runtime config +
