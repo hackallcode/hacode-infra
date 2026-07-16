@@ -10,10 +10,20 @@
 {% set includes = k8s_addons_egress_proxy_include_cidrs %}
 {% set has_auth = (fw.user | default('') | length) > 0 %}
 {% set fw_url = fw.scheme ~ '://' ~ ('${EGRESS_PROXY_USER}:${EGRESS_PROXY_PASS}@' if has_auth else '') ~ fw.host ~ ':' ~ (fw.port | string) %}
+{% set exclude_rc = k8s_addons_egress_proxy_exclude_runtime_classes %}
+{% set optout_label = k8s_addons_egress_proxy_optout_label %}
 apiVersion: "kyverno.io/v1"
 kind: "ClusterPolicy"
 metadata:
   name: "{{ k8s_addons_egress_proxy_policy_name }}"
+  annotations:
+    # Evaluate ONLY at Pod admission, not via controller autogen. Autogen
+    # rules run against the Deployment/StatefulSet, where the opt-out label
+    # (and runtimeClassName) live under spec.template - so a pod-level label
+    # selector / precondition wouldn't see them and the opt-out would silently
+    # fail. Every pod still goes through Pod admission, so injection coverage
+    # is unchanged.
+    pod-policies.kyverno.io/autogen-controllers: "none"
 spec:
   background: false
   # If Kyverno is unavailable, don't block pod admission in matched
@@ -28,12 +38,39 @@ spec:
               namespaceSelector:
                 matchLabels:
                   "{{ k8s_addons_egress_proxy_namespace_label }}": "{{ k8s_addons_egress_proxy_namespace_label_value }}"
+      # Per-pod opt-out via a native label selector. A pod labelled
+      # `{{ optout_label }}: "false"` is skipped - e.g. runAsNonRoot pods that
+      # reject the root init, or pods with their own egress policy. Done as an
+      # `exclude` selector (not a JMESPath precondition) because reading a pod
+      # label through `request.object.metadata.labels."..."` proved unreliable
+      # here, whereas a label selector matches natively.
+      exclude:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              selector:
+                matchLabels:
+                  "{{ optout_label }}": "false"
       preconditions:
         all:
           # skip pods that already carry the sidecar (idempotency / restarts)
           - key: "egress-proxy-sidecar"
             operator: "AnyNotIn"
             value: "{{ '{{' }} request.object.spec.containers[].name {{ '}}' }}"
+          # skip excluded runtime classes - gVisor (runsc) can't do iptables/nft,
+          # so the init would fail and the pod would never start. JMESPath string
+          # literals are SINGLE-quoted; 'none' is a never-matching sentinel for
+          # pods without a runtimeClass (double-quoted "" is a field ref -> null).
+          - key: "{{ '{{' }} request.object.spec.runtimeClassName || 'none' {{ '}}' }}"
+            operator: "AllNotIn"
+            value: [{% for rc in exclude_rc %}"{{ rc }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+          # skip pods that require non-root: the init must run as root for
+          # iptables, so kubelet rejects it (CreateContainerConfigError) in a
+          # pod whose securityContext sets runAsNonRoot: true. Backtick `false`
+          # is a JMESPath JSON literal so the compare stays boolean-typed.
+          - key: "{{ '{{' }} request.object.spec.securityContext.runAsNonRoot || `false` {{ '}}' }}"
+            operator: "Equals"
+            value: false
       mutate:
         patchStrategicMerge:
           spec:
@@ -42,6 +79,12 @@ spec:
                 image: "{{ k8s_addons_egress_proxy_init_image }}"
                 imagePullPolicy: "IfNotPresent"
                 securityContext:
+                  # The init needs root for iptables. Pods that enforce
+                  # pod-level runAsNonRoot therefore can't take this init
+                  # (kubelet rejects the root container, and Kyverno's
+                  # patchStrategicMerge drops a container-level `runAsNonRoot:
+                  # false` override) - opt those pods out via
+                  # `{{ optout_label }}: "false"`.
                   runAsUser: 0
                   capabilities:
                     add: ["NET_ADMIN", "NET_RAW"]

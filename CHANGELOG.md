@@ -17,7 +17,17 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   gost sidecar forwarding captured traffic to `_forwarder`. Interception
   in the pod netns is CNI-agnostic (works where host-level REDIRECT can't,
   e.g. a Cilium node that owns pod egress). Requires
-  `k8s_addons_kyverno_enabled: true`.
+  `k8s_addons_kyverno_enabled: true`. Three opt-out knobs skip pods that
+  can't take the injection: `_exclude_runtime_classes` (default
+  `["gvisor"]` — runsc can't do iptables/nft, the init would fail), the
+  `_optout_label` label (`egress-proxy-inject: "false"` on a pod
+  bypasses injection — for e.g. runAsNonRoot pods or workloads with
+  their own egress policy), and a native check on
+  `spec.securityContext.runAsNonRoot: true` (the init needs root for
+  iptables, so kubelet would reject it — skip up-front). Kyverno
+  controller autogen is disabled on the policy so pod-level labels /
+  runtimeClassName are read at the Pod path, not from
+  `spec.template.*`.
 
 ### Fixed
 

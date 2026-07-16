@@ -500,6 +500,8 @@ retrofitted** — recreate (roll) the workloads to pick up the sidecar.
 | `k8s_addons_egress_proxy_namespace_label` / `_value` | `egress-proxy` / `socks` | label key / value the ClusterPolicy's `namespaceSelector` matches on; also what the role writes onto `_namespaces` |
 | `k8s_addons_egress_proxy_exclude_cidrs` | RFC1918 + loopback + link-local | always bypass the proxy (keeps pod↔pod/svc/DNS and the forwarder uplink direct) |
 | `k8s_addons_egress_proxy_include_cidrs` | `[]` | empty = all outbound TCP; else only these destinations are REDIRECTed |
+| `k8s_addons_egress_proxy_exclude_runtime_classes` | `["gvisor"]` | pods on these `runtimeClassName`s are never injected - gVisor (runsc) can't do iptables/nft so the init would fail the pod |
+| `k8s_addons_egress_proxy_optout_label` | `egress-proxy-inject` | a pod carrying `<label>: "false"` is skipped (e.g. `runAsNonRoot` pods that reject the root init, or pods with their own egress policy) |
 | `k8s_addons_egress_proxy_listen_port` / `_uid` | `15001` / `15001` | sidecar redir port / uid; the uid is excluded from the OUTPUT redirect so the sidecar's own uplink escapes |
 | `k8s_addons_egress_proxy_sidecar_image` | `docker.io/gogost/gost:3.2.4` | must contain `/bin/gost` and `/bin/sh` |
 | `k8s_addons_egress_proxy_init_image` | `docker.io/nicolaka/netshoot:v0.13` | must contain `iptables` |

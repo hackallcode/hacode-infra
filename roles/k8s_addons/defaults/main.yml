@@ -418,6 +418,17 @@ k8s_addons_egress_proxy_exclude_cidrs:
   - "192.168.0.0/16"
 k8s_addons_egress_proxy_include_cidrs: []
 
+# Pods on these runtime classes are never injected - the init needs
+# iptables/nft, which gVisor (runsc) doesn't support, so its init would fail
+# and the pod would never start.
+k8s_addons_egress_proxy_exclude_runtime_classes:
+  - "gvisor"
+
+# Per-pod opt-out: a pod carrying `<label>: "false"` is skipped. Use for pods
+# that enforce runAsNonRoot (the init runs as root) or manage their own egress.
+# Absent/any other value = injected.
+k8s_addons_egress_proxy_optout_label: "egress-proxy-inject"
+
 # Redir port the sidecar listens on and the uid it runs as. The init
 # container's OUTPUT chain has `--uid-owner {{ uid }} -j RETURN` above the
 # EGRESS_PROXY hook so the sidecar's own forwarder uplink escapes the
