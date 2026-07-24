@@ -73,21 +73,27 @@
     name: "{{ 'procps-ng' if ansible_os_family == 'RedHat' else 'procps' }}"
     state: "present"
 
-- name: "Get running kernel version (RedHat)"
+- name: "Gather installed packages (RedHat)"
   tags: ["install"]
-  ansible.builtin.command: "uname -r"
-  register: "uname_r"
-  changed_when: false
+  ansible.builtin.package_facts:
+    manager: "auto"
   when: "ansible_os_family == 'RedHat'"
 
-- name: "Install extra kernel modules package matching running kernel (RedHat) for br_netfilter, xt_addrtype, etc."
+# Cover every installed kernel, not just the running one: a `dnf upgrade`
+# stages a newer kernel that a later reboot boots into, and the matching
+# `kernel-modules-extra` (`br_netfilter`, `xt_addrtype`, ...) must be present
+# or Docker's bridge setup fails on that first post-reboot boot.
+- name: "Install kernel-modules-extra for every installed kernel (RedHat)"
   tags: ["install"]
   ansible.builtin.package:
-    name: "kernel-modules-extra-{{ uname_r.stdout }}"
+    name: "kernel-modules-extra-{{ item.version }}-{{ item.release }}.{{ item.arch }}"
     state: "present"
+  loop: "{{ ansible_facts.packages['kernel-core'] | default([]) }}"
+  loop_control:
+    label: "{{ item.version }}-{{ item.release }}.{{ item.arch }}"
   when:
     - "ansible_os_family == 'RedHat'"
-    - "'el' in uname_r.stdout"
+    - "'el' in item.release"
   register: "kme_install"
   failed_when:
     - "kme_install.failed | default(false)"
@@ -166,6 +172,15 @@
     sysctl_file: "/etc/sysctl.d/99-docker.conf"
     reload: true
     state: "present"
+
+- name: "Render /etc/docker/daemon.json"
+  tags: ["install"]
+  ansible.builtin.copy:
+    dest: "/etc/docker/daemon.json"
+    content: "{{ docker_daemon_config | to_nice_json }}\n"
+    mode: "0644"
+  when: "docker_daemon_config | length > 0"
+  notify: "Restart docker"
 
 - name: "Start and enable Docker"
   tags: ["install"]

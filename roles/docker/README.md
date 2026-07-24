@@ -29,6 +29,7 @@ templates, certificate copy and permissions, then includes `compose` for the fin
 | --- | --- | --- |
 | `docker_repo_baseurl` | `""` | override docker-ce.repo with a custom mirror baseurl on RHEL family |
 | `docker_repo_gpgcheck` | `false` | enable GPG check on packages from the custom mirror |
+| `docker_daemon_config` | `{}` | rendered verbatim to `/etc/docker/daemon.json` when non-empty (a `Restart docker` handler applies changes). Empty means the role writes no `daemon.json`. Typical use: opt out of the containerd image store on Docker 28+/29 (`features.containerd-snapshotter: false`) so pulls through registries without the referrers API (GitLab dep proxy) keep working. |
 | `docker_install_user` | `""` | when non-empty, create a system user with that name in the `docker` group (no-login shell, home `/var/lib/<name>`). Useful for compose isolation. |
 
 ## Examples

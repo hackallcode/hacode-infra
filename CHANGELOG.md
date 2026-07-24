@@ -9,6 +9,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `docker` role: `docker_daemon_config` (dict, default `{}`) — rendered to
+  `/etc/docker/daemon.json` when non-empty, with a `Restart docker` handler
+  applying changes. Enables e.g. opting out of the containerd image store on
+  Docker 28+/29 (`features.containerd-snapshotter: false`), whose referrers
+  API breaks pulls through registries that don't implement it (GitLab's
+  dependency proxy).
+
 - `k8s_addons`: Kyverno addon (Helm chart) — generic admission policy
   engine, opt-in via `k8s_addons_kyverno_enabled`.
 - `k8s_addons`: egress proxy addon. A Kyverno `ClusterPolicy` injects an
@@ -30,6 +37,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `spec.template.*`.
 
 ### Fixed
+
+- `docker` role (RHEL family): `kernel-modules-extra` is now installed for
+  **every** installed kernel (via `rpm -q kernel-core`), not only the
+  running one (`uname -r`). A `dnf upgrade` stages a newer kernel that a
+  later reboot boots into; without the matching
+  `kernel-modules-extra-<VERSION>` already present, `br_netfilter` /
+  `xt_addrtype` are missing on that first post-reboot boot and Docker's
+  bridge setup fails.
 
 - `gost`: manage firewalld direct rules through the runtime config +
   `firewall-cmd --runtime-to-permanent` instead of `--permanent` +
