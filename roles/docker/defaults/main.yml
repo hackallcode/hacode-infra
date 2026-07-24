@@ -25,6 +25,16 @@ docker_repo_baseurl: ""
 docker_repo_gpgcheck: false
 docker_repo_enabled: true
 
+# Extra Docker daemon settings, rendered to /etc/docker/daemon.json when
+# non-empty (a Restart docker handler applies changes). Left empty by default
+# so the role writes no daemon.json. Example — opt out of the containerd image
+# store on Docker 28+/29 (its referrers API breaks pulls through registries
+# that don't implement it, e.g. GitLab's dependency proxy):
+#   docker_daemon_config:
+#     features:
+#       containerd-snapshotter: false
+docker_daemon_config: {}
+
 # Optional system user with `docker` group membership, created after the
 # engine is installed. Useful for compose isolation when you don't want
 # `docker compose` to run as root or as a human's account. Empty -> no
