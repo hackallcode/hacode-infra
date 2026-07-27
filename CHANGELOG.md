@@ -38,6 +38,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `gitlab_runner` role: registration idempotency. `gitlab-runner list`
+  writes its inventory to stderr (not stdout); the "already-registered"
+  check only looked at stdout and treated every host as unregistered,
+  registering the runner again on each play (duplicate entries in
+  GitLab). Match against `stdout ~ stderr` so the check keys off
+  whichever stream carries the name.
+
 - `docker` role (RHEL family): `kernel-modules-extra` is now installed for
   **every** installed kernel (via `rpm -q kernel-core`), not only the
   running one (`uname -r`). A `dnf upgrade` stages a newer kernel that a
