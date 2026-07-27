@@ -66,5 +66,5 @@
   no_log: true
   notify: "Restart gitlab runner"
   when: >-
-    (runner_list_res.stdout | default('')
+    ((runner_list_res.stdout | default('')) ~ (runner_list_res.stderr | default(''))
       | regex_search('(?m)^' ~ (runner_name | regex_escape) ~ '(\\s|$)')) is none
