@@ -7,7 +7,7 @@ Install k3s server and agent nodes; fetch and rewrite kubeconfig to the controll
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `k3s_channel` | `stable` | release channel when `k3s_version` is empty |
-| `k3s_version` | `""` | pin specific version like `v1.32.0+k3s1` |
+| `k3s_version` | `""` | pin a specific version like `v1.32.0+k3s1`. Changes are picked up on re-run: the role compares the pinned version against `k3s --version` and re-invokes the installer (which does an in-place upgrade + service restart) when they differ |
 | `k3s_token` | `""` | shared cluster token; must be set per inventory |
 | `k3s_server_args` | `[]` | extra flags for `k3s server`. Changes here are picked up on re-run: the role compares the desired `ExecStart=` against `/etc/systemd/system/k3s.service` and reinstalls + restarts k3s when they drift |
 | `k3s_agent_args` | `[]` | extra flags for `k3s agent`. Same drift detection as `k3s_server_args` — re-run reinstalls + restarts `k3s-agent` when the unit's `ExecStart=` doesn't match |

@@ -99,6 +99,25 @@
     k3s_agent_unit_present: "{{ _unit_present }}"
     k3s_agent_args_drift: "{{ _unit_present and (_current_exec != _expected_normalized) }}"
 
+# See install-server.yml for the version-drift detection rationale.
+- name: "Read installed k3s version (upgrade detection)"
+  tags: ["install"]
+  ansible.builtin.command: "/usr/local/bin/k3s --version"
+  register: "k3s_installed_version_raw"
+  changed_when: false
+  failed_when: false
+  when:
+    - "k3s_agent_unit_present"
+    - "k3s_version | length > 0"
+
+- name: "Detect pinned k3s version differs from installed"
+  tags: ["install"]
+  ansible.builtin.set_fact:
+    k3s_version_drift: >-
+      {{ k3s_agent_unit_present
+         and (k3s_version | length > 0)
+         and (k3s_version not in (k3s_installed_version_raw.stdout | default(''))) }}
+
 - name: "Run k3s installer (agent)"
   tags: ["install"]
   ansible.builtin.command: "/usr/local/bin/k3s-install.sh"
@@ -109,7 +128,7 @@
     INSTALL_K3S_VERSION: "{{ k3s_version }}"
     INSTALL_K3S_EXEC: "agent {{ k3s_agent_role_args }} {{ k3s_agent_args | join(' ') }}"
   changed_when: true
-  when: "(not k3s_agent_unit_present) or k3s_agent_args_drift"
+  when: "(not k3s_agent_unit_present) or k3s_agent_args_drift or k3s_version_drift"
 
 - name: "Enable and start k3s-agent service"
   tags: ["install"]
