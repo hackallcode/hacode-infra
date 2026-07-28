@@ -16,6 +16,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   API breaks pulls through registries that don't implement it (GitLab's
   dependency proxy).
 
+- `k3s` role: version upgrades. When `k3s_version` is pinned and differs
+  from what `k3s --version` reports on the host, the role re-runs the
+  installer (which performs an in-place upgrade + service restart).
+  Previously the installer was guarded on unit presence + ExecStart drift
+  only, so bumping `k3s_version` on already-installed nodes was a no-op.
+  Detection runs on both servers and agents.
+
 - `k8s_addons`: Kyverno addon (Helm chart) — generic admission policy
   engine, opt-in via `k8s_addons_kyverno_enabled`.
 - `k8s_addons`: egress proxy addon. A Kyverno `ClusterPolicy` injects an

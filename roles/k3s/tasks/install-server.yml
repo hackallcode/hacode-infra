@@ -147,6 +147,28 @@
     k3s_unit_present: "{{ _unit_present }}"
     k3s_server_args_drift: "{{ _unit_present and (_current_exec != _expected_normalized) }}"
 
+# Re-run the installer to upgrade when `k3s_version` is pinned and differs
+# from the installed binary. `k3s --version` prints e.g.
+# `k3s version v1.36.2+k3s1 (…)`, so substring-matching the pinned version
+# against stdout is enough.
+- name: "Read installed k3s version (upgrade detection)"
+  tags: ["install"]
+  ansible.builtin.command: "/usr/local/bin/k3s --version"
+  register: "k3s_installed_version_raw"
+  changed_when: false
+  failed_when: false
+  when:
+    - "k3s_unit_present"
+    - "k3s_version | length > 0"
+
+- name: "Detect pinned k3s version differs from installed"
+  tags: ["install"]
+  ansible.builtin.set_fact:
+    k3s_version_drift: >-
+      {{ k3s_unit_present
+         and (k3s_version | length > 0)
+         and (k3s_version not in (k3s_installed_version_raw.stdout | default(''))) }}
+
 - name: "Run k3s installer (primary server, --cluster-init)"
   tags: ["install"]
   ansible.builtin.command: "/usr/local/bin/k3s-install.sh"
@@ -158,7 +180,7 @@
   changed_when: true
   when:
     - "k3s_is_primary"
-    - "(not k3s_unit_present) or k3s_server_args_drift"
+    - "(not k3s_unit_present) or k3s_server_args_drift or k3s_version_drift"
 
 - name: "Run k3s installer (joining server)"
   tags: ["install"]
@@ -173,7 +195,7 @@
   changed_when: true
   when:
     - "not k3s_is_primary"
-    - "(not k3s_unit_present) or k3s_server_args_drift"
+    - "(not k3s_unit_present) or k3s_server_args_drift or k3s_version_drift"
 
 - name: "Enable and start k3s service"
   tags: ["install"]
