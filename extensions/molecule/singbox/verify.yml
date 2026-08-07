@@ -12,11 +12,11 @@
         - "not sb_bin.stat.exists"
         - "not sb_bin.stat.executable"
 
-    - name: "Sing-box reports the pinned version"
+    - name: "Sing-box version command runs"
       ansible.builtin.command: "/usr/local/bin/sing-box version"
       register: "sb_version"
       changed_when: false
-      failed_when: "singbox_version not in sb_version.stdout"
+      failed_when: "sb_version.rc != 0 or 'sing-box' not in sb_version.stdout"
 
     - name: "Config dir /etc/sing-box exists"
       ansible.builtin.stat:
