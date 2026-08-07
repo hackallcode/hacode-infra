@@ -13,6 +13,14 @@ k3s_server_args: [] # extra flags passed to `k3s server` (after --cluster-init /
 k3s_agent_args: [] # extra flags passed to `k3s agent`
 k3s_tls_san_extra: [] # extra SANs on top of ansible_host (e.g. ["k3s.example.com"])
 
+# Upstream nameservers for kubelet's --resolv-conf (what CoreDNS forwards to via
+# `forward . /etc/resolv.conf`). Set this when the host runs a local stub
+# resolver (systemd-resolved / NetworkManager dnsmasq -> 127.0.0.1): otherwise
+# k3s falls back to a hardcoded 8.8.8.8 + IPv6 resolver, which dead-ends on
+# IPv4-only nodes. Empty -> leave the k3s default. Example: ["10.0.0.53", "1.1.1.1"].
+k3s_resolv_conf: []
+k3s_resolv_conf_path: "/etc/rancher/k3s/resolv.conf"
+
 # IP that this node advertises to the rest of the cluster: kubelet `--node-ip`
 # on all roles, plus apiserver `--advertise-address` on servers. Defaults to
 # `ansible_host` so the address we reach the host on is the address k3s tells
