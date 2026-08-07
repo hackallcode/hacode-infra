@@ -47,7 +47,10 @@
         - "singbox-podset-refresh@.service"
         - "singbox-podset-refresh@.timer"
 
-    - name: "Ipset package installed"
+    - name: "Gather installed packages"
       ansible.builtin.package_facts:
         manager: "auto"
-      failed_when: "'ipset' not in ansible_facts.packages"
+
+    - name: "Ipset package installed"
+      ansible.builtin.assert:
+        that: "'ipset' in ansible_facts.packages"
