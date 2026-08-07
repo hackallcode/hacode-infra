@@ -1,0 +1,14 @@
+- name: "Prepare: refresh apt cache on Debian family"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    # The geerlingguy Ubuntu CI images ship with a stale apt index, so
+    # the role's `apt install ipset` in a fresh converge sees "no package
+    # matching 'ipset'". A single apt-get update fixes it.
+    - name: "Refresh apt cache on Debian family"
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 600
+      when: "ansible_os_family == 'Debian'"
