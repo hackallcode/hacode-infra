@@ -55,10 +55,25 @@
     group: "root"
     mode: "0700"
 
-- name: "Write k3s server config (apiserver tls-san for public IP)"
+- name: "Write curated resolv.conf for kubelet/CoreDNS upstream"
+  tags: ["install"]
+  when: "(k3s_resolv_conf | default([]) | length) > 0"
+  ansible.builtin.copy:
+    content: "{{ k3s_resolv_conf | map('regex_replace', '^', 'nameserver ') | join('\n') }}\n"
+    dest: "{{ k3s_resolv_conf_path }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  register: "k3s_resolv_file"
+
+- name: "Write k3s server config (apiserver tls-san, optional resolv-conf)"
   tags: ["install"]
   ansible.builtin.copy:
-    content: "{{ {'tls-san': ([ansible_host] + (k3s_tls_san_extra | default([])))} | to_nice_yaml }}"
+    content: >-
+      {{ ({'tls-san': ([ansible_host] + (k3s_tls_san_extra | default([])))}
+          | combine({'resolv-conf': k3s_resolv_conf_path}
+                    if (k3s_resolv_conf | default([]) | length > 0) else {}))
+         | to_nice_yaml }}
     dest: "/etc/rancher/k3s/config.yaml"
     owner: "root"
     group: "root"
@@ -214,6 +229,7 @@
     (k3s_apiserver_cert.stat.exists
      and (k3s_config is changed or (force | default(false) | bool)))
     or k3s_server_args_drift | default(false) | bool
+    or (k3s_resolv_file is defined and k3s_resolv_file is changed)
 
 - name: "Wait for kubeconfig file to appear"
   tags: ["install", "kubeconfig"]

@@ -9,6 +9,17 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `k3s` role (server): `k3s_resolv_conf` (list, default `[]`) — upstream
+  nameservers to write into a curated resolv.conf and pass to kubelet
+  via `resolv-conf:` in `/etc/rancher/k3s/config.yaml`. CoreDNS forwards
+  cluster egress to this file (`forward . /etc/resolv.conf`) so it
+  becomes the effective cluster upstream. Set this on nodes that run a
+  local stub resolver (systemd-resolved / NetworkManager dnsmasq →
+  `127.0.0.1`), where k3s otherwise falls back to a hardcoded
+  `8.8.8.8` + IPv6 resolver that dead-ends on IPv4-only hosts. A
+  change re-renders the file and restarts k3s. Path is configurable
+  via `k3s_resolv_conf_path` (default `/etc/rancher/k3s/resolv.conf`).
+
 - `singbox` role — installs [sing-box](https://sing-box.sagernet.org/) as a
   systemd-managed VLESS (+REALITY) egress client. Multi-instance: each
   entry in `singbox_instances` becomes its own `sing-box@<name>.service`
