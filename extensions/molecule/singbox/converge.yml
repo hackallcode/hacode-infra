@@ -1,0 +1,7 @@
+- name: "Converge: singbox role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: "hacode.infra.singbox"

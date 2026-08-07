@@ -1,0 +1,24 @@
+galaxy_info:
+  role_name: "singbox"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: >-
+    Install sing-box as a systemd-managed VLESS egress client; multi-instance
+    with k3s-pods / whole-host / none routing modes.
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+    - name: "Debian"
+      versions: ["bullseye", "bookworm"]
+  galaxy_tags:
+    - "networking"
+    - "proxy"
+    - "vpn"
+    - "singbox"
+    - "vless"
+
+dependencies: []

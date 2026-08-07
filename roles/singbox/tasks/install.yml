@@ -1,0 +1,136 @@
+- name: "Gather architecture fact (release asset naming)"
+  ansible.builtin.setup:
+    gather_subset: ["min"]
+    filter: ["ansible_architecture"]
+  when: "ansible_architecture is not defined"
+
+- name: "Check installed sing-box version"
+  ansible.builtin.command: "{{ singbox_bin_path }} version"
+  register: "singbox_installed"
+  changed_when: false
+  failed_when: false
+
+- name: "Ensure ipset is present"
+  ansible.builtin.package:
+    name: "ipset"
+    state: "present"
+
+- name: "Install pinned sing-box binary"
+  when: "force | default(false) | bool or (singbox_version not in (singbox_installed.stdout | default('')))"
+  block:
+    - name: "Download sing-box {{ singbox_version }}"
+      check_mode: false
+      ansible.builtin.get_url:
+        url: "{{ singbox_download_url }}"
+        dest: "/tmp/sing-box-{{ singbox_version }}.tar.gz"
+        mode: "0644"
+        timeout: 120
+
+    - name: "Unpack sing-box"
+      check_mode: false
+      ansible.builtin.unarchive:
+        src: "/tmp/sing-box-{{ singbox_version }}.tar.gz"
+        remote_src: true
+        dest: "/tmp/"
+
+    - name: "Install sing-box binary"
+      ansible.builtin.copy:
+        src: "/tmp/sing-box-{{ singbox_version }}-linux-{{ singbox_arch }}/sing-box"
+        remote_src: true
+        dest: "{{ singbox_bin_path }}"
+        mode: "0755"
+      register: "singbox_bin_install"
+
+- name: "Ensure /etc/sing-box exists"
+  ansible.builtin.file:
+    path: "/etc/sing-box"
+    state: "directory"
+    mode: "0755"
+
+- name: "Install routing helper scripts"
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    mode: "0755"
+  loop:
+    - "singbox-route.sh"
+    - "singbox-podset-refresh.sh"
+
+- name: "Install systemd template units"
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - "sing-box@.service"
+    - "singbox-podset-refresh@.service"
+    - "singbox-podset-refresh@.timer"
+  register: "singbox_units"
+
+- name: "Render per-instance sing-box config"
+  ansible.builtin.template:
+    src: "config.json.j2"
+    dest: "/etc/sing-box/{{ instance.name }}.json"
+    mode: "0600"
+  loop: "{{ singbox_instances }}"
+  loop_control:
+    loop_var: "instance"
+    index_var: "idx"
+    label: "{{ instance.name }}"
+  register: "singbox_cfg"
+  no_log: true
+
+- name: "Render per-instance route env"
+  ansible.builtin.template:
+    src: "route.env.j2"
+    dest: "/etc/sing-box/{{ instance.name }}.route.env"
+    mode: "0644"
+  loop: "{{ singbox_instances }}"
+  loop_control:
+    loop_var: "instance"
+    index_var: "idx"
+    label: "{{ instance.name }}"
+  register: "singbox_env"
+
+- name: "Enable and start sing-box instances"
+  ansible.builtin.systemd:
+    name: "sing-box@{{ instance.name }}"
+    state: "started"
+    enabled: true
+    daemon_reload: true
+  loop: "{{ singbox_instances }}"
+  loop_control:
+    loop_var: "instance"
+    label: "{{ instance.name }}"
+  when: "not ansible_check_mode"
+
+- name: "Restart instances when binary, config or unit changed"
+  ansible.builtin.systemd:
+    name: "sing-box@{{ instance.name }}"
+    state: "restarted"
+  loop: "{{ singbox_instances }}"
+  loop_control:
+    loop_var: "instance"
+    index_var: "idx"
+    label: "{{ instance.name }}"
+  when:
+    - "not ansible_check_mode"
+    - >-
+      (singbox_bin_install is defined and singbox_bin_install is changed)
+      or (singbox_units is changed)
+      or (singbox_cfg.results[idx] is changed)
+      or (singbox_env.results[idx] is changed)
+      or (force | default(false) | bool)
+
+- name: "Enable and start pod-ipset refresh timer (k3s-pods instances)"
+  ansible.builtin.systemd:
+    name: "singbox-podset-refresh@{{ instance.name }}.timer"
+    state: "started"
+    enabled: true
+  loop: "{{ singbox_instances }}"
+  loop_control:
+    loop_var: "instance"
+    label: "{{ instance.name }}"
+  when:
+    - "not ansible_check_mode"
+    - "(instance.routing_mode | default('none')) == 'k3s-pods'"

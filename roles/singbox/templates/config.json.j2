@@ -1,0 +1,38 @@
+{
+  "log": { "level": "info", "timestamp": true },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "{{ instance.tun_name | default('sbx-' ~ instance.name) }}",
+      "address": ["{{ instance.tun_address | default('172.19.' ~ idx ~ '.1/30') }}"],
+      "mtu": {{ instance.mtu | default(1400) }},
+      "auto_route": false,
+      "strict_route": false,
+      "stack": "gvisor"
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-out",
+      "server": "{{ instance.vless.server }}",
+      "server_port": {{ instance.vless.port }},
+      "uuid": "{{ instance.vless.uuid }}",
+      "flow": "{{ instance.vless.flow | default('xtls-rprx-vision') }}",
+      "tls": {
+        "enabled": true,
+        "server_name": "{{ instance.vless.sni | default(instance.vless.server) }}",
+        "utls": { "enabled": true, "fingerprint": "{{ instance.vless.fingerprint | default('chrome') }}" }{% if instance.vless.reality_public_key is defined %},
+        "reality": {
+          "enabled": true,
+          "public_key": "{{ instance.vless.reality_public_key }}",
+          "short_id": "{{ instance.vless.short_id | default('') }}"
+        }{% endif %}
+
+      }
+    },
+    { "type": "direct", "tag": "direct" }
+  ],
+  "route": { "auto_detect_interface": true, "final": "vless-out" }
+}
