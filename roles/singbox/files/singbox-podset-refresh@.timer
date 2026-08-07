@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodic refresh of sing-box scoped pod ipset (%i)
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=20
+AccuracySec=5
+Unit=singbox-podset-refresh@%i.service
+
+[Install]
+WantedBy=timers.target

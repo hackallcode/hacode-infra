@@ -101,6 +101,7 @@ jobs:
           - "k8s_addons"
           - "maria_db"
           - "node_js"
+          - "singbox"
           - "ssh_tunnel"
     steps:
       - name: "Check out collection"

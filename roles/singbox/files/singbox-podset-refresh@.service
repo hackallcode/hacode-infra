@@ -1,0 +1,8 @@
+[Unit]
+Description=Refresh sing-box scoped pod ipset (%i)
+After=sing-box@%i.service
+BindsTo=sing-box@%i.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/singbox-podset-refresh.sh %i

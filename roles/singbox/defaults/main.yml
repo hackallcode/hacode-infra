@@ -1,0 +1,56 @@
+# sing-box version to install. Override per-inventory to pin a different release.
+singbox_version: "1.13.16"
+
+# Release asset arch tag, mapped from ansible_architecture
+# (x86_64 -> amd64, aarch64 -> arm64); override directly for a custom mapping.
+singbox_arch: >-
+  {{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64', 'armv7l': 'armv7'}
+     .get(ansible_architecture | default('x86_64'), 'amd64') }}
+
+# yamllint disable-line rule:line-length
+singbox_download_url: "https://github.com/SagerNet/sing-box/releases/download/v{{ singbox_version }}/sing-box-{{ singbox_version }}-linux-{{ singbox_arch }}.tar.gz"
+
+singbox_bin_path: "/usr/local/bin/sing-box"
+
+# Destinations kept OFF the tunnel by default (private / cluster / loopback /
+# link-local) so only public egress goes through VLESS. Override per instance
+# with `local_dests`. 10.0.0.0/8 covers typical k3s pod/service CIDRs and
+# private node subnets in one line.
+singbox_default_local_dests:
+  - "10.0.0.0/8"
+  - "172.16.0.0/12"
+  - "192.168.0.0/16"
+  - "169.254.0.0/16"
+  - "127.0.0.0/8"
+
+# sing-box egress client instances on this host. Each entry => one sing-box
+# process (`sing-box@<name>.service`) with its OWN tun / routing table /
+# fwmark / ipset, so several independent tunnels to different servers can run
+# side by side. The role does no special-casing for one-vs-many.
+#
+# Schema (per entry):
+#   name             instance id (systemd `sing-box@<name>`, /etc/sing-box/<name>.json)
+#   vless:           VLESS (+REALITY) outbound
+#     server         required
+#     port           required
+#     uuid           required (best via !vault)
+#     sni            optional (default: server)
+#     reality_public_key  omit for plain TLS; present => REALITY
+#     short_id       optional
+#     flow           optional (default: xtls-rprx-vision)
+#     fingerprint    optional uTLS fp (default: chrome)
+#   routing_mode     k3s-pods | host | none   (default: none)
+#     k3s-pods -> tunnel egress of pods in `scope_namespaces` (ipset of their
+#                 pod IPs refreshed every 20s + fwmark policy-routing). Host
+#                 and other namespaces untouched.
+#     host     -> tunnel the whole host's egress (default route in a side
+#                 table); the VLESS server, `local_dests` and
+#                 `host_exclude_cidrs` stay on the direct route.
+#     none     -> bring the tun up only; route into it yourself.
+#   scope_namespaces list of k3s namespaces to tunnel (k3s-pods mode)
+#   local_dests      dests kept off the tunnel (default: singbox_default_local_dests)
+#   host_exclude_cidrs  extra direct-route dests (host mode)
+#   tun_name / tun_address / route_table / fwmark / ipset / mtu / kubectl
+#                    optional overrides; defaults derive from the instance
+#                    index so multiple instances never collide.
+singbox_instances: []

@@ -1,0 +1,62 @@
+- name: "Stop and disable pod-ipset refresh timers"
+  ansible.builtin.systemd:
+    name: "singbox-podset-refresh@{{ instance.name }}.timer"
+    state: "stopped"
+    enabled: false
+  loop: "{{ singbox_instances }}"
+  loop_control:
+    loop_var: "instance"
+    label: "{{ instance.name }}"
+  failed_when: false
+
+- name: "Stop and disable sing-box instances (ExecStopPost tears down routing)"
+  ansible.builtin.systemd:
+    name: "sing-box@{{ instance.name }}"
+    state: "stopped"
+    enabled: false
+  loop: "{{ singbox_instances }}"
+  loop_control:
+    loop_var: "instance"
+    label: "{{ instance.name }}"
+  failed_when: false
+
+- name: "Remove per-instance sing-box config"
+  ansible.builtin.file:
+    path: "/etc/sing-box/{{ instance.name }}.json"
+    state: "absent"
+  loop: "{{ singbox_instances }}"
+  loop_control:
+    loop_var: "instance"
+    label: "{{ instance.name }}"
+
+- name: "Remove per-instance route env"
+  ansible.builtin.file:
+    path: "/etc/sing-box/{{ instance.name }}.route.env"
+    state: "absent"
+  loop: "{{ singbox_instances }}"
+  loop_control:
+    loop_var: "instance"
+    label: "{{ instance.name }}"
+
+- name: "Remove shared helpers and template units"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "absent"
+  loop:
+    - "/usr/local/bin/singbox-route.sh"
+    - "/usr/local/bin/singbox-podset-refresh.sh"
+    - "/etc/systemd/system/sing-box@.service"
+    - "/etc/systemd/system/singbox-podset-refresh@.service"
+    - "/etc/systemd/system/singbox-podset-refresh@.timer"
+  notify: "Reload systemd"
+
+- name: "Remove /etc/sing-box dir"
+  ansible.builtin.file:
+    path: "/etc/sing-box"
+    state: "absent"
+  failed_when: false
+
+- name: "Remove sing-box binary"
+  ansible.builtin.file:
+    path: "{{ singbox_bin_path }}"
+    state: "absent"

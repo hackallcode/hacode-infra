@@ -1,0 +1,53 @@
+- name: "Verify: singbox role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "Sing-box binary is installed and executable"
+      ansible.builtin.stat:
+        path: "/usr/local/bin/sing-box"
+      register: "sb_bin"
+      failed_when:
+        - "not sb_bin.stat.exists"
+        - "not sb_bin.stat.executable"
+
+    - name: "Sing-box reports the pinned version"
+      ansible.builtin.command: "/usr/local/bin/sing-box version"
+      register: "sb_version"
+      changed_when: false
+      failed_when: "singbox_version not in sb_version.stdout"
+
+    - name: "Config dir /etc/sing-box exists"
+      ansible.builtin.stat:
+        path: "/etc/sing-box"
+      register: "sb_etc"
+      failed_when:
+        - "not sb_etc.stat.exists"
+        - "not sb_etc.stat.isdir"
+
+    - name: "Routing helpers are installed and executable"
+      ansible.builtin.stat:
+        path: "/usr/local/bin/{{ item }}"
+      register: "sb_helper"
+      failed_when:
+        - "not sb_helper.stat.exists"
+        - "not sb_helper.stat.executable"
+      loop:
+        - "singbox-route.sh"
+        - "singbox-podset-refresh.sh"
+
+    - name: "Systemd template units are installed"
+      ansible.builtin.stat:
+        path: "/etc/systemd/system/{{ item }}"
+      register: "sb_unit"
+      failed_when: "not sb_unit.stat.exists"
+      loop:
+        - "sing-box@.service"
+        - "singbox-podset-refresh@.service"
+        - "singbox-podset-refresh@.timer"
+
+    - name: "Ipset package installed"
+      ansible.builtin.package_facts:
+        manager: "auto"
+      failed_when: "'ipset' not in ansible_facts.packages"

@@ -9,6 +9,18 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `singbox` role — installs [sing-box](https://sing-box.sagernet.org/) as a
+  systemd-managed VLESS (+REALITY) egress client. Multi-instance: each
+  entry in `singbox_instances` becomes its own `sing-box@<name>.service`
+  with a dedicated TUN, routing table, fwmark and ipset, so several
+  independent tunnels to different servers can coexist on one host.
+  Three per-instance routing modes: `k3s-pods` (tunnel egress of pods in
+  `scope_namespaces` only, via an ipset of their pod IPs + fwmark
+  policy-routing — CNI-agnostic and gVisor-compatible), `host` (whole-host
+  egress through the TUN with excludes to stay reachable), and `none`
+  (bring the TUN up only). Routing is torn down via the unit's
+  `ExecStopPost`, so stopping an instance cleanly reverts the host.
+
 - `docker` role: `docker_daemon_config` (dict, default `{}`) — rendered to
   `/etc/docker/daemon.json` when non-empty, with a `Restart docker` handler
   applying changes. Enables e.g. opting out of the containerd image store on
