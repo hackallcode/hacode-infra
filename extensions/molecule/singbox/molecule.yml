@@ -1,6 +1,6 @@
 # singbox scenario: exercises the install-time artifacts only. The role's
 # per-instance tasks (config render, `systemctl start sing-box@<name>`,
-# `singbox-podset-refresh@<name>.timer`) would spin up a real TUN and dial a
+# `singbox-podwatch@<name>.service`) would spin up a real TUN and dial a
 # VLESS server, neither of which is meaningful in a CI container — so we run
 # with `singbox_instances: []` and verify the shared install output only.
 

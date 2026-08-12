@@ -1,6 +1,6 @@
-- name: "Stop and disable pod-ipset refresh timers"
+- name: "Stop and disable pod-ipset watchers"
   ansible.builtin.systemd:
-    name: "singbox-podset-refresh@{{ instance.name }}.timer"
+    name: "singbox-podwatch@{{ instance.name }}.service"
     state: "stopped"
     enabled: false
   loop: "{{ singbox_instances }}"
@@ -45,9 +45,9 @@
   loop:
     - "/usr/local/bin/singbox-route.sh"
     - "/usr/local/bin/singbox-podset-refresh.sh"
+    - "/usr/local/bin/singbox-podwatch.sh"
     - "/etc/systemd/system/sing-box@.service"
-    - "/etc/systemd/system/singbox-podset-refresh@.service"
-    - "/etc/systemd/system/singbox-podset-refresh@.timer"
+    - "/etc/systemd/system/singbox-podwatch@.service"
   notify: "Reload systemd"
 
 - name: "Remove /etc/sing-box dir"

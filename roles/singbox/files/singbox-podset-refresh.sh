@@ -1,8 +1,9 @@
 #!/bin/bash
-# Refresh the ipset of scoped pod IPs (pods in $SINGBOX_SCOPE_NS namespaces)
-# consumed by singbox-podroute. Built into a temp set and swapped in atomically
-# so routing never sees a half-populated set. Run once at sing-box start and
-# then periodically by singbox-podset-refresh.timer.
+# One-shot seed of the ipset of scoped pod IPs (pods in $SINGBOX_SCOPE_NS
+# namespaces) consumed by singbox-route. Built into a temp set and swapped in
+# atomically so routing never sees a half-populated set. Invoked from
+# `singbox-route.sh k3s_up` at sing-box start; live updates from that point on
+# come from `singbox-podwatch@<instance>` (a `kubectl --watch` streamer).
 set -u
 INSTANCE="${1:-}"
 [ -n "$INSTANCE" ] || { echo "usage: $0 <instance>" >&2; exit 1; }
