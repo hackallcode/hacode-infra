@@ -30,9 +30,9 @@ so you can run several independent tunnels to different servers on one host.
 
 ```yaml
 singbox_instances:
-  - name: "peraide"
+  - name: "apps"
     routing_mode: "k3s-pods"
-    scope_namespaces: ["peraide"]
+    scope_namespaces: ["apps"]
     vless:
       server: "vpn.example.com"
       port: 443
