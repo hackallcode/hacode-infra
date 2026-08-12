@@ -68,6 +68,17 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `singbox` role: `singbox-podwatch@<name>` now follows the lifecycle of
+  its `sing-box@<name>` parent — `PartOf=` propagates restart (a
+  `systemctl restart sing-box@<name>` now re-establishes the watch too
+  instead of leaving the previous `kubectl --watch` running against a
+  torn-down TUN), and `WantedBy=sing-box@%i.service` (instead of
+  `multi-user.target`) attaches enablement to the parent so it can't
+  start against a stopped sing-box. Install also removes the stale
+  `multi-user.target.wants/singbox-podwatch@<name>.service` symlink on
+  upgrade, so `systemctl enable` installs the new one (it is a no-op
+  while any prior enablement symlink exists).
+
 - `gitlab_runner` role: registration idempotency. `gitlab-runner list`
   writes its inventory to stderr (not stdout); the "already-registered"
   check only looked at stdout and treated every host as unregistered,

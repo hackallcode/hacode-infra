@@ -2,6 +2,7 @@
 Description=sing-box scoped-pod ipset watcher (%i)
 After=sing-box@%i.service
 BindsTo=sing-box@%i.service
+PartOf=sing-box@%i.service
 
 [Service]
 Type=simple
@@ -10,4 +11,4 @@ Restart=always
 RestartSec=2
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=sing-box@%i.service

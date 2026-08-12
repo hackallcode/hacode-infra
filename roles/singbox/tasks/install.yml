@@ -122,6 +122,19 @@
       or (singbox_env.results[idx] is changed)
       or (force | default(false) | bool)
 
+# `systemctl enable` is a no-op while any enablement symlink already
+# exists, so the new `sing-box@%i.service.wants/` link only lands once the
+# old `multi-user.target.wants/` one is out of the way.
+- name: "Drop legacy multi-user.target enablement of pod-ipset watcher"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/multi-user.target.wants/singbox-podwatch@{{ instance.name }}.service"
+    state: "absent"
+  loop: "{{ singbox_instances }}"
+  loop_control:
+    loop_var: "instance"
+    label: "{{ instance.name }}"
+  notify: "Reload systemd"
+
 - name: "Enable and start pod-ipset watcher (k3s-pods instances)"
   ansible.builtin.systemd:
     name: "singbox-podwatch@{{ instance.name }}.service"
