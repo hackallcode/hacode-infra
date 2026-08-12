@@ -4,8 +4,10 @@
 # ExecStopPost (down). Config comes from route.env.
 #
 #   SINGBOX_MODE=k3s-pods  route egress of scoped k3s pods (IPs in ipset
-#                          $SINGBOX_SET, refreshed by singbox-podset-refresh)
-#                          via fwmark policy-routing. Host untouched.
+#                          $SINGBOX_SET, seeded here at up-time via
+#                          singbox-podset-refresh, then maintained live by
+#                          singbox-podwatch@<instance>). Fwmark
+#                          policy-routing. Host untouched.
 #   SINGBOX_MODE=host      route the whole host's egress through the tun
 #                          (default route in a side table), excluding the VLESS
 #                          server, local nets and $SINGBOX_HOST_EXCLUDES.
@@ -25,7 +27,7 @@ SET="${SINGBOX_SET:-singbox_pods}"
 PREF_EXCLUDE=1000
 PREF_MAIN_POD=1005
 PREF_TABLE=1010
-read -r -a LOCAL_DESTS <<< "${SINGBOX_LOCAL_DESTS:-10.42.0.0/16 10.43.0.0/16 10.0.100.0/24}"
+read -r -a LOCAL_DESTS <<< "${SINGBOX_LOCAL_DESTS:-10.42.0.0/16 10.43.0.0/16}"
 read -r -a HOST_EXCLUDES <<< "${SINGBOX_HOST_EXCLUDES:-}"
 
 wait_tun() {

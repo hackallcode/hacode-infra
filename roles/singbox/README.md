@@ -8,10 +8,12 @@ so you can run several independent tunnels to different servers on one host.
 ## Routing modes (`routing_mode` per instance)
 
 - **`k3s-pods`** — tunnel the egress of pods in `scope_namespaces`. Pod IPs are
-  kept in an ipset refreshed every 20s (`singbox-podset-refresh@<name>.timer`)
-  and marked with an fwmark that policy-routes them into the tun. Host traffic
-  and other namespaces are untouched. Works for gVisor (`runsc`) pods too — the
-  capture is at the node's kernel forwarding path, not inside the pod.
+  kept in an ipset maintained in real time by a `kubectl` watch
+  (`singbox-podwatch@<name>.service`), so short-lived pods are captured before
+  their first egress, and marked with an fwmark that policy-routes them into the
+  tun. Host traffic and other namespaces are untouched. Works for gVisor
+  (`runsc`) pods too — the capture is at the node's kernel forwarding path, not
+  inside the pod.
 - **`host`** — tunnel the whole host's egress (default route in a side table).
   The VLESS server, `local_dests` and `host_exclude_cidrs` stay on the direct
   route so the box remains reachable.
@@ -21,7 +23,7 @@ so you can run several independent tunnels to different servers on one host.
 
 - `install` (default via `main`) — install the pinned binary, render per-instance
   config + routing env, install helper scripts and systemd template units, then
-  enable/start each instance (and its refresh timer for `k3s-pods`).
+  enable/start each instance (and its pod watcher for `k3s-pods`).
 - `uninstall` — stop/disable every instance, remove its config/env and the shared
   scripts/units/binary. Stopping an instance tears down its routing via
   `ExecStopPost`.
@@ -30,9 +32,9 @@ so you can run several independent tunnels to different servers on one host.
 
 ```yaml
 singbox_instances:
-  - name: "peraide"
+  - name: "apps"
     routing_mode: "k3s-pods"
-    scope_namespaces: ["peraide"]
+    scope_namespaces: ["apps"]
     vless:
       server: "vpn.example.com"
       port: 443

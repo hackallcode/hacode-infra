@@ -1,0 +1,13 @@
+[Unit]
+Description=sing-box scoped-pod ipset watcher (%i)
+After=sing-box@%i.service
+BindsTo=sing-box@%i.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/singbox-podwatch.sh %i
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

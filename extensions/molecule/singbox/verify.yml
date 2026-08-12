@@ -36,6 +36,7 @@
       loop:
         - "singbox-route.sh"
         - "singbox-podset-refresh.sh"
+        - "singbox-podwatch.sh"
 
     - name: "Systemd template units are installed"
       ansible.builtin.stat:
@@ -44,8 +45,7 @@
       failed_when: "not sb_unit.stat.exists"
       loop:
         - "sing-box@.service"
-        - "singbox-podset-refresh@.service"
-        - "singbox-podset-refresh@.timer"
+        - "singbox-podwatch@.service"
 
     - name: "Gather installed packages"
       ansible.builtin.package_facts:
