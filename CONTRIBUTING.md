@@ -173,17 +173,20 @@ section instead.
 
 ## PR descriptions
 
-A good PR description has two parts: a `## Summary` that tells the
-story in prose (with the occasional code block when it helps), and a
-`## Test plan` that lists what you actually ran. Anything that lives
-on the PR page itself doesn't need to be in the description — in
-particular, **don't** add a "CI matrix green" checkbox to the test
-plan. CI status is shown above the description and the checkbox will
-sit unticked forever, which reads worse than not having it.
-
+The description is a `## Summary` — a short prose explanation of what
+changes and why (with the occasional code block when it helps).
 Cross-reference issues, prior PRs, or commit hashes when they
 motivate the change. If there's a breaking move, name it in the
-summary, not buried in the test plan.
+summary.
+
+The **test plan doesn't go in the description**. Post it as a review
+thread on the PR — a comment listing what you plan to run (or ran)
+against the change, and resolve the thread before merge once each
+item is verified. That way the plan behaves like a checklist someone
+ticks through, not a static block that goes stale as the diff evolves
+and leaves no trace of who confirmed what. Descriptions are read
+after merge for context; threads are the place for state that only
+matters while the PR is open.
 
 ## Lint and CI
 
