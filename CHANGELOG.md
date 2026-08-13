@@ -9,6 +9,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `machine` role: `machine_pip_packages` (list, default `[]`) — Python
+  packages to `pip install` system-wide. On PEP 668 distros
+  (Ubuntu 24.04+, Debian 12+, RHEL 10) the role detects the
+  `EXTERNALLY-MANAGED` marker and passes `--break-system-packages`
+  automatically; older pip that doesn't understand the flag stays
+  untouched. Runs after the `machine_pip_index_url` block so installs
+  hit the configured mirror when one is set.
+
 - `machine` role: `machine_pip_index_url`, `machine_pip_extra_index_url`
   and `machine_pip_trusted_host` — point pip at an internal PyPI mirror
   by merging into `/etc/pip.conf`'s `[global]` section via

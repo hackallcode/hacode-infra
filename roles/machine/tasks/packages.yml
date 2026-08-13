@@ -179,3 +179,27 @@
   loop_control:
     label: "{{ item.k }}"
   when: "machine_pip_index_url | length > 0"
+
+# PEP 668 (Ubuntu 24.04+, Debian 12+, RHEL 10) drops an EXTERNALLY-MANAGED
+# marker next to the stdlib and pip refuses system-wide installs without
+# `--break-system-packages`. Older pip (Ubuntu 22.04) doesn't understand the
+# flag and errors on it, so detect via the marker and pass the flag only
+# where it's actually needed.
+- name: "Detect Python PEP 668 externally-managed marker"
+  tags: ["package", "pip"]
+  ansible.builtin.find:
+    paths: ["/usr/lib"]
+    patterns: "EXTERNALLY-MANAGED"
+    recurse: true
+    depth: 4
+  register: "_machine_pep668"
+  changed_when: false
+  when: "machine_pip_packages | length > 0"
+
+- name: "Install pip packages (system-wide, via the configured index)"
+  tags: ["package", "pip"]
+  ansible.builtin.pip:
+    name: "{{ machine_pip_packages }}"
+    state: "present"
+    extra_args: "{{ '--break-system-packages' if (_machine_pep668.matched | default(0) > 0) else omit }}"
+  when: "machine_pip_packages | length > 0"
