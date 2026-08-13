@@ -232,6 +232,13 @@ machine_pip_index_url: ""
 machine_pip_extra_index_url: ""
 machine_pip_trusted_host: ""
 
+# Python packages to pip-install system-wide (via the index above). Empty
+# (default) installs nothing. On PEP 668 distros (Ubuntu 24.04+, Debian 12+,
+# RHEL 10) the role detects the `EXTERNALLY-MANAGED` marker and passes
+# `--break-system-packages` automatically; on older pip (Ubuntu 22.04) that
+# marker doesn't exist and the flag isn't needed, so nothing extra is passed.
+machine_pip_packages: []
+
 # ===== ZSH =====
 # Files copied into each user's oh-my-zsh. Each item:
 # {from: "<file under role files/zsh/>", to: "<relative to $HOME>", force: bool}.
