@@ -9,6 +9,15 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `machine` role: `machine_pip_index_url`, `machine_pip_extra_index_url`
+  and `machine_pip_trusted_host` — point pip at an internal PyPI mirror
+  by merging into `/etc/pip.conf`'s `[global]` section via
+  `community.general.ini_file` (other keys already in `[global]` are
+  preserved). `machine_pip_index_url` gates the whole block; the extra
+  and trusted-host keys are reconciled to inventory each run — set the
+  value and the line is written, clear it and the previously-written
+  line is removed.
+
 - `k3s` role (server): `k3s_resolv_conf` (list, default `[]`) — upstream
   nameservers to write into a curated resolv.conf and pass to kubelet
   via `resolv-conf:` in `/etc/rancher/k3s/config.yaml`. CoreDNS forwards

@@ -161,3 +161,21 @@
     name: "{{ machine_extra_packages }}"
     state: "present"
   when: "machine_extra_packages | length > 0"
+
+- name: "Reconcile /etc/pip.conf [global] with machine_pip_* knobs"
+  tags: ["package", "pip"]
+  community.general.ini_file:
+    path: "/etc/pip.conf"
+    section: "global"
+    option: "{{ item.k }}"
+    value: "{{ item.v }}"
+    state: "{{ 'present' if item.v | length > 0 else 'absent' }}"
+    mode: "0644"
+    create: true
+  loop:
+    - {k: "index-url", v: "{{ machine_pip_index_url }}"}
+    - {k: "extra-index-url", v: "{{ machine_pip_extra_index_url }}"}
+    - {k: "trusted-host", v: "{{ machine_pip_trusted_host }}"}
+  loop_control:
+    label: "{{ item.k }}"
+  when: "machine_pip_index_url | length > 0"
