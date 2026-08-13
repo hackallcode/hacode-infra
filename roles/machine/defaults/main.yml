@@ -217,6 +217,21 @@ machine_install_epel: true
 #     gpgcheck    1/0 (default 0)
 machine_yum_repos: []
 
+# Point pip at an internal index by merging into `/etc/pip.conf`'s [global]
+# section (other keys already in `[global]` are preserved).
+# `machine_pip_index_url` gates the whole block — empty (default) leaves
+# pip.conf untouched. When it's set, all three keys are reconciled: an
+# empty value on `_extra_index_url` or `_trusted_host` *removes* the line
+# if it was written by a previous play, so unsetting a knob in inventory
+# actually rolls back. `machine_pip_extra_index_url` is a fallback pip
+# tries after the primary index-url — useful when the internal mirror is
+# partial and should fall through to public PyPI. `machine_pip_trusted_host`
+# adds a `trusted-host` line — needed for a plain-HTTP or self-signed
+# mirror; omit for HTTPS with a valid cert.
+machine_pip_index_url: ""
+machine_pip_extra_index_url: ""
+machine_pip_trusted_host: ""
+
 # ===== ZSH =====
 # Files copied into each user's oh-my-zsh. Each item:
 # {from: "<file under role files/zsh/>", to: "<relative to $HOME>", force: bool}.
