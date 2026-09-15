@@ -10,25 +10,44 @@
 # Idempotent (no-ops when nothing's stale), and safe to run as a host-prep
 # step even on first install (just finds nothing).
 
+# `iptables-save` walks every table, and the chains live in whichever one
+# Cilium put them in - `OLD_CILIUM_PRE_nat` is in `nat`, not `filter`. The
+# table has to travel with the chain name, or `-F` runs against `filter`
+# and dies with "No chain/target/match by that name".
 - name: "Probe for stale OLD_CILIUM_* iptables chains"
   tags: ["cilium-install"]
   ansible.builtin.shell:
-    cmd: "set -o pipefail; iptables-save | awk '/^:OLD_CILIUM/ {print substr($1,2)}'"
+    cmd: >-
+      set -o pipefail;
+      iptables-save | awk '/^\*/ {t = substr($1, 2)} /^:OLD_CILIUM/ {print t, substr($1, 2)}'
     executable: "/bin/bash"
   register: "_cilium_orphan_chains"
   changed_when: false
   failed_when: false
 
+- name: "Parse stale OLD_CILIUM entries into (table, chain) pairs"
+  tags: ["cilium-install"]
+  ansible.builtin.set_fact:
+    _cilium_orphan_pairs: >-
+      {{ _cilium_orphan_chains.stdout_lines | default([]) | map('split') | list }}
+
+# The agent cleans its own chains up as it starts, so one can disappear
+# between the probe and the delete. A chain that is already gone is the
+# outcome this task wants; anything else still fails the play.
 - name: "Flush stale OLD_CILIUM_* chains"
   tags: ["cilium-install"]
   ansible.builtin.command:
-    argv: ["iptables", "-F", "{{ item }}"]
-  loop: "{{ _cilium_orphan_chains.stdout_lines | default([]) }}"
-  changed_when: true
+    argv: ["iptables", "-t", "{{ item.0 }}", "-F", "{{ item.1 }}"]
+  loop: "{{ _cilium_orphan_pairs }}"
+  register: "_cilium_flush"
+  changed_when: "_cilium_flush.rc == 0"
+  failed_when: "_cilium_flush.rc != 0 and 'No chain/target/match by that name' not in _cilium_flush.stderr"
 
 - name: "Delete stale OLD_CILIUM_* chains"
   tags: ["cilium-install"]
   ansible.builtin.command:
-    argv: ["iptables", "-X", "{{ item }}"]
-  loop: "{{ _cilium_orphan_chains.stdout_lines | default([]) }}"
-  changed_when: true
+    argv: ["iptables", "-t", "{{ item.0 }}", "-X", "{{ item.1 }}"]
+  loop: "{{ _cilium_orphan_pairs }}"
+  register: "_cilium_delete"
+  changed_when: "_cilium_delete.rc == 0"
+  failed_when: "_cilium_delete.rc != 0 and 'No chain/target/match by that name' not in _cilium_delete.stderr"
