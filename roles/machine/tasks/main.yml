@@ -47,6 +47,12 @@
 - ansible.builtin.import_tasks: "dns.yml"
   when: "machine_dns_enabled | bool"
 
+- ansible.builtin.import_tasks: "netplan.yml"
+  when:
+    - "ansible_os_family == 'Debian'"
+    - "machine_netplan_enabled | bool"
+    - "machine_netplan_files | length > 0"
+
 - ansible.builtin.import_tasks: "docker.yml"
   when: "machine_docker_enabled | bool"
 

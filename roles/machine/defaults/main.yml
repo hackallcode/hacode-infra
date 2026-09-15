@@ -15,6 +15,7 @@ machine_journald_enabled: true
 machine_fail2ban_enabled: true
 machine_chrony_enabled: true
 machine_dns_enabled: false
+machine_netplan_enabled: true # no-op when machine_netplan_files is empty
 machine_docker_enabled: false
 machine_cockpit_enabled: false
 machine_nvidia_enabled: false
@@ -441,6 +442,15 @@ nvidia_container_toolkit_version: "1.17.8"
 # on the host; override (e.g. "560", "560-open", "latest-open") if not.
 nvidia_driver_module_stream: "latest-dkms"
 
+# ===== Netplan =====
+# Netplan configs dropped into /etc/netplan/ (root:root, 0600) and applied
+# with `netplan apply`. Debian family only — the whole block is skipped on
+# RHEL, where netplan isn't installed. Each item:
+#   - name      target filename, e.g. "95-modem.yaml" (required)
+#   - content   inline YAML string, OR
+#   - template  path to a Jinja template rendered on the controller
+machine_netplan_files: []
+
 # ===== Raspberry =====
 # Jinja template rendered into a BEGIN/END ANSIBLE-MANAGED block at the
 # bottom of `/boot/firmware/config.txt` on Raspberry Pi OS hosts (auto-
@@ -465,6 +475,15 @@ machine_raspberry_use_defaults: true
 # only want to extend the defaults (extra dtoverlay lines, gpio configs)
 # instead of replacing the whole block via `machine_raspberry_config_template`.
 machine_raspberry_extra_config: ""
+
+# Kernel command-line parameters ensured in the Pi boot cmdline (a single
+# space-separated line). Each entry is matched by its key (the part before
+# `=`): present with any value -> left untouched, absent -> appended. Nothing
+# is ever removed, so it composes with the firmware-injected params. A change
+# flags a reboot (applied by `reboot.yml` when `machine_reboot_enabled`).
+# Example: `["nvme_core.default_ps_max_latency_us=0", "pcie_aspm=off"]`.
+machine_raspberry_cmdline_params: []
+machine_raspberry_cmdline_file: "/boot/firmware/cmdline.txt"
 
 # LightDM autologin user for Raspberry Pi OS Desktop ("with-GUI") hosts.
 # Empty (default) -> autologin is left untouched. Set to a username to

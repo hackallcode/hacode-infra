@@ -22,6 +22,7 @@ off by default.
 | `machine_fail2ban_enabled`    | `true`  | install fail2ban with SSH jail                                             |
 | `machine_dns_enabled`         | `false` | install + configure dnsmasq (firewall untouched)                           |
 | `machine_dns_public`          | `false` | expose dnsmasq publicly with per-source-IP hashlimit (requires `machine_dns_enabled`) |
+| `machine_netplan_enabled`     | `true`  | drop netplan configs from `machine_netplan_files` and `netplan apply` (no-op when the list is empty) |
 | `machine_docker_enabled`      | `false` | install Docker via `hacode.infra.docker`                                   |
 | `machine_cockpit_enabled`     | `false` | install Cockpit with optional custom certs                                 |
 | `machine_nvidia_enabled`      | `false` | install NVIDIA CUDA + container toolkit (RHEL only)                        |
@@ -89,6 +90,18 @@ machine_dns_public: false          # open `dns` in zone + hashlimit; off-by-defa
 dns_server_interfaces: []          # listen by interface NAME; falls back to listen-address by IP when empty
 dns_server_custom_addresses: []    # [{domain: "host.example.com", ip: "10.0.0.1"}]
 dns_server_custom_servers: []      # ["1.1.1.1"]  OR  [{domain: "x.tld", dns_ip: "10.0.0.1"}]
+
+# Netplan (dropped into /etc/netplan/, 0600, then `netplan apply`)
+# Each entry: {name (required), content: "<yaml>" | template: "<path.j2>"}.
+machine_netplan_files: []
+#   - name: "95-modem.yaml"
+#     content: |
+#       network: {version: 2, ethernets: {modem: {...}}}
+
+# Raspberry kernel cmdline (single line; params matched by key, appended if
+# absent, never removed; a change flags a reboot). Pi-only.
+machine_raspberry_cmdline_params: []   # ["nvme_core.default_ps_max_latency_us=0"]
+machine_raspberry_cmdline_file: "/boot/firmware/cmdline.txt"
 
 # SELinux
 selinux_mode: "permissive"         # enforcing | permissive | disabled

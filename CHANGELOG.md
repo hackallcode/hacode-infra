@@ -9,6 +9,24 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `machine` role: `machine_netplan_files` (list, default `[]`) — netplan
+  configs dropped into `/etc/netplan/` (root:root, 0600) and applied via
+  `netplan apply` on notify. Each item takes `name` plus one of `content`
+  (inline YAML) or `template` (Jinja path rendered on the controller).
+  Gated by `machine_netplan_enabled` (default `true`) and
+  `ansible_os_family == 'Debian'` — the whole block is skipped on RHEL
+  where netplan isn't installed. Empty list = no-op.
+
+- `machine` role: `machine_raspberry_cmdline_params` (list, default `[]`)
+  — kernel command-line parameters ensured in
+  `/boot/firmware/cmdline.txt` on Raspberry Pi OS. Params are matched by
+  key (the part before `=`): present with any value → left untouched,
+  absent → appended. Nothing is ever removed, so it composes with the
+  firmware-injected params. A change flags `/var/run/reboot-required`
+  inline (not via handler — the marker has to exist before `reboot.yml`
+  checks it at the end of the run). `machine_raspberry_cmdline_file`
+  overrides the path (Pi OS Bookworm default is `/boot/firmware/cmdline.txt`).
+
 - `k3s` role: `cordon`, `uncordon`, `drain`, `reboot` and `delete`
   entrypoints (`tasks_from`) for taking a node out of scheduling and
   putting it back — a machine being replaced, rebooted for maintenance,

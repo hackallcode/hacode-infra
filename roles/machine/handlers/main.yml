@@ -18,3 +18,7 @@
   loop: "{{ _changed_dropin_units | default([]) }}"
   loop_control:
     label: "{{ item }}"
+
+- name: "Apply netplan"
+  ansible.builtin.command: "netplan apply"
+  changed_when: true
