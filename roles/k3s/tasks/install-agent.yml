@@ -12,21 +12,7 @@
     that: "(groups['k3s_server'] | default([])) | length > 0"
     fail_msg: "k3s_server group must contain at least one host"
 
-- name: "Resolve cluster server (server in k3s_server with same k3s_cluster_name)"
-  tags: ["always"]
-  ansible.builtin.set_fact:
-    k3s_cluster_peers: >-
-      {{ groups['k3s_server']
-         | map('extract', hostvars)
-         | selectattr('k3s_cluster_name', 'defined')
-         | selectattr('k3s_cluster_name', 'equalto', k3s_cluster_name)
-         | map(attribute='inventory_hostname')
-         | list }}
-
-- name: "Resolve k3s server URL (primary of this agent's cluster)"
-  tags: ["always"]
-  ansible.builtin.set_fact:
-    k3s_primary_url: "https://{{ hostvars[k3s_cluster_peers[0]].ansible_host }}:6443"
+- ansible.builtin.import_tasks: "_peers.yml"
 
 - name: "Open k3s agent ports in firewall (RHEL only)"
   tags: ["firewall"]

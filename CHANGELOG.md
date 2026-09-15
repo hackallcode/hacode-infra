@@ -9,6 +9,22 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `k3s` role: `cordon`, `uncordon`, `drain`, `reboot` and `delete`
+  entrypoints (`tasks_from`) for taking a node out of scheduling and
+  putting it back — a machine being replaced, rebooted for maintenance,
+  or retired. All five delegate `k3s kubectl` to the cluster's primary
+  server, so they work against agents just as well as against a server. `k3s_drain_args` carries
+  `--ignore-daemonsets --delete-emptydir-data` by default, without
+  which drain refuses to evict on any cluster with a CNI or a CSI
+  driver; `k3s_drain_timeout` (default `600s`) bounds the wait;
+  `k3s_reboot_timeout` and `k3s_reboot_ready_timeout` bound the
+  reboot flow's host-back and node-Ready waits; `k3s_node_name` pins
+  the registered name when the inventory does not set `hostname`.
+  Peer-resolution (`k3s_cluster_peers`, `k3s_primary_url`,
+  `k3s_is_primary`) is factored into `_peers.yml` and imported by all
+  entrypoints and by `install-server` / `install-agent`, so the two
+  duplicated blocks are gone.
+
 - `machine` role: `machine_pip_packages` (list, default `[]`) — Python
   packages to `pip install` system-wide. On PEP 668 distros
   (Ubuntu 24.04+, Debian 12+, RHEL 10) the role detects the

@@ -33,6 +33,34 @@ k3s_resolv_conf_path: "/etc/rancher/k3s/resolv.conf"
 # "" to skip the probe and always use k3s auto-detect.
 k3s_node_ip: "{{ ansible_host }}"
 
+# Name the node is registered under in the cluster, used by the cordon /
+# uncordon / drain / reboot / delete entrypoints. k3s registers a node by
+# its OS hostname, which the `machine` role sets from `hostname`; inventories
+# that skip that role and leave the image's own hostname in place have to
+# pin this.
+k3s_node_name: "{{ hostname | default(inventory_hostname) }}"
+
+# Flags for `kubectl drain`. Both are needed on any cluster that runs a CNI,
+# a CSI driver or a log shipper: drain refuses to evict DaemonSet pods and
+# refuses to discard `emptyDir` data unless it is told to.
+k3s_drain_args:
+  - "--ignore-daemonsets"
+  - "--delete-emptydir-data"
+
+# How long `kubectl drain` waits for the eviction to finish before giving up.
+# Long enough for a StatefulSet with a large volume to stop cleanly.
+k3s_drain_timeout: "600s"
+
+# How long `ansible.builtin.reboot` waits for the node to come back up (SSH
+# alive) after `systemctl reboot` in the `reboot` entrypoint. Seconds.
+k3s_reboot_timeout: 600
+
+# How long the `reboot` entrypoint then waits for the k3s node object to
+# report Ready after the host is back — kubelet re-registers, the CNI comes
+# up, and a first-pod attempt has to succeed. Passed to `kubectl wait
+# --timeout=`, so it's a duration string, not seconds.
+k3s_reboot_ready_timeout: "600s"
+
 # Taint effect applied to k3s server nodes as
 # "node-role.kubernetes.io/control-plane=true:<effect>". Empty -> no taint.
 # Accepts standard k8s effects: "NoSchedule", "PreferNoSchedule", "NoExecute".

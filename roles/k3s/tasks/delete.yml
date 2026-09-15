@@ -1,0 +1,15 @@
+- ansible.builtin.import_tasks: "_peers.yml"
+
+- name: "Delete the node from the cluster"
+  tags: ["delete"]
+  ansible.builtin.command:
+    argv:
+      - "/usr/local/bin/k3s"
+      - "kubectl"
+      - "delete"
+      - "node"
+      - "{{ k3s_node_name }}"
+      - "--ignore-not-found"
+  delegate_to: "{{ k3s_cluster_peers[0] }}"
+  register: "k3s_delete_res"
+  changed_when: "'deleted' in (k3s_delete_res.stdout | default(''))"

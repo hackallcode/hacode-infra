@@ -1,0 +1,11 @@
+- ansible.builtin.import_tasks: "cordon.yml"
+
+- name: "Move the pods off the node"
+  tags: ["drain"]
+  ansible.builtin.command:
+    argv: >-
+      {{ ["/usr/local/bin/k3s", "kubectl", "drain", k3s_node_name]
+         + k3s_drain_args
+         + ["--timeout=" ~ k3s_drain_timeout] }}
+  delegate_to: "{{ k3s_cluster_peers[0] }}"
+  changed_when: true
