@@ -15,6 +15,11 @@ Install k3s server and agent nodes; fetch and rewrite kubeconfig to the controll
 | `k3s_resolv_conf` | `[]` | upstream nameservers for kubelet `--resolv-conf` (what CoreDNS forwards to). Set on nodes with a local stub resolver (systemd-resolved / NM dnsmasq → `127.0.0.1`), where k3s otherwise falls back to hardcoded `8.8.8.8` + an IPv6 resolver that dead-ends on IPv4-only hosts. Writes `k3s_resolv_conf_path` and adds `resolv-conf:` to `config.yaml`; a change restarts k3s. Empty → k3s default |
 | `k3s_resolv_conf_path` | `/etc/rancher/k3s/resolv.conf` | where the curated resolv.conf is written when `k3s_resolv_conf` is set |
 | `k3s_node_ip` | `{{ ansible_host }}` | kubelet `--node-ip` (+ apiserver `--advertise-address` on servers). Preflight probes local NICs and silently falls back to k3s auto-detect if the address isn't bound locally (cloud-droplet case: `ansible_host` is a floating / NAT'd public IP). Set to `""` to skip the probe |
+| `k3s_node_name` | `{{ hostname \| default(inventory_hostname) }}` | name the node is registered under, used by the `cordon` / `uncordon` / `drain` / `reboot` / `delete` entrypoints; k3s registers by OS hostname |
+| `k3s_drain_args` | `[--ignore-daemonsets, --delete-emptydir-data]` | flags for `kubectl drain`; without them drain refuses to evict DaemonSet pods and to discard `emptyDir` data |
+| `k3s_drain_timeout` | `600s` | how long `kubectl drain` waits for the eviction |
+| `k3s_reboot_timeout` | `600` | how long `ansible.builtin.reboot` waits for the node to come back after `systemctl reboot` in the `reboot` entrypoint (seconds) |
+| `k3s_reboot_ready_timeout` | `600s` | how long the `reboot` entrypoint then waits for the node object to report Ready — kubelet re-registers, CNI comes up, first pod attempt succeeds (`kubectl wait --timeout=` duration string) |
 | `k3s_control_plane_taint` | `""` | taint effect on servers as `node-role.kubernetes.io/control-plane=true:<effect>` (`NoSchedule` / `PreferNoSchedule` / `NoExecute`); empty = no taint. Applied via `kubectl taint` |
 | `k3s_node_labels` | `{}` | dict of labels applied via `kubectl label` post-install (server applies its own; agent labels are applied from primary via `delegate_to`) |
 | `k3s_node_taints` | `[]` | list of raw taint specs (`key=value:effect`) applied via `kubectl taint` post-install |
@@ -31,6 +36,34 @@ Install k3s server and agent nodes; fetch and rewrite kubeconfig to the controll
 | `k3s_modules_load_file` | `/etc/modules-load.d/k3s.conf` | drop-in for systemd-modules-load |
 | `k3s_sysctls` | `{net.ipv4.ip_forward:1, net.bridge.bridge-nf-call-iptables:1, net.bridge.bridge-nf-call-ip6tables:1}` | sysctls applied via `ansible.posix.sysctl`; empty to skip |
 | `k3s_xfs_prjquota_enabled` | `true` | on XFS roots, add `rootflags=pquota` via `grubby` (RHEL) / `update-grub` (Debian) and reboot if needed, so kubelet's `LocalStorageCapacityIsolation` and Longhorn replicas have `prjquota` available. No-op on non-xfs roots and docker containers. The reboot is gated by `machine_reboot_enabled` (from `hacode.infra.machine`, default true) — set that to `false` to skip the reboot and force a manual one |
+
+## Taking a node in and out
+
+Beyond the install, the role has five entrypoints for moving workloads off a
+node and back — a machine that is being replaced, rebooted for maintenance, or
+retired:
+
+```yaml
+- hosts: "k3s_node_being_maintained"
+  gather_facts: false
+  tasks:
+    - ansible.builtin.import_role:
+        name: "hacode.infra.k3s"
+        tasks_from: "reboot"    # or cordon / uncordon / drain / delete
+```
+
+- `cordon` closes the node to the scheduler.
+- `uncordon` opens it again.
+- `drain` cordons and then evicts (respects PDBs; times out per
+  `k3s_drain_timeout`).
+- `reboot` drains, reboots the host, waits for the node object to report
+  Ready, and uncordons — the canonical maintenance-reboot flow.
+- `delete` removes the node object from the cluster; use it after a node has
+  been reprovisioned or retired so the ghost entry doesn't linger.
+
+The kubectl commands are delegated to the cluster's primary server and run
+as root there (kubeconfig is `0600` root:root), so all five work against an
+agent as well as against a server.
 
 ### Notes on labels and taints
 

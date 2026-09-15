@@ -1,0 +1,18 @@
+- ansible.builtin.import_tasks: "drain.yml"
+
+- name: "Reboot the node"
+  tags: ["reboot"]
+  ansible.builtin.reboot:
+    reboot_timeout: "{{ k3s_reboot_timeout }}"
+
+- name: "Wait for the node to report Ready"
+  tags: ["reboot"]
+  ansible.builtin.command: >-
+    k3s kubectl wait --for=condition=Ready
+    node/{{ k3s_node_name }}
+    --timeout={{ k3s_reboot_ready_timeout }}
+  delegate_to: "{{ k3s_cluster_peers[0] }}"
+  become: true
+  changed_when: false
+
+- ansible.builtin.import_tasks: "uncordon.yml"
