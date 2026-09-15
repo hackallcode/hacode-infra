@@ -16,7 +16,6 @@
       - "node/{{ k3s_node_name }}"
       - "--timeout={{ k3s_reboot_ready_timeout }}"
   delegate_to: "{{ k3s_cluster_peers[0] }}"
-  become: true
   changed_when: false
 
 - ansible.builtin.import_tasks: "uncordon.yml"

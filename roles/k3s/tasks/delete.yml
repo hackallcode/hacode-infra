@@ -11,6 +11,5 @@
       - "{{ k3s_node_name }}"
       - "--ignore-not-found"
   delegate_to: "{{ k3s_cluster_peers[0] }}"
-  become: true
   register: "k3s_delete_res"
   changed_when: "'deleted' in (k3s_delete_res.stdout | default(''))"

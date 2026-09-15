@@ -5,5 +5,4 @@
   ansible.builtin.command:
     argv: ["/usr/local/bin/k3s", "kubectl", "uncordon", "{{ k3s_node_name }}"]
   delegate_to: "{{ k3s_cluster_peers[0] }}"
-  become: true
   changed_when: true

@@ -45,6 +45,7 @@ retired:
 
 ```yaml
 - hosts: "k3s_node_being_maintained"
+  become: true
   gather_facts: false
   tasks:
     - ansible.builtin.import_role:
@@ -61,9 +62,10 @@ retired:
 - `delete` removes the node object from the cluster; use it after a node has
   been reprovisioned or retired so the ghost entry doesn't linger.
 
-The kubectl commands are delegated to the cluster's primary server and run
-as root there (kubeconfig is `0600` root:root), so all five work against an
-agent as well as against a server.
+The kubectl commands are delegated to the cluster's primary server, so all
+five work against an agent as well as against a server. Play-level
+`become: true` is required (kubeconfig is `0600` root:root on the primary),
+same as for the install play.
 
 ### Notes on labels and taints
 

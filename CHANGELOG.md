@@ -12,9 +12,8 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `k3s` role: `cordon`, `uncordon`, `drain`, `reboot` and `delete`
   entrypoints (`tasks_from`) for taking a node out of scheduling and
   putting it back — a machine being replaced, rebooted for maintenance,
-  or retired. All five run `k3s kubectl` on the cluster's primary
-  server as root (kubeconfig is `0600` root:root), so they work against
-  agents just as well as against a server. `k3s_drain_args` carries
+  or retired. All five delegate `k3s kubectl` to the cluster's primary
+  server, so they work against agents just as well as against a server. `k3s_drain_args` carries
   `--ignore-daemonsets --delete-emptydir-data` by default, without
   which drain refuses to evict on any cluster with a CNI or a CSI
   driver; `k3s_drain_timeout` (default `600s`) bounds the wait;
