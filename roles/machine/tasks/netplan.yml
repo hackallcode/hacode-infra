@@ -1,0 +1,13 @@
+- name: "Deploy netplan configurations"
+  tags: ["netplan"]
+  ansible.builtin.copy:
+    dest: "/etc/netplan/{{ item.name }}"
+    content: "{{ lookup('ansible.builtin.template', item.template) if (item.template is defined) else item.content }}"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+    backup: true
+  loop: "{{ machine_netplan_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: "Apply netplan"

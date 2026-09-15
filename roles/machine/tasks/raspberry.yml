@@ -22,3 +22,41 @@
   when:
     - "is_raspberry_os"
     - "raspberry_autologin_user | default('') | length > 0"
+
+- name: "Read current kernel command line"
+  tags: ["raspberry", "cmdline"]
+  ansible.builtin.slurp:
+    src: "{{ machine_raspberry_cmdline_file }}"
+  register: "_cmdline_raw"
+  when:
+    - "is_raspberry_os"
+    - "machine_raspberry_cmdline_params | length > 0"
+
+- name: "Ensure kernel command-line parameters"
+  tags: ["raspberry", "cmdline"]
+  vars:
+    _cmd_params: "{{ machine_raspberry_cmdline_params }}"
+    _cmd_tokens: "{{ (_cmdline_raw.content | b64decode).splitlines() | first | default('') | trim | split() }}"
+    _cmd_keys: "{{ _cmd_tokens | map('regex_replace', '=.*$', '') | list }}"
+    _cmd_want: "{{ _cmd_params | map('regex_replace', '=.*$', '') | list }}"
+    _cmd_missing: "{{ _cmd_want | zip(_cmd_params) | rejectattr('0', 'in', _cmd_keys) | map(attribute='1') | list }}"
+  ansible.builtin.copy:
+    dest: "{{ machine_raspberry_cmdline_file }}"
+    content: "{{ (_cmd_tokens + _cmd_missing) | join(' ') }}\n"
+    mode: "0755"
+    backup: true
+  register: "_cmdline_write"
+  when:
+    - "is_raspberry_os"
+    - "machine_raspberry_cmdline_params | length > 0"
+    - "_cmd_missing | length > 0"
+
+# Inline, not a handler: the marker must exist before reboot.yml checks it at
+# the end of the run; handlers only flush afterwards, missing this run's reboot.
+- name: "Flag reboot required after cmdline change"  # noqa: no-handler
+  tags: ["raspberry", "cmdline"]
+  ansible.builtin.file:
+    path: "/var/run/reboot-required"
+    state: "touch"
+    mode: "0644"
+  when: "_cmdline_write is changed"
