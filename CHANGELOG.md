@@ -85,6 +85,15 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `k8s_addons` role: host prep no longer dies on the stale-`OLD_CILIUM_*`
+  cleanup. The chains were found with `iptables-save`, which walks every
+  table, but flushed and deleted against `filter` only, so a `nat` / `raw`
+  / `mangle` chain failed with "No chain/target/match by that name" and
+  took the play with it - including the Longhorn host packages that run
+  after, leaving a fresh node without `iscsi-initiator-utils` and unable
+  to attach a volume. The table now travels with the chain name, and a
+  chain the agent has already cleaned up is no longer an error.
+
 - `singbox` role: `singbox-podwatch@<name>` now follows the lifecycle of
   its `sing-box@<name>` parent — `PartOf=` propagates restart (a
   `systemctl restart sing-box@<name>` now re-establishes the watch too
