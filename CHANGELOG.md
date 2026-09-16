@@ -9,6 +9,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `singbox` role: `dests` routing mode. Sends `route_dests` CIDRs
+  through the tun in the main routing table — no marks, no ipsets,
+  no policy rules — so it works under Cilium's BPF datapath, where
+  `k3s-pods` mode is a no-op (the BPF forwarding path skips `ip rule`
+  lookups so the fwmark never routes the packet). Every other
+  destination keeps its route, including the ssh you are holding.
+
 - `machine` role: `machine_netplan_files` (list, default `[]`) — netplan
   configs dropped into `/etc/netplan/` (root:root, 0600) and applied via
   `netplan apply` on notify. Each item takes `name` plus one of `content`
@@ -123,6 +130,20 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `spec.template.*`.
 
 ### Fixed
+
+- `singbox` role (`k3s-pods` mode): default fwmark now stays out of the
+  bits Cilium writes the endpoint identity into. The old default
+  (`0x80000 << index`) landed in bits 16-31; about half of the
+  cluster's identities collided and had their traffic (node-to-node
+  VXLAN on port 8472 included) pulled into the tunnel — one live
+  reproducer had Longhorn CSI restarting 300 times on a 10s timeout
+  because its cross-node calls to `longhorn-backend` were being
+  re-routed into VLESS. The default becomes `0x1000 << index`, below
+  the identity bits and clear of the `0x4000` / `0x8000` that
+  kube-proxy owns. The route.sh header now also spells out that the
+  mode itself is a no-op under Cilium's BPF datapath (the mark is
+  set but `ip rule` is never consulted) — use the new `dests` mode
+  there.
 
 - `k8s_addons` role: host prep no longer dies on the stale-`OLD_CILIUM_*`
   cleanup. The chains were found with `iptables-save`, which walks every
