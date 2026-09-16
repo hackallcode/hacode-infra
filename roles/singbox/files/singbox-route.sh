@@ -7,7 +7,14 @@
 #                          $SINGBOX_SET, seeded here at up-time via
 #                          singbox-podset-refresh, then maintained live by
 #                          singbox-podwatch@<instance>). Fwmark
-#                          policy-routing. Host untouched.
+#                          policy-routing. Host untouched. Needs a CNI whose
+#                          forwarding path honours `ip rule`: Cilium looks the
+#                          route up in BPF, which skips policy rules, so the
+#                          mark is set and changes nothing - use dests there.
+#   SINGBOX_MODE=dests     route $SINGBOX_ROUTE_DESTS through the tun in the
+#                          main table. No marks, no ipsets and no policy rules,
+#                          so a BPF forwarding path finds them too; everything
+#                          else keeps its route.
 #   SINGBOX_MODE=host      route the whole host's egress through the tun
 #                          (default route in a side table), excluding the VLESS
 #                          server, local nets and $SINGBOX_HOST_EXCLUDES.
@@ -29,6 +36,7 @@ PREF_MAIN_POD=1005
 PREF_TABLE=1010
 read -r -a LOCAL_DESTS <<< "${SINGBOX_LOCAL_DESTS:-10.42.0.0/16 10.43.0.0/16}"
 read -r -a HOST_EXCLUDES <<< "${SINGBOX_HOST_EXCLUDES:-}"
+read -r -a ROUTE_DESTS <<< "${SINGBOX_ROUTE_DESTS:-}"
 
 wait_tun() {
   for _ in $(seq 1 40); do ip link show "$DEV" >/dev/null 2>&1 && return 0; sleep 0.5; done
@@ -59,6 +67,15 @@ k3s_down() {
   ip route flush table "$TABLE" 2>/dev/null || true
 }
 
+# --- dests mode: send named destination CIDRs through the tun, main table ---
+dests_up() {
+  for cidr in "${ROUTE_DESTS[@]}"; do ip route replace "$cidr" dev "$DEV"; done
+  echo "singbox-route: up mode=dests (${#ROUTE_DESTS[@]} dest(s) via $DEV)"
+}
+dests_down() {
+  for cidr in "${ROUTE_DESTS[@]}"; do ip route del "$cidr" dev "$DEV" 2>/dev/null || true; done
+}
+
 # --- host mode: whole-host egress via tun, with excludes to stay reachable ---
 server_ips() { getent ahostsv4 "${SINGBOX_SERVER:-}" 2>/dev/null | awk '{print $1}' | sort -u; }
 
@@ -83,6 +100,7 @@ up() {
   sysctl -qw "net.ipv4.conf.$DEV.rp_filter=0"
   case "$MODE" in
     k3s-pods) k3s_up ;;
+    dests) dests_up ;;
     host) host_up ;;
     none) echo "singbox-route: up mode=none (tun only)" ;;
     *) echo "singbox-route: unknown SINGBOX_MODE=$MODE" >&2; exit 1 ;;
@@ -91,6 +109,7 @@ up() {
 down() {
   case "$MODE" in
     k3s-pods) k3s_down ;;
+    dests) dests_down ;;
     host) host_down ;;
     none) : ;;
   esac

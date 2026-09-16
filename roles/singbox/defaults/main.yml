@@ -39,18 +39,30 @@ singbox_default_local_dests:
 #     short_id       optional
 #     flow           optional (default: xtls-rprx-vision)
 #     fingerprint    optional uTLS fp (default: chrome)
-#   routing_mode     k3s-pods | host | none   (default: none)
+#   routing_mode     k3s-pods | dests | host | none   (default: none)
 #     k3s-pods -> tunnel egress of pods in `scope_namespaces` (ipset of their
 #                 pod IPs refreshed every 20s + fwmark policy-routing). Host
-#                 and other namespaces untouched.
+#                 and other namespaces untouched. Needs a CNI whose forwarding
+#                 path honours `ip rule`: Cilium resolves the route in BPF and
+#                 skips policy rules, so the packets get marked and still leave
+#                 through the node's own address - use `dests` there.
+#     dests    -> route `route_dests` through the tun in the main table. No
+#                 marks, no ipsets and no policy rules, so a BPF forwarding
+#                 path finds them too; every other destination keeps its route.
 #     host     -> tunnel the whole host's egress (default route in a side
 #                 table); the VLESS server, `local_dests` and
 #                 `host_exclude_cidrs` stay on the direct route.
 #     none     -> bring the tun up only; route into it yourself.
 #   scope_namespaces list of k3s namespaces to tunnel (k3s-pods mode)
+#   route_dests      dest CIDRs to send through the tun (dests mode)
 #   local_dests      dests kept off the tunnel (default: singbox_default_local_dests)
 #   host_exclude_cidrs  extra direct-route dests (host mode)
 #   tun_name / tun_address / route_table / fwmark / ipset / mtu / kubectl
 #                    optional overrides; defaults derive from the instance
 #                    index so multiple instances never collide.
+#                    fwmark defaults to 0x1000 << index. Keep it out of bits
+#                    16-31: Cilium writes the endpoint identity there, and a
+#                    mark that overlaps takes half the cluster's traffic into
+#                    the tunnel, node-to-node VXLAN included. 0x4000 and
+#                    0x8000 belong to kube-proxy.
 singbox_instances: []
