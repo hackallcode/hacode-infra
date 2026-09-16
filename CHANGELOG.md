@@ -15,7 +15,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   (inline YAML) or `template` (Jinja path rendered on the controller).
   Gated by `machine_netplan_enabled` (default `true`) and
   `ansible_os_family == 'Debian'` — the whole block is skipped on RHEL
-  where netplan isn't installed. Empty list = no-op.
+  where netplan isn't installed. Empty list = no-op. The rendered config
+  is tracked in a shadow copy under `machine_netplan_state_dir` (default
+  `/var/lib/hacode/netplan`); `/etc/netplan` is rewritten and `netplan
+  apply` fired only when it changes, so runs stay idempotent even on
+  NetworkManager-backed hosts where `netplan apply` consumes the source
+  file (rewriting it as `90-NM-<uuid>.yaml`). `force=true` re-applies.
 
 - `machine` role: `machine_raspberry_cmdline_params` (list, default `[]`)
   — kernel command-line parameters ensured in
