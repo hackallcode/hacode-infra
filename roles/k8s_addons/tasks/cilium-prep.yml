@@ -31,23 +31,36 @@
     _cilium_orphan_pairs: >-
       {{ _cilium_orphan_chains.stdout_lines | default([]) | map('split') | list }}
 
-# The agent cleans its own chains up as it starts, so one can disappear
-# between the probe and the delete. A chain that is already gone is the
-# outcome this task wants; anything else still fails the play.
-- name: "Flush stale OLD_CILIUM_* chains"
+# A chain that something still jumps to cannot be deleted: iptables answers
+# `CHAIN_DEL failed (Device or resource busy)` and the chain stays. Cilium
+# leaves exactly that behind - the feeder rules in PREROUTING/POSTROUTING keep
+# pointing at the renamed chains - so the jumps go first, then the flush, then
+# the delete.
+#
+# All three steps live in one task, retried as a whole, because a running
+# agent is editing the same tables: it can re-add a feeder between our delete
+# and the `-X`, and it can remove a chain between our probe and the flush.
+# Either way the retry re-reads the current state. A chain that is already
+# gone is the outcome this task wants, so it counts as success.
+#
+# The rules are fed back through `xargs`, not a shell loop: a feeder rule
+# carries `--comment "cilium-feeder: CILIUM_OUTPUT"`, and an unquoted
+# expansion splits that comment into two arguments.
+- name: "Unfeed, flush and delete stale OLD_CILIUM_* chains"
   tags: ["cilium-install"]
-  ansible.builtin.command:
-    argv: ["iptables", "-t", "{{ item.0 }}", "-F", "{{ item.1 }}"]
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      table="{{ item.0 }}"; chain="{{ item.1 }}";
+      iptables -t "$table" -L "$chain" -n >/dev/null 2>&1 || exit 0;
+      rules=$(iptables-save -t "$table" | grep -E -- "^-A .* -j $chain( |$)" || true);
+      [ -z "$rules" ] || printf '%s\n' "$rules" | sed 's/^-A/-D/' | xargs -r -L1 iptables -t "$table";
+      iptables -t "$table" -F "$chain";
+      iptables -t "$table" -X "$chain"
+    executable: "/bin/bash"
   loop: "{{ _cilium_orphan_pairs }}"
-  register: "_cilium_flush"
-  changed_when: "_cilium_flush.rc == 0"
-  failed_when: "_cilium_flush.rc != 0 and 'No chain/target/match by that name' not in _cilium_flush.stderr"
-
-- name: "Delete stale OLD_CILIUM_* chains"
-  tags: ["cilium-install"]
-  ansible.builtin.command:
-    argv: ["iptables", "-t", "{{ item.0 }}", "-X", "{{ item.1 }}"]
-  loop: "{{ _cilium_orphan_pairs }}"
-  register: "_cilium_delete"
-  changed_when: "_cilium_delete.rc == 0"
-  failed_when: "_cilium_delete.rc != 0 and 'No chain/target/match by that name' not in _cilium_delete.stderr"
+  register: "_cilium_unfeed"
+  retries: 5
+  delay: 3
+  until: "_cilium_unfeed is succeeded"
+  changed_when: "_cilium_unfeed.rc == 0"

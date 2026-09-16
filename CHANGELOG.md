@@ -131,6 +131,21 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `k8s_addons` role: cilium-prep now unfeeds `OLD_CILIUM_*` chains from
+  PREROUTING / POSTROUTING before flushing and deleting them. Cilium
+  leaves the feeder rules pointing at the renamed chains, so
+  `iptables -X` returned `CHAIN_DEL failed (Device or resource busy)`
+  and the task died on it. Cilium meanwhile looped on "iptables rules
+  full reconciliation failed" every 10s and never installed
+  `CILIUM_POST_nat` — every pod outside a tunnelled namespace lost its
+  way out, including CoreDNS, so the whole node started answering
+  "Temporary failure in name resolution". Unfeed / flush / delete now
+  run as one retried shell block so a re-added feeder from the live
+  agent doesn't derail the cleanup, and the feeder rules travel back
+  through `xargs` instead of a shell loop (one carries
+  `--comment "cilium-feeder: CILIUM_OUTPUT"`, which an unquoted
+  expansion splits in two).
+
 - `singbox` role (`k3s-pods` mode): default fwmark now stays out of the
   bits Cilium writes the endpoint identity into. The old default
   (`0x80000 << index`) landed in bits 16-31; about half of the
