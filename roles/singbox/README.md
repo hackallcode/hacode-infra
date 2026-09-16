@@ -13,7 +13,13 @@ so you can run several independent tunnels to different servers on one host.
   their first egress, and marked with an fwmark that policy-routes them into the
   tun. Host traffic and other namespaces are untouched. Works for gVisor
   (`runsc`) pods too — the capture is at the node's kernel forwarding path, not
-  inside the pod.
+  inside the pod. It needs a CNI whose forwarding path honours `ip rule`:
+  Cilium resolves the route in BPF, which skips policy rules, so the packets
+  are marked and still leave through the node's own address — use `dests`
+  there.
+- **`dests`** — route `route_dests` through the tun in the main table. No marks,
+  no ipsets and no policy rules, so a BPF forwarding path finds them too; every
+  other destination keeps its route, including the ssh you are holding.
 - **`host`** — tunnel the whole host's egress (default route in a side table).
   The VLESS server, `local_dests` and `host_exclude_cidrs` stay on the direct
   route so the box remains reachable.
@@ -43,6 +49,13 @@ singbox_instances:
       short_id: "e2"
       uuid: !vault |
         ...
+  - name: "telegram"
+    routing_mode: "dests"
+    route_dests: ["149.154.160.0/20", "91.108.4.0/22"]
+    vless:
+      server: "vpn.example.com"
+      port: 443
+      uuid: "..."
   - name: "office"
     routing_mode: "host"
     host_exclude_cidrs: ["203.0.113.0/24"]
@@ -55,3 +68,8 @@ singbox_instances:
 Per-instance `tun_name` / `tun_address` / `route_table` / `fwmark` / `ipset`
 default off the instance index, so multiple tunnels never collide. See
 `defaults/main.yml` for the full schema.
+
+The fwmark defaults to `0x1000 << index`. Keep any override out of bits 16-31:
+Cilium puts the endpoint identity there, so a mark that overlaps matches roughly
+half of the identities and pulls their traffic — node-to-node VXLAN included —
+into the tunnel. `0x4000` and `0x8000` belong to kube-proxy.
