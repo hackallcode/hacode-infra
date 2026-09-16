@@ -114,3 +114,26 @@
         src: "/etc/systemd/system/systemd-journald.service.d/molecule-dropin.conf"
       register: "dropin_body"
       failed_when: "'Environment=MOLECULE_DROPIN=ok' not in (dropin_body.content | b64decode)"
+
+    - name: "Gather OS family for the Debian-only netplan checks"
+      ansible.builtin.setup:
+        gather_subset: ["!all", "min"]
+
+    - name: "Netplan subrole recorded the shadow state (Debian)"
+      ansible.builtin.slurp:
+        src: "/var/lib/hacode/netplan/95-molecule.yaml"
+      register: "netplan_shadow"
+      when: "ansible_os_family == 'Debian'"
+
+    - name: "Netplan apply handler fired (Debian)"
+      ansible.builtin.stat:
+        path: "/tmp/netplan-apply.log"
+      register: "netplan_apply_log"
+      when: "ansible_os_family == 'Debian'"
+
+    - name: "Netplan shadow carries the fixture and apply ran (Debian)"
+      ansible.builtin.assert:
+        that:
+          - "'molecule0' in (netplan_shadow.content | b64decode)"
+          - "netplan_apply_log.stat.exists"
+      when: "ansible_os_family == 'Debian'"

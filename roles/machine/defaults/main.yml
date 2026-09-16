@@ -449,7 +449,14 @@ nvidia_driver_module_stream: "latest-dkms"
 #   - name      target filename, e.g. "95-modem.yaml" (required)
 #   - content   inline YAML string, OR
 #   - template  path to a Jinja template rendered on the controller
+# The rendered config is tracked in a shadow copy under
+# `machine_netplan_state_dir`; /etc/netplan is (re)written and `netplan apply`
+# fired only when that content changes. This keeps runs idempotent even on
+# NetworkManager-backed hosts, where `netplan apply` consumes the source file
+# (rewrites it as 90-NM-<uuid>.yaml) — a plain copy would otherwise re-apply
+# and bounce NM on every run. `force=true` re-applies regardless.
 machine_netplan_files: []
+machine_netplan_state_dir: "/var/lib/hacode/netplan"
 
 # ===== Raspberry =====
 # Jinja template rendered into a BEGIN/END ANSIBLE-MANAGED block at the

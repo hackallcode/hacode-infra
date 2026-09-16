@@ -93,7 +93,11 @@ dns_server_custom_servers: []      # ["1.1.1.1"]  OR  [{domain: "x.tld", dns_ip:
 
 # Netplan (dropped into /etc/netplan/, 0600, then `netplan apply`)
 # Each entry: {name (required), content: "<yaml>" | template: "<path.j2>"}.
+# Rewritten + applied only when the rendered config changes (tracked as a
+# shadow copy under machine_netplan_state_dir), so runs stay idempotent even
+# where `netplan apply` consumes the source file.
 machine_netplan_files: []
+machine_netplan_state_dir: "/var/lib/hacode/netplan"
 #   - name: "95-modem.yaml"
 #     content: |
 #       network: {version: 2, ethernets: {modem: {...}}}

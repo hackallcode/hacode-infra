@@ -84,6 +84,22 @@ provisioner:
             opts: "size=8M,mode=0755"
             passno: 0
 
+        # The subrole is Debian-gated (RHEL platforms skip the whole block
+        # via `ansible_os_family == 'Debian'`), so this only exercises on
+        # ubuntu2204 / ubuntu2404. Prepare stubs `netplan` there to mimic
+        # the NetworkManager backend that consumes the source file on apply
+        # — the exact scenario the shadow-state idempotency has to survive.
+        machine_netplan_enabled: true
+        machine_netplan_files:
+          - name: "95-molecule.yaml"
+            content: |
+              network:
+                version: 2
+                ethernets:
+                  molecule0:
+                    dhcp4: true
+                    optional: true
+
         machine_scripts_enabled: true
         machine_scripts:
           - name: "molecule-script"

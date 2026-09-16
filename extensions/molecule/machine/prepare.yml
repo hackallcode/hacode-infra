@@ -39,3 +39,26 @@
         state: "present"
         update_cache: true
       when: "ansible_os_family == 'Debian'"
+
+    # `netplan apply` needs a real backend + interfaces the container lacks.
+    # Stub it (earlier on sudo's secure_path than any real /usr/sbin/netplan)
+    # so it records the call and mimics the NetworkManager backend consuming
+    # the source file on apply — the case the netplan subrole's shadow-state
+    # idempotency has to survive.
+    - name: "Ensure /etc/netplan exists on Debian family"
+      ansible.builtin.file:
+        path: "/etc/netplan"
+        state: "directory"
+        mode: "0755"
+      when: "ansible_os_family == 'Debian'"
+
+    - name: "Stub netplan on Debian family"
+      ansible.builtin.copy:
+        dest: "/usr/local/sbin/netplan"
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          echo "$@" >> /tmp/netplan-apply.log
+          [ "$1" = "apply" ] && rm -f /etc/netplan/95-molecule.yaml
+          exit 0
+      when: "ansible_os_family == 'Debian'"

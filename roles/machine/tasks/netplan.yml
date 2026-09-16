@@ -1,13 +1,54 @@
-- name: "Deploy netplan configurations"
+# On NetworkManager-backed netplan hosts, `netplan apply` rewrites each source
+# file into 90-NM-<uuid>.yaml and drops the original, so writing straight into
+# /etc/netplan is never idempotent: the file looks "missing" next run and every
+# `make machine` re-applies (bouncing NM). Track the rendered config in a shadow
+# copy outside /etc/netplan and only (re)write + apply when it actually changes.
+
+- name: "Ensure netplan shadow-state dir"
+  tags: ["netplan"]
+  ansible.builtin.file:
+    path: "{{ machine_netplan_state_dir }}"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0700"
+
+- name: "Render desired netplan configs"
+  tags: ["netplan"]
+  ansible.builtin.set_fact:
+    _netplan_rendered: "{{ _netplan_rendered | default([]) + [_entry] }}"
+  vars:
+    _entry:
+      name: "{{ item.name }}"
+      content: "{{ lookup('ansible.builtin.template', item.template) if item.template is defined else item.content }}"
+  loop: "{{ machine_netplan_files }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Record desired netplan state"
   tags: ["netplan"]
   ansible.builtin.copy:
-    dest: "/etc/netplan/{{ item.name }}"
-    content: "{{ lookup('ansible.builtin.template', item.template) if (item.template is defined) else item.content }}"
+    dest: "{{ machine_netplan_state_dir }}/{{ item.name }}"
+    content: "{{ item.content }}"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+  loop: "{{ _netplan_rendered }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: "_netplan_shadow"
+
+- name: "Install changed netplan configs"
+  tags: ["netplan"]
+  ansible.builtin.copy:
+    dest: "/etc/netplan/{{ item.item.name }}"
+    content: "{{ item.item.content }}"
     owner: "root"
     group: "root"
     mode: "0600"
     backup: true
-  loop: "{{ machine_netplan_files }}"
+  loop: "{{ _netplan_shadow.results }}"
   loop_control:
-    label: "{{ item.name }}"
+    label: "{{ item.item.name }}"
+  when: "item is changed or (force | default(false) | bool)"
   notify: "Apply netplan"
