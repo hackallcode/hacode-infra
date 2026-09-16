@@ -23,6 +23,14 @@ skip_list:
   # Some task names embed loop-vars (`Generate '{{ wg_client.name }}' key`)
   # for log readability; production profile flags any Jinja in `name`.
   - "name[template]"
+  # `ansible.mysql` is Red Hat's byte-for-byte re-vendor of `community.mysql`,
+  # distributed via Automation Hub. On machines with both installed, lint
+  # canonicalises to `ansible.mysql`, but our published Galaxy dep is
+  # `community.mysql` — a rename would break `ansible-galaxy install` from
+  # public Galaxy. Skip the whole `fqcn[canonical]` rule: no other module in
+  # the repo has a live canonical redirect right now, and adding one later
+  # would show up in review anyway.
+  - "fqcn[canonical]"
 
 warn_list:
   - "experimental"
