@@ -1,47 +1,41 @@
-- name: "Touch journald config"
+# journald settings go in a drop-in, not journald.conf itself, so they win over
+# distro-shipped drop-ins. Raspberry Pi OS ships
+# /usr/lib/systemd/journald.conf.d/40-rpi-volatile-storage.conf with
+# Storage=volatile; editing the main journald.conf is silently overridden by it
+# (a drop-in beats the main file), quietly losing logs across reboots. A
+# high-numbered drop-in name sorts last and wins.
+- name: "Ensure journald drop-in directory exists"
+  tags: ["journald"]
+  ansible.builtin.file:
+    path: "/etc/systemd/journald.conf.d"
+    state: "directory"
+    mode: "0755"
+
+- name: "Configure journald via drop-in"
   tags: ["journald"]
   ansible.builtin.copy:
-    dest: "/etc/systemd/journald.conf"
-    content: "[Journal]"
-    force: false
+    dest: "/etc/systemd/journald.conf.d/95-hacode.conf"
+    content: |
+      [Journal]
+      Storage={{ journald_storage }}
+      SystemMaxUse={{ journald_system_max_use }}
+      Compress={{ 'yes' if (journald_compress | bool) else 'no' }}
     mode: "0644"
-  register: "journald_config"
+  register: "journald_dropin"
 
-- name: "Store the journald logs on disk"
+- name: "Ensure persistent journal directory exists"
   tags: ["journald"]
-  ansible.builtin.lineinfile:
-    dest: "/etc/systemd/journald.conf"
-    regexp: "^Storage="
-    line: "Storage={{ journald_storage }}"
-    state: "present"
-  register: "journald_storage_res"
-
-- name: "Limit journald logs memory"
-  tags: ["journald"]
-  ansible.builtin.lineinfile:
-    dest: "/etc/systemd/journald.conf"
-    regexp: "^SystemMaxUse="
-    line: "SystemMaxUse={{ journald_system_max_use }}"
-    state: "present"
-  register: "journald_max_use_res"
-
-- name: "Enable journald logs compression"
-  tags: ["journald"]
-  ansible.builtin.lineinfile:
-    dest: "/etc/systemd/journald.conf"
-    regexp: "^Compress="
-    line: "Compress={{ 'yes' if (journald_compress | bool) else 'no' }}"
-    state: "present"
-  register: "journald_compress_res"
+  ansible.builtin.file:
+    path: "/var/log/journal"
+    state: "directory"
+    owner: "root"
+    group: "systemd-journal"
+    mode: "2755"
+  when: "journald_storage == 'persistent'"
 
 - name: "Restart systemd-journald"
   tags: ["journald"]
   ansible.builtin.systemd:
     name: "systemd-journald"
     state: "restarted"
-  when: >-
-    journald_config is changed
-    or journald_storage_res is changed
-    or journald_max_use_res is changed
-    or journald_compress_res is changed
-    or (force | default(false) | bool)
+  when: "journald_dropin is changed or (force | default(false) | bool)"

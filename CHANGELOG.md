@@ -131,6 +131,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: journald settings are now written as an
+  `/etc/systemd/journald.conf.d/95-hacode.conf` drop-in instead of edited
+  into the main `journald.conf`. On Raspberry Pi OS the shipped
+  `40-rpi-volatile-storage.conf` drop-in forces `Storage=volatile`, which
+  silently overrode the main file, so `journald_storage: persistent` was a
+  no-op and every boot's logs were lost on reboot. The task also creates
+  `/var/log/journal` when persistent.
+
 - `k8s_addons` role: cilium-prep now unfeeds `OLD_CILIUM_*` chains from
   PREROUTING / POSTROUTING before flushing and deleting them. Cilium
   leaves the feeder rules pointing at the renamed chains, so
