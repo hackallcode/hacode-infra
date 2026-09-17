@@ -35,11 +35,17 @@
       changed_when: false
       failed_when: "'no' not in sshd_pw.stdout"
 
-    - name: "Journald keeps logs on disk"
-      ansible.builtin.command: "grep -E '^Storage=' /etc/systemd/journald.conf"
+    - name: "Journald keeps logs on disk (via drop-in)"
+      ansible.builtin.command: "grep -E '^Storage=' /etc/systemd/journald.conf.d/95-hacode.conf"
       register: "journald_cfg"
       changed_when: false
       failed_when: "'persistent' not in journald_cfg.stdout"
+
+    - name: "Journald persistent directory exists"
+      ansible.builtin.stat:
+        path: "/var/log/journal"
+      register: "journald_dir"
+      failed_when: "not journald_dir.stat.isdir | default(false)"
 
     - name: "Scripts subrole dropped molecule-script into /usr/local/bin"
       ansible.builtin.stat:

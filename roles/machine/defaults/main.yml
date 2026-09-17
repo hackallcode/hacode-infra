@@ -390,7 +390,10 @@ chrony_pools:
 chrony_servers: []
 
 # ===== Journald =====
-journald_storage: "persistent"
+# Written as an /etc/systemd/journald.conf.d/ drop-in so it wins over
+# distro-shipped drop-ins (notably Raspberry Pi OS forces Storage=volatile,
+# which silently overrides the main journald.conf and loses logs on reboot).
+journald_storage: "persistent"        # "persistent" also creates /var/log/journal
 journald_system_max_use: "1G"
 journald_compress: true
 
