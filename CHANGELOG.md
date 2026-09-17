@@ -131,6 +131,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `k3s` role: `delete` now runs from a peer that survives the removal.
+  It delegated to the first peer, which is usually the node being deleted
+  (it comes first in the inventory), so `kubectl delete node` talked to the
+  apiserver it was deleting: the node object went, that k3s stopped serving,
+  and the command never returned - the playbook hung long after the cluster
+  was fine without the node. With no other server left, the role now says so
+  instead of hanging.
+
 - `machine` role: journald settings are now written as an
   `/etc/systemd/journald.conf.d/95-hacode.conf` drop-in instead of edited
   into the main `journald.conf`. On Raspberry Pi OS the shipped
