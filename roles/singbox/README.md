@@ -25,6 +25,15 @@ so you can run several independent tunnels to different servers on one host.
   route so the box remains reachable.
 - **`none`** — bring the tun up only; route into it yourself.
 
+`direct_domains` sends the named hosts out of the tunnel and straight off the
+node's own address. Routes cannot express that when the hosts you want tunnelled
+and the ones you do not sit behind the same CDN — the addresses are shared, the
+names are not, and sing-box reads the SNI. Reach for it when a provider refuses
+the tunnel's exit address while the same credentials work from a direct route.
+Pair it with `wan_interface` so the direct outbound binds to the node's real
+egress NIC; without that, `host` mode's default-route swap sends "direct" traffic
+back through the tun and the exception loops instead of leaving.
+
 ## Tasks
 
 - `install` (default via `main`) — install the pinned binary, render per-instance

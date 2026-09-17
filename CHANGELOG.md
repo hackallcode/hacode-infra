@@ -9,6 +9,19 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `singbox` role: per-instance `direct_domains` — hosts named there
+  go past the tunnel and leave the node on its own address instead of
+  via VLESS. Routes can't do this when the hosts to tunnel and the
+  ones to skip sit behind the same CDN (addresses are shared, names
+  are not); a sing-box `sniff` rule reads the TLS SNI and sends the
+  listed names to the direct outbound. Motivating case: a provider
+  refuses the tunnel's exit address while the same credentials work
+  from a direct route. Pair with the new per-instance `wan_interface`
+  so the direct outbound binds to the node's egress NIC — in `host`
+  mode the default route points at the tun, so an unbound direct
+  outbound loops the exception back through the tunnel instead of
+  leaving.
+
 - `singbox` role: `dests` routing mode. Sends `route_dests` CIDRs
   through the tun in the main routing table — no marks, no ipsets,
   no policy rules — so it works under Cilium's BPF datapath, where
