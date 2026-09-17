@@ -397,6 +397,13 @@ journald_storage: "persistent"        # "persistent" also creates /var/log/journ
 journald_system_max_use: "1G"
 journald_compress: true
 
+# Drop-in filename under /etc/systemd/journald.conf.d/. `.conf` suffix is
+# required by systemd. Numeric prefix sets sort order — later filenames win
+# in a given directory, and `/etc/` already beats vendor drop-ins under
+# `/usr/lib/`, so `95-` sits near the end while leaving `96..99` for a
+# per-inventory override on top of ours.
+journald_dropin_file: "95-hacode.conf"
+
 # ===== fail2ban =====
 fail2ban_ssh_bantime: "1d"
 fail2ban_ssh_maxretry: 3

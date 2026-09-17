@@ -14,7 +14,7 @@
 - name: "Configure journald via drop-in"
   tags: ["journald"]
   ansible.builtin.copy:
-    dest: "/etc/systemd/journald.conf.d/95-hacode.conf"
+    dest: "/etc/systemd/journald.conf.d/{{ journald_dropin_file }}"
     content: |
       [Journal]
       Storage={{ journald_storage }}
