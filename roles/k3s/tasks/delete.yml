@@ -1,5 +1,24 @@
 - ansible.builtin.import_tasks: "_peers.yml"
 
+# Delete from a node that stays. The first peer is usually the node being
+# removed - it comes first in the inventory - and `kubectl delete node` then
+# talks to the apiserver it is deleting: the node object goes, that k3s stops
+# serving, and the command never returns. The playbook hangs on a dead
+# connection long after the cluster is fine without the node.
+- name: "Resolve a peer that survives this deletion"
+  tags: ["delete"]
+  ansible.builtin.set_fact:
+    k3s_delete_via: >-
+      {{ (k3s_cluster_peers | reject('equalto', inventory_hostname) | list) | first | default('') }}
+
+- name: "Assert another server is left to delete through"
+  tags: ["delete"]
+  ansible.builtin.assert:
+    that: "k3s_delete_via | length > 0"
+    fail_msg: >-
+      {{ inventory_hostname }} is the only server of cluster {{ k3s_cluster_name }},
+      so there is nowhere to delete it from - uninstall k3s on it instead.
+
 - name: "Delete the node from the cluster"
   tags: ["delete"]
   ansible.builtin.command:
@@ -10,6 +29,6 @@
       - "node"
       - "{{ k3s_node_name }}"
       - "--ignore-not-found"
-  delegate_to: "{{ k3s_cluster_peers[0] }}"
+  delegate_to: "{{ k3s_delete_via }}"
   register: "k3s_delete_res"
   changed_when: "'deleted' in (k3s_delete_res.stdout | default(''))"
