@@ -55,10 +55,17 @@ singbox_default_local_dests:
 #     none     -> bring the tun up only; route into it yourself.
 #   scope_namespaces list of k3s namespaces to tunnel (k3s-pods mode)
 #   route_dests      dest CIDRs to send through the tun (dests mode)
-#   direct_domains   имена, которые идут мимо туннеля, напрямую с адреса ноды.
-#                    Маршрутами так не сделать, когда нужные и ненужные хосты
-#                    стоят за одним CDN: адреса общие, а имена - нет, и sing-box
-#                    видит SNI. Нужно, когда провайдер режет выходной адрес VPN.
+#   direct_domains   hosts that go past the tunnel and leave straight off the
+#                    node's own address. Routes cannot express this when the
+#                    hosts to tunnel and the ones to skip sit behind the same
+#                    CDN: addresses are shared, names are not, and sing-box
+#                    reads the SNI. Needs `wan_interface` set, otherwise the
+#                    direct outbound uses the node's default route and, in
+#                    `host` mode, loops back through the tun.
+#   wan_interface    interface name (`eth0`, ...) the direct outbound binds to.
+#                    Required to make `direct_domains` actually leave in host
+#                    mode; harmless in other modes (direct outbound already
+#                    lands on the node's default route).
 #   local_dests      dests kept off the tunnel (default: singbox_default_local_dests)
 #   host_exclude_cidrs  extra direct-route dests (host mode)
 #   tun_name / tun_address / route_table / fwmark / ipset / mtu / kubectl
