@@ -34,5 +34,16 @@
     },
     { "type": "direct", "tag": "direct" }
   ],
-  "route": { "auto_detect_interface": true, "final": "vless-out" }
+  "route": {
+    "auto_detect_interface": true,
+{% if instance.direct_domains is defined and instance.direct_domains %}
+    "rules": [
+      {
+        "domain_suffix": {{ instance.direct_domains | to_json }},
+        "outbound": "direct"
+      }
+    ],
+{% endif %}
+    "final": "vless-out"
+  }
 }
