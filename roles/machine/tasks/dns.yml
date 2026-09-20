@@ -50,6 +50,62 @@
     force: true
   register: "dns_resolv_link"
 
+- name: "Read the resolvers the devices carry"
+  tags: ["dns"]
+  # A cloud image can hand over a connection profile with no resolver in it
+  # and no DHCP option to fill one in. NetworkManager then has nothing to
+  # give dnsmasq, never starts it, and the host resolves nothing - while
+  # every task up to here still reports success.
+  ansible.builtin.command:
+    argv: ["nmcli", "-g", "IP4.DNS,IP6.DNS", "device", "show"]
+  changed_when: false
+  register: "dns_device_resolvers"
+  when: "dns_server_fallback_upstreams | length > 0"
+
+- name: "List the ethernet connections"
+  tags: ["dns"]
+  ansible.builtin.command:
+    argv: ["nmcli", "-g", "NAME,TYPE", "connection", "show", "--active"]
+  changed_when: false
+  register: "dns_active_connections"
+  when:
+    - "dns_server_fallback_upstreams | length > 0"
+    - "dns_device_resolvers.stdout | replace('|', '') | trim | length == 0"
+
+- name: "Name the connections that need a resolver"
+  tags: ["dns"]
+  ansible.builtin.set_fact:
+    dns_connections_without_resolver: >-
+      {{ (dns_active_connections.stdout_lines | default([]))
+         | select('search', ':802-3-ethernet$')
+         | map('regex_replace', ':802-3-ethernet$', '')
+         | list }}
+
+- name: "Give those connections a resolver to forward to"
+  tags: ["dns"]
+  # `ignore-auto-dns` keeps a later lease from putting the empty list back:
+  # what NetworkManager reads is the profile, not the lease.
+  ansible.builtin.command:
+    argv:
+      - "nmcli"
+      - "connection"
+      - "modify"
+      - "{{ item }}"
+      - "ipv4.dns"
+      - "{{ dns_server_fallback_upstreams | join(' ') }}"
+      - "ipv4.ignore-auto-dns"
+      - "yes"
+  changed_when: true
+  loop: "{{ dns_connections_without_resolver }}"
+  register: "dns_fallback_upstreams_set"
+
+- name: "Reload them so the resolver takes"
+  tags: ["dns"]
+  ansible.builtin.command:
+    argv: ["nmcli", "connection", "up", "{{ item }}"]
+  changed_when: true
+  loop: "{{ dns_connections_without_resolver }}"
+
 - name: "Enable network manager"
   tags: ["dns"]
   ansible.builtin.systemd:
@@ -66,6 +122,7 @@
     dns_mappings is changed
     or dns_nm_config is changed
     or dns_resolv_link is changed
+    or dns_fallback_upstreams_set is changed
     or (force | default(false) | bool)
 
 - name: "Wait for dnsmasq DNS to respond"
@@ -78,4 +135,5 @@
     dns_mappings is changed
     or dns_nm_config is changed
     or dns_resolv_link is changed
+    or dns_fallback_upstreams_set is changed
     or (force | default(false) | bool)

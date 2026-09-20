@@ -374,6 +374,12 @@ dns_server_custom_addresses: []
 #     `server=/<domain>/<dns_ip>`)
 dns_server_custom_servers: []
 
+# Resolvers written into the ethernet connection profiles when no device
+# carries one. Some cloud images ship a profile with an empty DNS list and
+# no DHCP option behind it; NetworkManager then never starts its dnsmasq
+# and the host resolves nothing. Empty list leaves the profiles alone.
+dns_server_fallback_upstreams: ["9.9.9.9", "8.8.8.8", "1.1.1.1"]
+
 # Emit dnsmasq's `stop-dns-rebind` directive. Drops upstream responses
 # containing RFC1918 IPs - DNS-rebinding protection for public-facing
 # resolvers. Disable when forwarding to a private upstream that

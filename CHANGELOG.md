@@ -144,6 +144,15 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: the `dns` subrole now gives the ethernet connection
+  profiles a resolver of their own when no device carries one, via the new
+  `dns_server_fallback_upstreams`. A cloud image can ship a profile with an
+  empty DNS list and no DHCP option behind it (netcup's does); with nothing
+  to hand its dnsmasq, NetworkManager never starts it, and the role stopped
+  on the wait for `127.0.0.1:53` after every task before it had reported
+  success on a host that resolved nothing. Hosts whose devices already carry
+  a resolver are left alone.
+
 - `k3s` role: `delete` now runs from a peer that survives the removal.
   It delegated to the first peer, which is usually the node being deleted
   (it comes first in the inventory), so `kubectl delete node` talked to the

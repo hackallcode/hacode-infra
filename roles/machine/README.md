@@ -90,6 +90,7 @@ machine_dns_public: false          # open `dns` in zone + hashlimit; off-by-defa
 dns_server_interfaces: []          # listen by interface NAME; falls back to listen-address by IP when empty
 dns_server_custom_addresses: []    # [{domain: "host.example.com", ip: "10.0.0.1"}]
 dns_server_custom_servers: []      # ["1.1.1.1"]  OR  [{domain: "x.tld", dns_ip: "10.0.0.1"}]
+dns_server_fallback_upstreams: ["9.9.9.9", "8.8.8.8", "1.1.1.1"]  # written into the ethernet profiles when no device carries a resolver
 
 # Netplan (dropped into /etc/netplan/, 0600, then `netplan apply`)
 # Each entry: {name (required), content: "<yaml>" | template: "<path.j2>"}.
