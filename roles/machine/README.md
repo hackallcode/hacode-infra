@@ -257,4 +257,6 @@ bootstrap without the rest of the role.
 - The role detects Raspberry Pi OS automatically by the presence of `/etc/apt/sources.list.d/raspi.list`
   (pre-Bookworm one-line format) or `/etc/apt/sources.list.d/raspi.sources` (Bookworm+ DEB822 format).
 - `tmux` is built from source pinned to `tmux_version`; the distro's package is skipped because it lags by years.
-- `claude_code` / `codex` install nodejs + npm on first run (idempotent thereafter).
+- `claude_code` / `codex` install nodejs + npm on first run (idempotent thereafter). On EL8/EL9 that starts by
+  enabling the `nodejs:20` module stream, whose default is too old for the CLIs; EL10 dropped dnf modularity and
+  ships a current `nodejs` package, so the stream step is skipped there.

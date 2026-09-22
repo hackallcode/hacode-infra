@@ -143,3 +143,24 @@
           - "'molecule0' in (netplan_shadow.content | b64decode)"
           - "netplan_apply_log.stat.exists"
       when: "ansible_os_family == 'Debian'"
+
+    # The claude_code fixture is EL-only (see molecule.yml). The setup above
+    # already gathered the family and major version these checks key off.
+    - name: "Claude_code subrole got Node.js + npm from the distribution"
+      ansible.builtin.command: "npm --version"
+      register: "npm_version"
+      changed_when: false
+      failed_when: "npm_version.rc != 0"
+      when: "ansible_os_family == 'RedHat'"
+
+    # EL10 dropped dnf modularity, so the stream step must have been skipped
+    # rather than having enabled anything. EL8/EL9 would carry the opposite
+    # assertion, but no such platform is in this matrix.
+    - name: "No nodejs module stream was enabled on EL10"
+      ansible.builtin.stat:
+        path: "/etc/dnf/modules.d/nodejs.module"
+      register: "nodejs_stream"
+      failed_when: "nodejs_stream.stat.exists"
+      when:
+        - "ansible_os_family == 'RedHat'"
+        - "ansible_distribution_major_version | int >= 10"

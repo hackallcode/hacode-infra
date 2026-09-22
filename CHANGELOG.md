@@ -240,6 +240,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   own outside firewalld (Cilium's pod-egress masquerade on a k8s
   node); runtime mutations leave those chains untouched.
 
+- `machine` role: `claude_code` / `codex` no longer try to enable the
+  `nodejs:20` dnf module stream on EL10. Modularity is gone in RHEL 10 and
+  its rebuilds, where `dnf module enable -y nodejs:20` fails outright with
+  "missing groups or modules: nodejs:20" and takes the whole play with it;
+  the plain `nodejs` + `npm` packages there are already new enough. EL8/EL9
+  still get the stream.
+
 ## [0.4.0] - 2026-07-03
 
 ### Added
