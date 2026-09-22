@@ -55,3 +55,12 @@ Compose deployment (typically via `hacode.infra.app`, not directly):
       vars:
         docker_dest: "my-app"
 ```
+
+## Notes
+
+- On the RHEL family `install` pulls `kernel-modules-extra` for every installed kernel, then asserts that Docker's
+  modules (`br_netfilter`, `xt_addrtype`, …) actually load into the running one. A host still booted into an older
+  kernel whose `kernel-modules-extra` has aged out of the repositories fails there, naming the modules and the kernel,
+  instead of later at daemon start with dockerd's `Extension addrtype revision 0 not supported, missing kernel module?`.
+  Rebooting into the newer installed kernel is the usual remedy. Containers skip the assert — they borrow the host
+  kernel and have no `/lib/modules` to load from.

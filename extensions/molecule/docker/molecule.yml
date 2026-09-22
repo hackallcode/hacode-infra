@@ -1,8 +1,12 @@
 # docker scenario: full install — adds the upstream docker-ce repository,
-# installs docker-ce + containerd + compose plugin, loads kernel modules
-# (failures tolerated by the role), applies sysctls, and enables the daemon.
+# installs docker-ce + containerd + compose plugin, loads kernel modules,
+# applies sysctls, and enables the daemon.
 # Daemon-start is best-effort under nested cgroups — converge has a rescue
 # block that surfaces journalctl logs if dockerd refuses to come up.
+# The role's assert on loaded kernel modules can't be exercised here: these
+# platforms are containers, which borrow the host kernel and have no
+# /lib/modules to modprobe from, so the role skips the assert on them. Only
+# the skip path is covered — a real missing-module host needs a VM.
 
 driver:
   name: "docker"
