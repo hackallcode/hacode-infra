@@ -3,7 +3,8 @@
 # selinux, firewall, dns, fail2ban, docker, cockpit, nvidia, raspberry and
 # reboot subroles are toggled off because they are either non-deterministic
 # (latest-package churn) or require real hardware / kernel features that a CI
-# container can't provide.
+# container can't provide. `claude_code` is the one heavier subrole that stays
+# on, and only on the EL platforms — see the toggle's comment below.
 
 driver:
   name: "docker"
@@ -73,6 +74,15 @@ provisioner:
         machine_cockpit_enabled: false
         machine_nvidia_enabled: false
         machine_reboot_enabled: false
+
+        # On EL the subrole decides how to get Node.js from the distribution:
+        # the `nodejs:20` module stream up to EL9, plain packages on EL10,
+        # where enabling a stream fails the play outright. The EL10 platforms
+        # here are what keeps that branch honest. Left off on Debian/Ubuntu,
+        # whose distro nodejs is older than the CLI's engine requirement, so a
+        # global install there would prove nothing. `codex` stays off too — its
+        # Node.js steps are the same tasks with a different npm package.
+        machine_claude_code_enabled: "{{ ansible_os_family == 'RedHat' }}"
 
         # tmpfs sidesteps the need for a real block device in the
         # docker driver while still exercising the fstab + mount logic.

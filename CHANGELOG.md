@@ -240,6 +240,27 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   own outside firewalld (Cilium's pod-egress masquerade on a k8s
   node); runtime mutations leave those chains untouched.
 
+- `machine` role: `claude_code` / `codex` no longer try to enable the
+  `nodejs:20` dnf module stream on EL10. Modularity is gone in RHEL 10 and
+  its rebuilds, where `dnf module enable -y nodejs:20` fails outright with
+  "missing groups or modules: nodejs:20" and takes the whole play with it;
+  the plain `nodejs` + `npm` packages there are already new enough. EL8/EL9
+  still get the stream.
+
+- `docker` role: a host that cannot load Docker's kernel modules now fails
+  at the modules, not later at the daemon. The `modprobe` loop used to run
+  with `failed_when: false`, so a missing `br_netfilter` / `xt_addrtype`
+  passed silently and the run died at "Start and enable Docker" with
+  dockerd's own `Extension addrtype revision 0 not supported, missing
+  kernel module?` -- a message that names neither the module nor the
+  kernel. The loop still attempts every module, but an assert afterwards
+  names the ones that failed and the running kernel, and points at the
+  common cause (host still booted into an old kernel whose
+  `kernel-modules-extra` has aged out of the repositories while a newer
+  kernel waits for a reboot). Missing packages for other, non-running
+  kernels stay tolerated as before, and the assert is skipped in
+  containers, which have no modules of their own to load.
+
 ## [0.4.0] - 2026-07-03
 
 ### Added

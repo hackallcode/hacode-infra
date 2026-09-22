@@ -6,6 +6,8 @@
       - "distribution"
       - "distribution_release"
       - "architecture"
+      # `virtual` backs the container guard on the kernel-module assert below.
+      - "virtual"
 
 - name: "Add Docker GPG key on Debian/Ubuntu"
   tags: ["install"]
@@ -82,7 +84,11 @@
 # Cover every installed kernel, not just the running one: a `dnf upgrade`
 # stages a newer kernel that a later reboot boots into, and the matching
 # `kernel-modules-extra` (`br_netfilter`, `xt_addrtype`, ...) must be present
-# or Docker's bridge setup fails on that first post-reboot boot.
+# or Docker's bridge setup fails on that first post-reboot boot. A kernel
+# whose package has aged out of the repositories yields "No package ...",
+# which stays tolerated here -- it is only fatal for the kernel the host is
+# actually running on, and that case is caught by the assert below, where the
+# diagnosis is precise (the module either loads or it doesn't).
 - name: "Install kernel-modules-extra for every installed kernel (RedHat)"
   tags: ["install"]
   ansible.builtin.package:
@@ -133,7 +139,38 @@
     - "nf_nat"
     - "iptable_nat"
     - "iptable_filter"
-  failed_when: false
+  register: "docker_modprobe"
+  # Errors are collected rather than fatal so every module is attempted and
+  # the assert below can name all the missing ones at once.
+  ignore_errors: true
+
+# Without this, a host that cannot load the modules sails through the role and
+# fails later at "Start and enable Docker" with dockerd's own
+# "Extension addrtype revision 0 not supported, missing kernel module?", which
+# points nowhere near the cause.
+- name: "Assert kernel modules required by Docker are loaded"
+  tags: ["install"]
+  ansible.builtin.assert:
+    that: >-
+      docker_modprobe.results | selectattr('failed', 'defined')
+      | selectattr('failed') | list | length == 0
+    fail_msg: >-
+      Kernel modules
+      {{ docker_modprobe.results | selectattr('failed', 'defined')
+         | selectattr('failed') | map(attribute='item') | join(', ') }}
+      cannot be loaded into the running kernel ({{ ansible_kernel }}), so
+      Docker's bridge networking and iptables rules have nothing to stand on.
+      The usual cause is a host still booted into an old kernel whose
+      `kernel-modules-extra-{{ ansible_kernel }}` has aged out of the
+      repositories while a newer kernel is already installed: reboot into the
+      new kernel and re-run. Otherwise install the matching
+      `kernel-modules-extra` by hand, or check that the modules were not
+      stripped from the image.
+  # Containers borrow the host kernel and have no /lib/modules of their own,
+  # so modprobe cannot work there (molecule's own platforms included). Same
+  # type list as the `machine` role's own container guards — `oci` included,
+  # which is what podman reports on some versions.
+  when: "ansible_virtualization_type | default('') not in ['docker', 'container', 'oci', 'lxc', 'podman']"
 
 - name: "Ensure /etc/sysctl.d exists"
   tags: ["install"]

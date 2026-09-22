@@ -1,12 +1,18 @@
 # Install Anthropic's Claude Code CLI globally via npm. Self-contained:
 # ensures nodejs + npm are present before invoking the npm module.
 
-- name: "Enable Node.js 20 module stream (RHEL)"
+# EL8/EL9 ship Node.js only as a module stream, and the default stream is
+# too old for the CLI. EL10 dropped modularity altogether -- `dnf module
+# enable` there fails with "missing groups or modules: nodejs:20" -- and its
+# plain `nodejs` package is already current, so the stream step is skipped.
+- name: "Enable Node.js 20 module stream (RHEL < 10)"
   tags: ["claude_code"]
   ansible.builtin.command: "dnf module enable -y nodejs:20"
   args:
     creates: "/etc/dnf/modules.d/nodejs.module"
-  when: "ansible_os_family == 'RedHat'"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "ansible_distribution_major_version | int < 10"
 
 - name: "Install Node.js + npm"
   tags: ["claude_code"]
