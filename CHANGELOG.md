@@ -9,6 +9,18 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `machine` role: `machine_yum_repos` entries take an optional `file`
+  key (default `<name>.repo`). Point it at the distro's own repo
+  filename (`almalinux-baseos.repo`, ...) to overwrite the stock repo
+  file in place. Since `.repo` files are marked `%config(noreplace)`
+  by the packaging, the in-house definition then survives an
+  `almalinux-repos` upgrade instead of colliding with the stock one —
+  no `machine_dnf_excludes` on `almalinux-release` (which breaks
+  depsolve on the version-locked `almalinux-release` / `-repos` /
+  `-gpg-keys` set), no rm-and-recreate ordering games. Also reconciles
+  `machine_dnf_excludes` both ways: emptying the list now removes the
+  `exclude=` line from `/etc/dnf/dnf.conf` again.
+
 - `singbox` role: per-instance `direct_domains` — hosts named there
   go past the tunnel and leave the node on its own address instead of
   via VLESS. Routes can't do this when the hosts to tunnel and the

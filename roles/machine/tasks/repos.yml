@@ -24,18 +24,17 @@
     - "ansible_distribution == 'AlmaLinux'"
     - "machine_alma_gpg_key_url | length > 0"
 
-- name: "Hold packages that would resurrect distro repos (dnf.conf exclude)"
+- name: "Reconcile dnf.conf package excludes"
   tags: ["package"]
   community.general.ini_file:
     path: "/etc/dnf/dnf.conf"
     section: "main"
     option: "exclude"
     value: "{{ machine_dnf_excludes | join(' ') }}"
+    state: "{{ 'present' if machine_dnf_excludes | length > 0 else 'absent' }}"
     no_extra_spaces: true
     mode: "0644"
-  when:
-    - "ansible_os_family == 'RedHat'"
-    - "machine_dnf_excludes | length > 0"
+  when: "ansible_os_family == 'RedHat'"
 
 - name: "Find distro repo files superseded by machine_yum_repos"
   tags: ["package"]
@@ -63,7 +62,7 @@
   tags: ["package"]
   check_mode: false
   ansible.builtin.copy:
-    dest: "/etc/yum.repos.d/{{ item.name }}.repo"
+    dest: "/etc/yum.repos.d/{{ item.file | default(item.name ~ '.repo') }}"
     mode: "0644"
     content: |
       [{{ item.name }}]

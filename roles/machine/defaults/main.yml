@@ -210,12 +210,17 @@ machine_upgrade_all_packages: true
 machine_install_epel: true
 
 # Extra yum/dnf repositories to drop on RHEL family hosts. Each entry is
-# rendered into `/etc/yum.repos.d/<name>.repo`:
-#   - name        repo id and filename basename
+# rendered into `/etc/yum.repos.d/<file>`:
+#   - name        repo id
 #     baseurl     baseurl= line (supports yum vars like $releasever)
 #     description optional friendly description (defaults to name)
 #     enabled     1/0 (default 1)
 #     gpgcheck    1/0 (default 0)
+#     file        optional filename (default "<name>.repo"). Set it to the
+#                 distro's own repo filename (e.g. almalinux-baseos.repo) to
+#                 override a stock repo in place: .repo files are
+#                 %config(noreplace), so the in-house definition then survives
+#                 package upgrades instead of colliding with the stock one.
 machine_yum_repos: []
 
 # Distro-shipped .repo files to remove on RHEL family, as filename globs under
@@ -228,9 +233,12 @@ machine_yum_repos: []
 machine_yum_remove_repo_files: []
 
 # Packages to exclude from all dnf operations (rendered as `exclude=` in the
-# [main] section of /etc/dnf/dnf.conf). Typically `almalinux-release`, whose
-# upgrade would otherwise re-create the stock repo files removed via
-# `machine_yum_remove_repo_files`.
+# [main] section of /etc/dnf/dnf.conf). Reconciled both ways: emptying the list
+# removes the `exclude=` line again. Note version-locked sets (e.g.
+# almalinux-release/almalinux-repos/almalinux-gpg-keys) cannot be excluded
+# individually without breaking depsolve -- to keep an in-house repo definition
+# across upgrades, override the stock .repo file in place via a repo entry's
+# `file` key instead.
 machine_dnf_excludes: []
 
 # Point pip at an internal index by merging into `/etc/pip.conf`'s [global]
