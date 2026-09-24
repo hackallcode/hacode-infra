@@ -144,6 +144,21 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: `machine_yum_remove_repo_files` and
+  `machine_dnf_excludes` for closed-network hosts pointing the stock
+  repo ids at an in-house mirror. When `machine_yum_repos` re-uses
+  `baseos` / `appstream` / `extras`, the distro-shipped `almalinux-*.repo`
+  files still carry an internet `mirrorlist=` for the same ids —
+  duplicating them and, behind a closed network, timing out every
+  `dnf` metadata refresh. `machine_yum_remove_repo_files` lists
+  filename globs to delete from `/etc/yum.repos.d/` (e.g.
+  `almalinux*.repo`), applied once in `repos.yml` before any dnf op.
+  `machine_dnf_excludes` writes an `exclude=` line into
+  `/etc/dnf/dnf.conf`'s `[main]`, so a package upgrade of
+  `almalinux-release` (or similar) can't lay the stock files back
+  down. Both default to `[]`, so the change is a no-op for
+  inventories that don't run behind a closed network.
+
 - `machine` role: package repositories are now configured **before**
   any dnf/apt operation. The role's first package action is the glibc
   langpack install in `system.yml`, which refreshes every enabled repo;
