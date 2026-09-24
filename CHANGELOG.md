@@ -144,6 +144,17 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: package repositories are now configured **before**
+  any dnf/apt operation. The role's first package action is the glibc
+  langpack install in `system.yml`, which refreshes every enabled repo;
+  a stale repo baked into the base image (a decommissioned mirror, say)
+  timed out there and aborted the whole run before `packages.yml` ever
+  got to drop the managed `.repo` files. Repo drops (custom yum repos +
+  AlmaLinux GPG key) and the initial apt cache refresh live in a new
+  `repos.yml` imported first in both `main.yml` and the `host`
+  entrypoint, so `machine` converges in a single pass on freshly-imaged
+  and already-provisioned hosts alike.
+
 - `machine` role: the `dns` subrole now gives the ethernet connection
   profiles a resolver of their own when no device carries one, via the new
   `dns_server_fallback_upstreams`. A cloud image can ship a profile with an

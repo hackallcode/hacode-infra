@@ -19,15 +19,6 @@
       has the bindings (typically /usr/bin/python3 on RHEL-family).
   when: "ansible_os_family == 'RedHat'"
 
-- name: "Import AlmaLinux GPG key"
-  tags: ["package"]
-  ansible.builtin.rpm_key:
-    key: "{{ machine_alma_gpg_key_url }}"
-    state: "present"
-  when:
-    - "ansible_distribution == 'AlmaLinux'"
-    - "machine_alma_gpg_key_url | length > 0"
-
 - name: "Install AlmaLinux repository"
   tags: ["package"]
   ansible.builtin.yum:
@@ -37,25 +28,6 @@
   when:
     - "ansible_distribution == 'AlmaLinux'"
     - "machine_install_alma_release | bool"
-
-- name: "Drop custom yum repositories"
-  tags: ["package"]
-  check_mode: false
-  ansible.builtin.copy:
-    dest: "/etc/yum.repos.d/{{ item.name }}.repo"
-    mode: "0644"
-    content: |
-      [{{ item.name }}]
-      name={{ item.description | default(item.name) }}
-      baseurl={{ item.baseurl }}
-      enabled={{ item.enabled | default(1) }}
-      gpgcheck={{ item.gpgcheck | default(0) }}
-  loop: "{{ machine_yum_repos }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when:
-    - "ansible_os_family == 'RedHat'"
-    - "machine_yum_repos | length > 0"
 
 - name: "Install EPEL repo"
   tags: ["package"]
@@ -67,13 +39,6 @@
   when:
     - "ansible_os_family == 'RedHat'"
     - "machine_install_epel | bool"
-
-- name: "Update apt cache (Debian/Ubuntu)"
-  tags: ["package"]
-  ansible.builtin.apt:
-    update_cache: true
-    cache_valid_time: 3600
-  when: "ansible_os_family == 'Debian'"
 
 - name: "Check for elrepo .repo file"
   tags: ["package"]

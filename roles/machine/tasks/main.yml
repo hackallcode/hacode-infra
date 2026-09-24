@@ -1,3 +1,8 @@
+# Repos first: package operations further down (starting with the glibc
+# langpack in system.yml) refresh all enabled repos, so the managed repo
+# files must be in place before any of them run.
+- ansible.builtin.import_tasks: "repos.yml"
+
 - ansible.builtin.import_tasks: "users.yml"
   when: "machine_users_enabled | bool"
 

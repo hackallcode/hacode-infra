@@ -2,6 +2,10 @@
 # Equivalent to running users + ssh + system in order. Available as
 # `tasks_from: host` for inventories that prefer the combined entrypoint.
 
+# system.yml installs the glibc langpack, the first dnf/apt action; the
+# managed repos must be dropped before it so a stale baked-in mirror can't
+# time out the run.
+- ansible.builtin.import_tasks: "repos.yml"
 - ansible.builtin.import_tasks: "users.yml"
 - ansible.builtin.import_tasks: "ssh.yml"
 - ansible.builtin.import_tasks: "system.yml"
