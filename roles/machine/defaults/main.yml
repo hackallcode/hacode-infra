@@ -218,6 +218,21 @@ machine_install_epel: true
 #     gpgcheck    1/0 (default 0)
 machine_yum_repos: []
 
+# Distro-shipped .repo files to remove on RHEL family, as filename globs under
+# /etc/yum.repos.d (fnmatch, e.g. "almalinux*.repo"). Use when an in-house
+# mirror in `machine_yum_repos` reuses the stock repo ids (baseos, appstream,
+# extras, ...): the stock files carry an internet `mirrorlist=` that both
+# duplicates the id and is unreachable behind a closed network. Removed once,
+# before any dnf action; pair with `machine_dnf_excludes` so a package upgrade
+# can't lay them down again.
+machine_yum_remove_repo_files: []
+
+# Packages to exclude from all dnf operations (rendered as `exclude=` in the
+# [main] section of /etc/dnf/dnf.conf). Typically `almalinux-release`, whose
+# upgrade would otherwise re-create the stock repo files removed via
+# `machine_yum_remove_repo_files`.
+machine_dnf_excludes: []
+
 # Point pip at an internal index by merging into `/etc/pip.conf`'s [global]
 # section (other keys already in `[global]` are preserved).
 # `machine_pip_index_url` gates the whole block — empty (default) leaves

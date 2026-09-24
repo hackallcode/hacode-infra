@@ -24,6 +24,41 @@
     - "ansible_distribution == 'AlmaLinux'"
     - "machine_alma_gpg_key_url | length > 0"
 
+- name: "Hold packages that would resurrect distro repos (dnf.conf exclude)"
+  tags: ["package"]
+  community.general.ini_file:
+    path: "/etc/dnf/dnf.conf"
+    section: "main"
+    option: "exclude"
+    value: "{{ machine_dnf_excludes | join(' ') }}"
+    no_extra_spaces: true
+    mode: "0644"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "machine_dnf_excludes | length > 0"
+
+- name: "Find distro repo files superseded by machine_yum_repos"
+  tags: ["package"]
+  ansible.builtin.find:
+    paths: "/etc/yum.repos.d"
+    patterns: "{{ machine_yum_remove_repo_files }}"
+  register: "_machine_stale_repo_files"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "machine_yum_remove_repo_files | length > 0"
+
+- name: "Remove distro repo files superseded by machine_yum_repos"
+  tags: ["package"]
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: "absent"
+  loop: "{{ _machine_stale_repo_files.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "machine_yum_remove_repo_files | length > 0"
+
 - name: "Drop custom yum repositories"
   tags: ["package"]
   check_mode: false
