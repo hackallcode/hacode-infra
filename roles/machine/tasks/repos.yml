@@ -1,0 +1,51 @@
+# Configure package repositories BEFORE any dnf/apt operation. The first
+# package action in the role is the glibc langpack install (system.yml),
+# which refreshes *all* enabled repos; a stale repo baked into the base
+# image (e.g. a decommissioned mirror) times out there and aborts the run.
+# Dropping the managed repo files (and refreshing the apt cache) up front
+# keeps `machine` working in a single pass on both freshly-imaged and
+# already-provisioned hosts.
+
+- name: "Gather os facts for repo setup"
+  tags: ["always"]
+  ansible.builtin.setup:
+    gather_subset: ["min"]
+    filter:
+      - "ansible_os_family"
+      - "ansible_distribution"
+  when: "ansible_os_family is not defined"
+
+- name: "Import AlmaLinux GPG key"
+  tags: ["package"]
+  ansible.builtin.rpm_key:
+    key: "{{ machine_alma_gpg_key_url }}"
+    state: "present"
+  when:
+    - "ansible_distribution == 'AlmaLinux'"
+    - "machine_alma_gpg_key_url | length > 0"
+
+- name: "Drop custom yum repositories"
+  tags: ["package"]
+  check_mode: false
+  ansible.builtin.copy:
+    dest: "/etc/yum.repos.d/{{ item.name }}.repo"
+    mode: "0644"
+    content: |
+      [{{ item.name }}]
+      name={{ item.description | default(item.name) }}
+      baseurl={{ item.baseurl }}
+      enabled={{ item.enabled | default(1) }}
+      gpgcheck={{ item.gpgcheck | default(0) }}
+  loop: "{{ machine_yum_repos }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - "ansible_os_family == 'RedHat'"
+    - "machine_yum_repos | length > 0"
+
+- name: "Update apt cache (Debian/Ubuntu)"
+  tags: ["package"]
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: "ansible_os_family == 'Debian'"
