@@ -63,6 +63,12 @@ provisioner:
         # only. Debian platforms skip the whole block.
         node_exporter_allowed_sources:
           - "10.99.0.0/16"
+        # A project template alongside the bundled one, so verify can tell
+        # that the two globs concatenate rather than one replacing the
+        # other. Absolute, because the upstream role resolves the list on
+        # the controller and molecule runs from an ephemeral directory.
+        alertmanager_extra_template_files:
+          - "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/molecule-extra.tmpl"
 
 verifier:
   name: "ansible"

@@ -69,3 +69,10 @@
         path: "/etc/alertmanager/templates/telegram-alert.tmpl"
       register: "am_bundled_template"
       failed_when: "not am_bundled_template.stat.exists"
+
+    - name: "Project template from alertmanager_extra_template_files landed too"
+      ansible.builtin.slurp:
+        src: "/etc/alertmanager/templates/molecule-extra.tmpl"
+      register: "am_extra_template"
+      failed_when: >-
+        'molecule.extra.message' not in (am_extra_template.content | b64decode)
