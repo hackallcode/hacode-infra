@@ -12,8 +12,7 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `prometheus` role: `alertmanager_extra_template_files` ships a
   project's own Alertmanager templates, and
   `alertmanager_bundled_templates_enabled: false` leaves out the bundled
-  one, so a project can define its own `telegram.default.message`. The
-  template paths are now resolved before the upstream role runs.
+  one, so a project can define its own `telegram.default.message`.
 
 - `prometheus` role: knobs for a project that brings its own alerting on
   a host shared with a workload. `prometheus_bundled_rules_enabled:
@@ -181,6 +180,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   chat read as if the disk or memory had recovered.
 
 ### Fixed
+
+- `prometheus` role: the bundled rules, static targets and Alertmanager
+  template actually reach the host. Their paths were built from
+  `role_path` in the `include_role` vars, which the upstream role
+  evaluates as its own path, so the globs matched nothing and the host
+  got none of them. They are now resolved before the include.
 
 - `prometheus` role: the bundled CPU, filesystem and RAM alerts carry
   `keep_firing_for: 3m`, so a host that stops answering is reported as

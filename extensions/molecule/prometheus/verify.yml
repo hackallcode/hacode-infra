@@ -57,3 +57,15 @@
           Expected a rich rule opening 9100/tcp to 10.99.0.0/16 and no plain
           9100/tcp port rule. Got: {{ ne_fw.stdout }}
       when: "ansible_os_family == 'RedHat'"
+
+    - name: "Bundled rules reached the host"
+      ansible.builtin.stat:
+        path: "/etc/prometheus/rules/node-ram.yml"
+      register: "p_bundled_rule"
+      failed_when: "not p_bundled_rule.stat.exists"
+
+    - name: "Bundled Alertmanager template reached the host"
+      ansible.builtin.stat:
+        path: "/etc/alertmanager/templates/telegram-alert.tmpl"
+      register: "am_bundled_template"
+      failed_when: "not am_bundled_template.stat.exists"
