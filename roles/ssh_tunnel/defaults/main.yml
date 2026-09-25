@@ -25,7 +25,10 @@
 #                      optional pair for "remote" (omitted -> a SOCKS proxy on
 #                      the remote); not allowed for "dynamic".
 #
-# The shorthands keep their historical 0.0.0.0 bind and render before
-# `forwards`, so existing entries produce the same unit as before and are
-# not restarted.
+# Reach for `forwards` in new entries: it says the same thing as either
+# shorthand and more (`forward_port: N` is `{type: dynamic, bind_address:
+# "0.0.0.0", bind_port: N}`). The shorthands stay for the units already
+# deployed — they keep their historical 0.0.0.0 bind and render before
+# `forwards`, so an existing entry produces the same unit as before and
+# its tunnel is not restarted.
 ssh_tunnels: []

@@ -3,6 +3,15 @@
   become: true
   gather_facts: false
 
+  vars:
+    # Byte-for-byte what molecule.yml feeds machine_ssh_dropins, so the
+    # check proves the fragment is written verbatim rather than reformatted.
+    expected_ssh_dropin: |
+      Match User molecule-tunnel
+          AllowTcpForwarding remote
+          PermitOpen none
+          PermitTTY no
+
   tasks:
     - name: "Custom user exists"
       ansible.builtin.command: "id molecule"
@@ -45,8 +54,7 @@
       ansible.builtin.slurp:
         src: "/etc/ssh/sshd_config.d/10-molecule-tunnel.conf"
       register: "sshd_dropin"
-      failed_when: >-
-        (sshd_dropin.content | b64decode) != 'Match User molecule-tunnel\n    AllowTcpForwarding remote\n    PermitOpen none\n    PermitTTY no\n'
+      failed_when: "(sshd_dropin.content | b64decode) != expected_ssh_dropin"
 
     - name: "Sshd applies the drop-in to its user only"
       ansible.builtin.shell:
