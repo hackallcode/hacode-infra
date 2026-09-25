@@ -43,6 +43,41 @@ agent can't reliably drive, and a half-finished interactive rebase
 is easy to lose. When commits need reshaping, soft-reset to the
 base and recommit, or use a non-interactive `--onto`.
 
+## Adding functionality
+
+Before a new variable, task file or entrypoint goes in, the first
+question isn't "does this work" — it's "does something here already
+do it". This collection has grown a lot of knobs, and the overlapping
+ones are the ones that hurt: two ways to the same end means an
+operator has to know which is current, a reviewer has to hold both in
+their head, and the pair drifts the moment one of them gets a fix.
+
+So grep the role's `defaults/main.yml` and its task files for what
+you're about to add, and read what turns up even when the name doesn't
+match — the same job often hides under a different word. When
+something close already exists, extending it usually beats parking a
+parallel knob beside it: another key on an existing list entry,
+another accepted value on an existing toggle, a wider `when:` on a
+task that already runs.
+
+When the new thing genuinely supersedes an older one, don't leave the
+pair unexplained. Either drop the old knob in the same PR, or say in
+its comment when each applies and which to reach for first.
+`machine_yum_repos` gaining a `file:` key is the worked example: it
+replaced `machine_dnf_excludes: ["almalinux-release"]` as the way to
+keep an in-house repo definition across upgrades, and the old knob's
+comment now points at it.
+
+The question applies to the whole diff, not just to variables — a
+helper that duplicates one already in the role, a `when:` gate
+restating one the importing file applies, a second place computing a
+value the first one already registered.
+
+**If you're using an LLM**, make this an explicit step in the prompt.
+An agent handed a branch to finish reads the diff, not the file around
+it, so it will hunt for hacks and missing tests and still ship a knob
+that duplicates one three lines above.
+
 ## Commit messages
 
 Subject lines follow Conventional Commits: `feat(scope):` for new
