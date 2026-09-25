@@ -25,7 +25,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `ssh_tunnel` role: per-tunnel `forwards` list for explicit `-L`,
   `-R` and `-D` forwards with a bind address and a destination
   (`{type, bind_address, bind_port, host, port}`). The
-  `forward_port` / `reverse_port` shorthands render unchanged, so
+  `forward_port` / `reverse_port` shorthands could only open a SOCKS
+  proxy on `0.0.0.0`, so publishing one port of this host on a jump
+  box's private address was out of reach. They render unchanged, so
   existing units are not restarted.
 
 - `ssh_tunnel` role: per-tunnel `user` and `identity_file`, so a

@@ -55,7 +55,8 @@
   vars:
     fwd: "{{ item.1 }}"
 
-# Homes are looked up, not guessed; root keeps /root so its units don't change.
+# Homes are looked up, not guessed; a user that does not exist fails the run
+# here, before any unit is written. Root keeps /root so its units don't change.
 - name: "Look up home directories of tunnel users"
   ansible.builtin.getent:
     database: "passwd"

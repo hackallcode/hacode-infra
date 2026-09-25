@@ -95,7 +95,8 @@
   loop_control:
     label: "{{ item.name | default('(unnamed)') }}"
 
-# An unincluded `Match User` fragment would silently leave its account unrestricted.
+# An unincluded `Match User` fragment would silently leave its account
+# unrestricted. EL8 and older Debian/Ubuntu ship no Include line.
 - name: "Check that sshd_config includes sshd_config.d"
   tags: ["ssh"]
   ansible.builtin.command:

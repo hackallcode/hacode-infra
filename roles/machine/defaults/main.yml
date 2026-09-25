@@ -70,7 +70,9 @@ machine_ssh_max_sessions: 50
 machine_ssh_max_startups: "60:30:200"
 
 # `/etc/ssh/sshd_config.d/<name>.conf` fragments, `content` written verbatim.
-# Each entry:
+# Needs the stock `Include /etc/ssh/sshd_config.d/*.conf` line (EL9+, Debian
+# 11+, Ubuntu 22.04+); where it is missing the role fails early rather than
+# writing a fragment nobody loads. Each entry:
 #   - name     file basename without `.conf` (required; [A-Za-z0-9_.-])
 #   - content  file body (required unless `state: absent`)
 #   - state    "present" (default) | "absent"

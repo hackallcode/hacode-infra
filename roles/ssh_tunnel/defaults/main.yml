@@ -15,8 +15,9 @@
 #                    (-R <port> without a target), optional
 #     forwards:      explicit forwards, optional ([] by default). Each item:
 #       type:          "local" (-L), "remote" (-R) or "dynamic" (-D)
-#       bind_address:  address the listening side binds, optional (ssh's
-#                      default; IPv6 in brackets)
+#       bind_address:  address the listening side binds, optional. Omitted ->
+#                      ssh's default: loopback, and for "remote" the server's
+#                      `GatewayPorts` decides. IPv6 in brackets.
 #       bind_port:     port the listening side binds
 #       host, port:    target: required for "local", optional for "remote"
 #                      (omitted -> SOCKS on the remote), not for "dynamic"
