@@ -9,7 +9,7 @@ off by default.
 | Variable                      | Default | Component                                                                  |
 |-------------------------------|---------|----------------------------------------------------------------------------|
 | `machine_users_enabled`       | `true`  | create users from `machine_users`, install SSH keys, remove bootstrap user |
-| `machine_ssh_enabled`         | `true`  | harden `sshd_config`: disable root login, password auth, keepalives        |
+| `machine_ssh_enabled`         | `true`  | harden `sshd_config`: disable root login, password auth, keepalives; drop `machine_ssh_dropins` fragments |
 | `machine_system_enabled`      | `true`  | hostname + aliases in /etc/hosts, locale, motd, /usr/local/bin in PATH     |
 | `machine_swap_enabled`        | `true`  | swap file at `/swapfile` (size configurable)                               |
 | `machine_disks_enabled`       | `true`  | mount extra block devices listed in `machine_disks` via fstab (no-op when `machine_disks` is empty) |
@@ -45,6 +45,7 @@ machine_admin_nopasswd: true   # false -> password-prompted sudo for the admin g
 machine_sudoers: []            # extra sudoers drop-ins (community.general.sudoers schema)
 machine_users: []              # base user roster (see below)
 machine_extra_users: []        # per-host append; final list = users + extras
+machine_ssh_dropins: []        # /etc/ssh/sshd_config.d/<name>.conf fragments (see below)
 
 # Password update policy. "on_create" (default for machine_users) seeds the
 # inventory password once at user creation and leaves it alone on subsequent
@@ -130,6 +131,8 @@ machine_tmux_use_defaults: true
 # Raw extras appended to the bundled template — use when you only want to
 # add lines instead of replacing the whole file.
 machine_tmux_extra_conf: ""
+# Users that get ~/.tmux.conf; default: every machine_users / machine_extra_users name.
+machine_tmux_users: "{{ (machine_users + machine_extra_users) | map(attribute='name') | list }}"
 
 # Scripts dropped onto the host. Each entry:
 # {name (required), src?, dest?, mode?, owner?, group?, completion?, template?}.
@@ -199,9 +202,48 @@ behavior would otherwise force you to redeclare the whole list when extending). 
 | `password`             | no       | plaintext; hashed with sha512 + a per-host seed before being applied                                             |
 | `password_update`      | no       | `"on_create"` (default, via `machine_password_update`) or `"always"`. Overrides the global setting per-user.     |
 | `groups`               | no       | extra groups (membership is appended). Include `machine_admin_group` (default `wheel`) to grant sudo (password-less when `machine_admin_nopasswd: true`, default). |
+| `shell`                | no       | login shell, e.g. `/usr/sbin/nologin` for a forwarding-only account. Omitted: an existing user keeps its shell, a new one gets the distro default. |
 
 The `90-{{ machine_admin_group }}` sudoers entry is created by the role; you don't need a separate `sudoers:` step.
 Distro-provided `90-cloud-init-users` and (when `machine_admin_group != "wheel"`) `90-wheel` are removed.
+
+## `machine_ssh_dropins` schema
+
+Each entry becomes `/etc/ssh/sshd_config.d/<name>.conf` (root:root, `0644`), loaded through the stock
+`Include /etc/ssh/sshd_config.d/*.conf` line; the role fails when `sshd_config` has no such line, since an unloaded
+`Match` restriction would leave its account unrestricted. `content` is written verbatim, so a hand-made fragment can
+be adopted without a diff. A fragment is checked with `sshd -t` on its own before it is written and the whole config
+once more before sshd restarts.
+
+| Field     | Required                | Description                                 |
+|-----------|-------------------------|---------------------------------------------|
+| `name`    | yes                     | file basename without `.conf`               |
+| `content` | yes, unless `absent`    | file body                                   |
+| `state`   | no                      | `present` (default) or `absent`             |
+
+A forwarding-only account: nologin shell, a key that may only open remote forwards on one address, and a `Match`
+block that also turns off `-L` and the tty (`permitopen` in `authorized_keys` has no "none" form, so that part lives in
+sshd config):
+
+```yaml
+machine_extra_users:
+  - name: "laptop-tunnel"
+    shell: "/usr/sbin/nologin"
+    ssh_authorized_keys: >-
+      restrict,port-forwarding,permitlisten="10.0.0.10:7722"
+      ssh-ed25519 AAAA... root@laptop
+machine_ssh_dropins:
+  - name: "10-laptop-tunnel"
+    content: |
+      Match User laptop-tunnel
+          AllowTcpForwarding remote
+          PermitOpen none
+          PermitTTY no
+          X11Forwarding no
+          AllowAgentForwarding no
+machine_zsh_users: ["root"]    # keep oh-my-zsh / chsh off the nologin account
+machine_tmux_users: []         # and ~/.tmux.conf
+```
 
 ## Example
 
@@ -252,7 +294,8 @@ bootstrap without the rest of the role.
 ## Notes
 
 - ZSH files (`hacode.zsh-theme`, `hacode.zsh`, `zshrc`, `aliases`, `exports`) are shipped in `files/zsh/` as a sample.
-  Override or extend via `machine_zsh_files`. By default `machine_zsh_users` is `[root] + machine_users[*].name`.
+  Override or extend via `machine_zsh_files`. By default `machine_zsh_users` is `[root] + machine_users[*].name`
+  `+ machine_extra_users[*].name`; the zsh step also `chsh`es every listed user, so leave nologin accounts out.
 - The NVIDIA task currently supports RHEL 9/10 only. Debian/Ubuntu paths need a separate implementation.
 - The role detects Raspberry Pi OS automatically by the presence of `/etc/apt/sources.list.d/raspi.list`
   (pre-Bookworm one-line format) or `/etc/apt/sources.list.d/raspi.sources` (Bookworm+ DEB822 format).

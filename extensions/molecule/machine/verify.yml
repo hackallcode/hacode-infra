@@ -35,6 +35,41 @@
       changed_when: false
       failed_when: "'no' not in sshd_pw.stdout"
 
+    - name: "Forwarding-only user got the requested login shell"
+      ansible.builtin.command: "getent passwd molecule-tunnel"
+      register: "tunnel_passwd"
+      changed_when: false
+      failed_when: "not tunnel_passwd.stdout.endswith(':/usr/sbin/nologin')"
+
+    - name: "Sshd drop-in from machine_ssh_dropins is on disk verbatim"
+      ansible.builtin.slurp:
+        src: "/etc/ssh/sshd_config.d/10-molecule-tunnel.conf"
+      register: "sshd_dropin"
+      failed_when: >-
+        (sshd_dropin.content | b64decode) != 'Match User molecule-tunnel\n    AllowTcpForwarding remote\n    PermitOpen none\n    PermitTTY no\n'
+
+    - name: "Sshd applies the drop-in to its user only"
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          /usr/sbin/sshd -T -C user={{ item.user }},host=molecule,addr=127.0.0.1
+          | grep -E '^(allowtcpforwarding|permittty) '
+        executable: "/bin/bash"
+      register: "sshd_effective"
+      changed_when: false
+      failed_when: "sshd_effective.stdout_lines | sort != item.expect"
+      loop:
+        - {user: "molecule-tunnel", expect: ["allowtcpforwarding remote", "permittty no"]}
+        - {user: "molecule", expect: ["allowtcpforwarding yes", "permittty yes"]}
+      loop_control:
+        label: "{{ item.user }}"
+
+    - name: "Absent sshd drop-in is not on disk"
+      ansible.builtin.stat:
+        path: "/etc/ssh/sshd_config.d/10-molecule-stale.conf"
+      register: "sshd_stale"
+      failed_when: "sshd_stale.stat.exists"
+
     - name: "Journald keeps logs on disk (via drop-in)"
       ansible.builtin.command: "grep -E '^Storage=' /etc/systemd/journald.conf.d/95-hacode.conf"
       register: "journald_cfg"

@@ -32,6 +32,16 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   still render first and unchanged, so existing units are not
   restarted.
 
+- `machine` role: forwarding-only accounts. User entries take an
+  optional `shell` (e.g. `/usr/sbin/nologin`), the new
+  `machine_ssh_dropins` list writes `/etc/ssh/sshd_config.d/<name>.conf`
+  fragments verbatim (typically a `Match User` block: no tty,
+  `AllowTcpForwarding remote`), and `machine_tmux_users` picks who
+  gets `~/.tmux.conf` the way `machine_zsh_users` already does for
+  oh-my-zsh. Together they let an inventory describe a hand-made
+  tunnel account exactly, so adopting it is a no-op run instead of a
+  chsh, a new dotfile and a lost sshd restriction.
+
 - `machine` role: `machine_yum_repos` entries take an optional `file`
   key (default `<name>.repo`). Point it at the distro's own repo
   filename (`almalinux-baseos.repo`, ...) to overwrite the stock repo

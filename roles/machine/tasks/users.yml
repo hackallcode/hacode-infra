@@ -11,6 +11,8 @@
 #                                 seeds the password at user creation and
 #                                 never touches it afterwards.)
 #   - groups                     (optional extra groups; appended)
+#   - shell                      (optional login shell; omitted -> left as is,
+#                                 distro default on create)
 # Users with `machine_admin_group` in their groups get sudo via the group
 # sudoers entry below; `machine_admin_nopasswd` toggles password-less sudo.
 
@@ -96,6 +98,7 @@
          if (item.password | default('') | length > 0) else omit }}
     groups: "{{ item.groups | default([]) }}"
     append: true
+    shell: "{{ item.shell | default(omit) }}"
   loop: "{{ _machine_users_all }}"
   loop_control:
     label: "{{ item.name }}"

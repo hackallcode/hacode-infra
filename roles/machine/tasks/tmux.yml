@@ -58,10 +58,8 @@
   tags: ["tmux", "tmux_conf"]
   ansible.builtin.template:
     src: "{{ machine_tmux_conf_template }}"
-    dest: "{{ ('/root/.tmux.conf') if item.name == 'root' else ('/home/' ~ item.name ~ '/.tmux.conf') }}"
-    owner: "{{ item.name }}"
-    group: "{{ item.name }}"
+    dest: "{{ ('/root/.tmux.conf') if item == 'root' else ('/home/' ~ item ~ '/.tmux.conf') }}"
+    owner: "{{ item }}"
+    group: "{{ item }}"
     mode: "0644"
-  loop: "{{ machine_users + machine_extra_users }}"
-  loop_control:
-    label: "{{ item.name }}"
+  loop: "{{ machine_tmux_users | unique | reject('equalto', '') | list }}"
