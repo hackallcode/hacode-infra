@@ -7,6 +7,8 @@
     expected_units:
       - "ci-forward-only"
       - "ci-reverse-only"
+      - "ci-explicit"
+      - "ci-as-user"
 
   tasks:
     - name: "Service unit files are rendered"
@@ -31,6 +33,33 @@
       failed_when:
         - "'-R 0.0.0.0:18081' not in rev_exec.stdout"
         - "'-D ' in rev_exec.stdout"
+
+    - name: "Explicit forwards render in order with bind address and target"
+      ansible.builtin.command: "grep '^ExecStart=' /etc/systemd/system/ci-explicit.service"
+      register: "explicit_exec"
+      changed_when: false
+      failed_when: >-
+        ' -L 18082:127.0.0.1:22 -R 127.0.0.1:18083:127.0.0.1:22 -R 18084 -D 127.0.0.1:18085 ci@127.0.0.1'
+        not in explicit_exec.stdout
+
+    - name: "Root units keep User=root and root's known_hosts"
+      ansible.builtin.command: "grep -E '^(User|ExecStart)=' /etc/systemd/system/ci-explicit.service"
+      register: "root_unit"
+      changed_when: false
+      failed_when: >-
+        'User=root' not in root_unit.stdout_lines
+        or '-o UserKnownHostsFile=/root/.ssh/known_hosts -o ExitOnForwardFailure=yes' not in root_unit.stdout
+        or 'IdentityFile' in root_unit.stdout
+
+    - name: "User unit runs as that user with its home's known_hosts and key"
+      ansible.builtin.command: "grep -E '^(User|ExecStart)=' /etc/systemd/system/ci-as-user.service"
+      register: "user_unit"
+      changed_when: false
+      failed_when: >-
+        'User=ci-tunnel' not in user_unit.stdout_lines
+        or ('-o UserKnownHostsFile=/var/lib/ci-tunnel/.ssh/known_hosts'
+            ~ ' -o IdentityFile=/var/lib/ci-tunnel/.ssh/id_ed25519 -o IdentitiesOnly=yes')
+           not in user_unit.stdout
 
     - name: "Units are enabled"  # noqa: command-instead-of-module
       ansible.builtin.command: "systemctl is-enabled {{ item }}.service"

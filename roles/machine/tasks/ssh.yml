@@ -79,6 +79,70 @@
     validate: "/usr/sbin/sshd -t -f %s"
   register: "ssh_config_max_startups"
 
+- name: "Validate sshd drop-in entries"
+  tags: ["ssh"]
+  ansible.builtin.assert:
+    that:
+      - "item.name is defined and (item.name | string) is match('^[A-Za-z0-9_.-]+$')"
+      - "(item.state | default('present')) in ['present', 'absent']"
+      - "(item.state | default('present')) == 'absent' or (item.content | default('') | length > 0)"
+    fail_msg: >-
+      Invalid machine_ssh_dropins entry {{ item.name | default('(unnamed)') }}:
+      `name` must match [A-Za-z0-9_.-]+, `state` is present|absent, and a
+      present fragment needs a non-empty `content`.
+    quiet: true
+  loop: "{{ machine_ssh_dropins }}"
+  loop_control:
+    label: "{{ item.name | default('(unnamed)') }}"
+
+# An unincluded `Match User` fragment would silently leave its account
+# unrestricted. EL8 and older Debian/Ubuntu ship no Include line.
+- name: "Check that sshd_config includes sshd_config.d"
+  tags: ["ssh"]
+  ansible.builtin.command:
+    cmd: "grep -Eq '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\\.d/\\*\\.conf' /etc/ssh/sshd_config"
+  register: "ssh_dropins_include"
+  changed_when: false
+  failed_when: "ssh_dropins_include.rc != 0"
+  check_mode: false
+  when: >-
+    machine_ssh_dropins | map(attribute='state', default='present')
+    | select('equalto', 'present') | list | length > 0
+
+- name: "SSH config: drop-ins from machine_ssh_dropins"
+  tags: ["ssh"]
+  ansible.builtin.copy:
+    dest: "/etc/ssh/sshd_config.d/{{ item.name }}.conf"
+    content: "{{ item.content }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+    validate: "/usr/sbin/sshd -t -f %s"
+  loop: "{{ machine_ssh_dropins }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: "ssh_config_dropins"
+  when: "(item.state | default('present')) == 'present'"
+
+- name: "SSH config: remove absent drop-ins"
+  tags: ["ssh"]
+  ansible.builtin.file:
+    path: "/etc/ssh/sshd_config.d/{{ item.name }}.conf"
+    state: "absent"
+  loop: "{{ machine_ssh_dropins }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: "ssh_config_dropins_absent"
+  when: "(item.state | default('present')) == 'absent'"
+
+# Fragments that only break in combination must fail here, not on the restart below.
+- name: "Check the full sshd config"
+  tags: ["ssh"]
+  ansible.builtin.command:
+    cmd: "/usr/sbin/sshd -t"
+  changed_when: false
+  when: "ssh_config_dropins is changed or ssh_config_dropins_absent is changed"
+
 - name: "Restart SSH daemon"
   tags: ["ssh"]
   ansible.builtin.service:
@@ -91,4 +155,6 @@
     ssh_config_alive_count is changed or
     ssh_config_max_sessions is changed or
     ssh_config_max_startups is changed or
+    ssh_config_dropins is changed or
+    ssh_config_dropins_absent is changed or
     (force | default(false) | bool)

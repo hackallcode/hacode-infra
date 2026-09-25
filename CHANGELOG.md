@@ -27,6 +27,25 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `MemoryMax`, so the kernel kills the workload before the alerter and
   the alerter cannot press the host.
 
+- `ssh_tunnel` role: per-tunnel `forwards` list for explicit `-L`,
+  `-R` and `-D` forwards with a bind address and a destination
+  (`{type, bind_address, bind_port, host, port}`). The
+  `forward_port` / `reverse_port` shorthands could only open a SOCKS
+  proxy on `0.0.0.0`, so publishing one port of this host on a jump
+  box's private address was out of reach. They render unchanged, so
+  existing units are not restarted.
+
+- `ssh_tunnel` role: per-tunnel `user` and `identity_file`, so a
+  tunnel can run as a local account with its own key (`User=`, that
+  user's `known_hosts`, `IdentityFile` + `IdentitiesOnly=yes`).
+  Root tunnels render unchanged.
+
+- `machine` role: forwarding-only accounts. User entries take an
+  optional `shell`, `machine_ssh_dropins` writes
+  `/etc/ssh/sshd_config.d/<name>.conf` fragments verbatim, and
+  `machine_tmux_users` picks who gets `~/.tmux.conf` like
+  `machine_zsh_users` does for oh-my-zsh.
+
 - `machine` role: `machine_yum_repos` entries take an optional `file`
   key (default `<name>.repo`). Point it at the distro's own repo
   filename (`almalinux-baseos.repo`, ...) to overwrite the stock repo

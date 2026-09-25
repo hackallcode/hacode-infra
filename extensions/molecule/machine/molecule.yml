@@ -149,4 +149,20 @@ provisioner:
               ssh-ed25519
               AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
               molecule@test
+          - name: "molecule-tunnel"
+            shell: "/usr/sbin/nologin"
+            ssh_authorized_keys: >-
+              restrict,port-forwarding,permitlisten="127.0.0.1:18022"
+              ssh-ed25519
+              AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+              molecule-tunnel@test
+        machine_ssh_dropins:
+          - name: "10-molecule-tunnel"
+            content: |
+              Match User molecule-tunnel
+                  AllowTcpForwarding remote
+                  PermitOpen none
+                  PermitTTY no
+          - name: "10-molecule-stale"
+            state: "absent"
         hostname: "molecule-test"
