@@ -54,6 +54,15 @@ provisioner:
           - name: "noop"
         alertmanager_route:
           receiver: "noop"
+        prometheus_unit_overrides:
+          prometheus:
+            OOMScoreAdjust: -900
+            MemoryMax: "256M"
+        # Exercises the firewalld path on the RHEL platforms: the plain
+        # port rule closes and a rich rule opens the port to this source
+        # only. Debian platforms skip the whole block.
+        node_exporter_allowed_sources:
+          - "10.99.0.0/16"
 
 verifier:
   name: "ansible"

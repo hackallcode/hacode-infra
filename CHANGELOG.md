@@ -9,6 +9,19 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `prometheus` role: knobs for a project that brings its own alerting on
+  a host shared with a workload. `prometheus_bundled_rules_enabled:
+  false` leaves out the curated rules (and removes them from the host)
+  so the project's thresholds are the only ones;
+  `node_exporter_allowed_sources` opens node_exporter to the given
+  IPv4 CIDRs only instead of to everyone, reconciled both ways — the
+  role owns the rich rules on that port, so a source dropped from the
+  list has its accept rule removed on the next run instead of staying
+  open forever; `prometheus_unit_overrides` writes
+  systemd `[Service]` settings per unit, e.g. `OOMScoreAdjust` and
+  `MemoryMax`, so the kernel kills the workload before the alerter and
+  the alerter cannot press the host.
+
 - `machine` role: `machine_yum_repos` entries take an optional `file`
   key (default `<name>.repo`). Point it at the distro's own repo
   filename (`almalinux-baseos.repo`, ...) to overwrite the stock repo
@@ -154,7 +167,23 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   runtimeClassName are read at the Pod path, not from
   `spec.template.*`.
 
+### Changed
+
+- `prometheus` role: the RAM, CPU and filesystem-space rules keep firing
+  for 3 minutes through missing samples. A host that goes away used to
+  resolve its open alerts first and only then fire InstanceDown, so the
+  chat read as if the disk or memory had recovered.
+
 ### Fixed
+
+- `prometheus` role: the bundled CPU, filesystem and RAM alerts carry
+  `keep_firing_for: 3m`, so a host that stops answering is reported as
+  down rather than first resolving its resource alerts. Without it the
+  alerts lose their samples the moment the host goes away and clear
+  immediately, while `InstanceDown` (`up == 0`, `for: 1m`) has not
+  fired yet — the operator sees a burst of "resolved" a minute before
+  the real problem lands. Covered by a `promtool` case that goes stale
+  mid-series and asserts the alert holds at 5m and is gone at 8m.
 
 - `machine` role: `machine_yum_remove_repo_files` and
   `machine_dnf_excludes` for closed-network hosts pointing the stock

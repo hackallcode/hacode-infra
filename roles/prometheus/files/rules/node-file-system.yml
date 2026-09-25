@@ -1,5 +1,7 @@
 groups:
   - name: "node_file_system"
+    # A host that stops answering has no fresh samples; without
+    # keep_firing_for its alerts would resolve before InstanceDown fires.
     rules:
       - alert: "NodeFilesystemReadOnly"
         expr: 'node_filesystem_readonly{job="node",fstype="ext4"} != 0'
@@ -19,6 +21,7 @@ groups:
             node_filesystem_readonly{job="node",fstype!=""} == 0
           )
         for: "5m"
+        keep_firing_for: "3m"
         labels:
           severity: "warning"
         annotations:
@@ -35,6 +38,7 @@ groups:
             node_filesystem_readonly{job="node",fstype!=""} == 0
           )
         for: "5m"
+        keep_firing_for: "3m"
         labels:
           severity: "critical"
         annotations:
@@ -46,6 +50,7 @@ groups:
           node_filesystem_avail_bytes{job="node",fstype!=""} / node_filesystem_size_bytes{job="node",fstype!=""} * 100 < 10
           and node_filesystem_readonly{job="node",fstype!=""} == 0
         for: "5m"
+        keep_firing_for: "3m"
         labels:
           severity: "warning"
         annotations:
@@ -57,6 +62,7 @@ groups:
           node_filesystem_avail_bytes{job="node",fstype!=""} / node_filesystem_size_bytes{job="node",fstype!=""} * 100 < 5
           and node_filesystem_readonly{job="node",fstype!=""} == 0
         for: "5m"
+        keep_firing_for: "3m"
         labels:
           severity: "critical"
         annotations:

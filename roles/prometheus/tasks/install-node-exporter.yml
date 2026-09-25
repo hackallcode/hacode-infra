@@ -20,15 +20,58 @@
   when: "ansible_os_family == 'RedHat'"
   tags: ["firewall"]
   block:
-    - name: "Enable Node Exporter port in firewall"
+    - name: "Open Node Exporter port in firewall"
       ansible.posix.firewalld:
         port: "{{ node_exporter_web_listen_port }}/tcp"
         permanent: true
-        state: "enabled"
+        state: "{{ 'disabled' if node_exporter_allowed_sources else 'enabled' }}"
       register: "ne_fw_port"
+
+    # One place builds the rule string, so the rules added below and the
+    # ones diffed against firewalld's own list cannot drift apart.
+    - name: "Compose the allowed-source rich rules"
+      ansible.builtin.set_fact:
+        _ne_rich_rules: "{{ _ne_rich_rules | default([]) + [_ne_rule] }}"
+      vars:
+        _ne_rule: >-
+          rule family="ipv4" source address="{{ item }}"
+          port port="{{ node_exporter_web_listen_port }}" protocol="tcp" accept
+      loop: "{{ node_exporter_allowed_sources }}"
+
+    - name: "Open Node Exporter port to the allowed sources"
+      ansible.posix.firewalld:
+        rich_rule: "{{ item }}"
+        permanent: true
+        state: "enabled"
+      loop: "{{ _ne_rich_rules | default([]) }}"
+      register: "ne_fw_sources"
+
+    # firewalld only ever adds a rich rule, so a CIDR dropped from
+    # node_exporter_allowed_sources would keep its accept rule in the
+    # permanent config forever - the port stays open to a source the
+    # inventory no longer lists. The role owns every rich rule on this
+    # port: whatever matches it and is not wanted goes.
+    - name: "List the rich rules firewalld already carries"
+      ansible.builtin.command:
+        argv: ["firewall-cmd", "--permanent", "--list-rich-rules"]
+      changed_when: false
+      register: "ne_fw_existing"
+
+    - name: "Close Node Exporter to sources no longer allowed"
+      ansible.posix.firewalld:
+        rich_rule: "{{ item }}"
+        permanent: true
+        state: "disabled"
+      loop: >-
+        {{ ne_fw_existing.stdout_lines
+           | select('search', 'port port="' ~ node_exporter_web_listen_port ~ '" protocol="tcp" accept')
+           | difference(_ne_rich_rules | default([])) }}
+      register: "ne_fw_pruned"
 
     - name: "Reload firewall"
       ansible.builtin.systemd:
         name: "firewalld"
         state: "reloaded"
-      when: "ne_fw_port is changed or (force | default(false) | bool)"
+      when: >-
+        ne_fw_port is changed or ne_fw_sources is changed
+        or ne_fw_pruned is changed or (force | default(false) | bool)

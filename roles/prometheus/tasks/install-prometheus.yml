@@ -9,7 +9,9 @@
 - name: "List managed rule files"
   tags: ["install"]
   ansible.builtin.find:
-    paths: "{{ [role_path ~ '/files/rules'] + prometheus_extra_rule_dirs }}"
+    paths: >-
+      {{ ([role_path ~ '/files/rules'] if prometheus_bundled_rules_enabled else [])
+         + prometheus_extra_rule_dirs }}
     patterns: "*.yml"
   delegate_to: "localhost"
   become: false
@@ -58,7 +60,7 @@
     prometheus_alertmanager_config: "{{ prometheus_am_default_configs + prometheus_am_custom_configs }}"
     prometheus_alert_rules: []
     prometheus_alert_rules_files: >-
-      {{ [role_path ~ '/files/rules/*.yml']
+      {{ ([role_path ~ '/files/rules/*.yml'] if prometheus_bundled_rules_enabled else [])
          + (prometheus_extra_rule_dirs | map('regex_replace', '/?$', '/*.yml') | list) }}
     prometheus_static_targets_files: >-
       {{ [role_path ~ '/files/targets/*.yml']

@@ -67,3 +67,26 @@ tests:
               instance_name: testhost
             exp_annotations:
               summary: "OOM kill detected 2 times on testhost."
+
+  # Хост пропал после срабатывания → LowRamPercent держится ещё 3 минуты
+  - interval: 30s
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{job="node",instance_name="testhost"}'
+        values: "52428800x6 stale"
+      - series: 'node_memory_MemTotal_bytes{job="node",instance_name="testhost"}'
+        values: "8589934592x6 stale"
+
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: LowRamPercent
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "Less than 10 percent available memory"
+              description: "0.61% of memory available on testhost."
+      - eval_time: 8m
+        alertname: LowRamPercent
+        exp_alerts: []
