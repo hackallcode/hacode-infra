@@ -51,6 +51,17 @@
     state: "reloaded"
   when: "stale_rules_cleanup.changed"
 
+# Resolved here: inside the included role `role_path` is that role's.
+- name: "Resolve Prometheus rule and target files"
+  tags: ["install"]
+  ansible.builtin.set_fact:
+    _prom_rule_files: >-
+      {{ ([role_path ~ '/files/rules/*.yml'] if prometheus_bundled_rules_enabled else [])
+         + (prometheus_extra_rule_dirs | map('regex_replace', '/?$', '/*.yml') | list) }}
+    _prom_target_files: >-
+      {{ [role_path ~ '/files/targets/*.yml']
+         + (prometheus_extra_target_dirs | map('regex_replace', '/?$', '/*.yml') | list) }}
+
 - name: "Install Prometheus"
   tags: ["install"]
   vars:
@@ -59,12 +70,8 @@
     prometheus_scrape_configs: "{{ prometheus_scrape_default_configs + prometheus_scrape_custom_configs }}"
     prometheus_alertmanager_config: "{{ prometheus_am_default_configs + prometheus_am_custom_configs }}"
     prometheus_alert_rules: []
-    prometheus_alert_rules_files: >-
-      {{ ([role_path ~ '/files/rules/*.yml'] if prometheus_bundled_rules_enabled else [])
-         + (prometheus_extra_rule_dirs | map('regex_replace', '/?$', '/*.yml') | list) }}
-    prometheus_static_targets_files: >-
-      {{ [role_path ~ '/files/targets/*.yml']
-         + (prometheus_extra_target_dirs | map('regex_replace', '/?$', '/*.yml') | list) }}
+    prometheus_alert_rules_files: "{{ _prom_rule_files }}"
+    prometheus_static_targets_files: "{{ _prom_target_files }}"
   ansible.builtin.include_role:
     name: "prometheus.prometheus.prometheus"
     apply:

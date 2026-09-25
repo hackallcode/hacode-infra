@@ -18,6 +18,17 @@ node_exporter_allowed_sources: []
 alertmanager_web_listen_ip: "127.0.0.1"
 alertmanager_web_listen_port: 9093
 
+# Ship the bundled `templates/*.tmpl` (it defines
+# `telegram.default.message`). `false` leaves only
+# `alertmanager_extra_template_files`, for a project with its own
+# message layout under the same template name.
+alertmanager_bundled_templates_enabled: true
+
+# Controller-side globs of extra Alertmanager templates (`*.tmpl`),
+# copied next to the bundled ones. Absolute paths or relative to the
+# playbook's working directory, like `prometheus_extra_rule_dirs`.
+alertmanager_extra_template_files: []
+
 # Prometheus server listener. Localhost-only by default — same exposure
 # rule as Alertmanager.
 prometheus_web_listen_ip: "127.0.0.1"

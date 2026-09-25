@@ -5,13 +5,20 @@
       - "architecture"
   when: "ansible_architecture is not defined"
 
+# Resolved here: inside the included role `role_path` is that role's.
+- name: "Resolve Alertmanager template files"
+  tags: ["install"]
+  ansible.builtin.set_fact:
+    _am_template_files: >-
+      {{ ([role_path ~ '/templates/*.tmpl'] if alertmanager_bundled_templates_enabled else [])
+         + alertmanager_extra_template_files }}
+
 - name: "Install Alert Manager"
   tags: ["install"]
   vars:
     alertmanager_version: "0.32.0"
     alertmanager_web_listen_address: "{{ alertmanager_web_listen_ip }}:{{ alertmanager_web_listen_port }}"
-    alertmanager_template_files:
-      - "roles/prometheus/templates/*.tmpl"
+    alertmanager_template_files: "{{ _am_template_files }}"
   ansible.builtin.include_role:
     name: "prometheus.prometheus.alertmanager"
     apply:

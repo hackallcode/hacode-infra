@@ -9,6 +9,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `prometheus` role: `alertmanager_extra_template_files` ships a
+  project's own Alertmanager templates, and
+  `alertmanager_bundled_templates_enabled: false` leaves out the bundled
+  one, so a project can define its own `telegram.default.message`.
+
 - `prometheus` role: knobs for a project that brings its own alerting on
   a host shared with a workload. `prometheus_bundled_rules_enabled:
   false` leaves out the curated rules (and removes them from the host)
@@ -175,6 +180,19 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   chat read as if the disk or memory had recovered.
 
 ### Fixed
+
+- `prometheus` role: the bundled rules and the Alertmanager template
+  actually reach the host. Their paths were built from `role_path` in
+  the `include_role` vars, which the upstream role evaluates as its
+  own path, so the globs matched nothing and every deployment has been
+  running without the curated alerts. They are resolved before the
+  include now; the static-targets glob is fixed the same way, though
+  the role bundles no target files of its own.
+  **Heads-up for existing hosts**: the first run after this lands is
+  the one where the curated CPU / RAM / filesystem / instance alerts
+  start evaluating, on hosts that have never had them. Set
+  `prometheus_bundled_rules_enabled: false` on inventories that want
+  to keep only their own thresholds.
 
 - `prometheus` role: the bundled CPU, filesystem and RAM alerts carry
   `keep_firing_for: 3m`, so a host that stops answering is reported as
