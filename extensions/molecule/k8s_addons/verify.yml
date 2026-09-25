@@ -173,9 +173,11 @@
         namespace: "kube-system"
         name: "coredns-custom"
       register: "_coredns_custom"
+      # Exactly the rule: a stray escape glued to it would change the rewrite
+      # target, and the name would resolve nowhere.
       failed_when: >-
-        'rewrite name exact molecule.example.com'
-        not in (_coredns_custom.resources[0].data['molecule.override'] | default(''))
+        (_coredns_custom.resources[0].data['molecule.override'] | default(''))
+        != 'rewrite name exact molecule.example.com kubernetes.default.svc.cluster.local'
 
     # An earlier converge run wrote this key through the role; the last one
     # no longer lists it. The ConfigMap is applied, not patched, so it must

@@ -46,7 +46,7 @@
   ansible.builtin.set_fact:
     _coredns_custom_data: >-
       {{ _coredns_custom_data
-         | combine({(item.key ~ '.override'): item.value ~ '\n'}) }}
+         | combine({(item.key ~ '.override'): item.value}) }}
   loop: "{{ k8s_addons_coredns_custom_overrides | dict2items }}"
   loop_control:
     label: "{{ item.key }}"
