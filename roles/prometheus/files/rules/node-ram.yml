@@ -1,9 +1,12 @@
 groups:
   - name: "node_ram"
+    # A host that stops answering has no fresh samples; without
+    # keep_firing_for its alerts would resolve before InstanceDown fires.
     rules:
       - alert: "LowRamMb"
         expr: "round(node_memory_MemAvailable_bytes / 1024 / 1024) < 100"
         for: "1m"
+        keep_firing_for: "3m"
         labels:
           severity: "critical"
         annotations:
@@ -13,6 +16,7 @@ groups:
       - alert: "LowRamPercent"
         expr: "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10"
         for: "1m"
+        keep_firing_for: "3m"
         labels:
           severity: "critical"
         annotations:

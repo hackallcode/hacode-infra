@@ -20,15 +20,25 @@
   when: "ansible_os_family == 'RedHat'"
   tags: ["firewall"]
   block:
-    - name: "Enable Node Exporter port in firewall"
+    - name: "Open Node Exporter port in firewall"
       ansible.posix.firewalld:
         port: "{{ node_exporter_web_listen_port }}/tcp"
         permanent: true
-        state: "enabled"
+        state: "{{ 'disabled' if node_exporter_allowed_sources else 'enabled' }}"
       register: "ne_fw_port"
+
+    - name: "Open Node Exporter port to the allowed sources"
+      ansible.posix.firewalld:
+        rich_rule: >-
+          rule family="ipv4" source address="{{ item }}"
+          port port="{{ node_exporter_web_listen_port }}" protocol="tcp" accept
+        permanent: true
+        state: "enabled"
+      loop: "{{ node_exporter_allowed_sources }}"
+      register: "ne_fw_sources"
 
     - name: "Reload firewall"
       ansible.builtin.systemd:
         name: "firewalld"
         state: "reloaded"
-      when: "ne_fw_port is changed or (force | default(false) | bool)"
+      when: "ne_fw_port is changed or ne_fw_sources is changed or (force | default(false) | bool)"

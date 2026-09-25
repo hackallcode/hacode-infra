@@ -27,3 +27,11 @@
         path: "/etc/prometheus/prometheus.yml"
       register: "p_config"
       failed_when: "not p_config.stat.exists"
+
+    - name: "Prometheus unit carries the override"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl show -p OOMScoreAdjust -p MemoryMax prometheus.service"
+      register: "p_overrides"
+      changed_when: false
+      failed_when: >-
+        'OOMScoreAdjust=-900' not in p_overrides.stdout
+        or 'MemoryMax=268435456' not in p_overrides.stdout

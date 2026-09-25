@@ -9,6 +9,16 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `prometheus` role: knobs for a project that brings its own alerting on
+  a host shared with a workload. `prometheus_bundled_rules_enabled:
+  false` leaves out the curated rules (and removes them from the host)
+  so the project's thresholds are the only ones;
+  `node_exporter_allowed_sources` opens node_exporter to the given
+  CIDRs only instead of to everyone; `prometheus_unit_overrides` writes
+  systemd `[Service]` settings per unit, e.g. `OOMScoreAdjust` and
+  `MemoryMax`, so the kernel kills the workload before the alerter and
+  the alerter cannot press the host.
+
 - `machine` role: `machine_yum_repos` entries take an optional `file`
   key (default `<name>.repo`). Point it at the distro's own repo
   filename (`almalinux-baseos.repo`, ...) to overwrite the stock repo
@@ -153,6 +163,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   controller autogen is disabled on the policy so pod-level labels /
   runtimeClassName are read at the Pod path, not from
   `spec.template.*`.
+
+### Changed
+
+- `prometheus` role: the RAM, CPU and filesystem-space rules keep firing
+  for 3 minutes through missing samples. A host that goes away used to
+  resolve its open alerts first and only then fire InstanceDown, so the
+  chat read as if the disk or memory had recovered.
 
 ### Fixed
 

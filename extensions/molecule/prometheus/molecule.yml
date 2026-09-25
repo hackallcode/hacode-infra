@@ -54,6 +54,10 @@ provisioner:
           - name: "noop"
         alertmanager_route:
           receiver: "noop"
+        prometheus_unit_overrides:
+          prometheus:
+            OOMScoreAdjust: -900
+            MemoryMax: "256M"
 
 verifier:
   name: "ansible"

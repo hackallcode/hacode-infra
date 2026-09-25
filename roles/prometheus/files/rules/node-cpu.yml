@@ -4,6 +4,7 @@ groups:
       - alert: "CpuUtilizationWarning"
         expr: '100 - (avg without(cpu, mode) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80'
         for: "1m"
+        keep_firing_for: "3m"
         labels:
           severity: "warning"
         annotations:
@@ -13,6 +14,7 @@ groups:
       - alert: "CpuUtilizationCritical"
         expr: '100 - (avg without(cpu, mode) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90'
         for: "1m"
+        keep_firing_for: "3m"
         labels:
           severity: "critical"
         annotations:

@@ -4,6 +4,11 @@
 node_exporter_web_listen_ip: "0.0.0.0"
 node_exporter_web_listen_port: 9100
 
+# Addresses (CIDR) allowed to reach node_exporter on RHEL family. `[]`
+# keeps the port open to everyone; a non-empty list opens it to these
+# sources only (firewalld rich rules) and closes the plain port rule.
+node_exporter_allowed_sources: []
+
 # Alertmanager listener. Localhost-only by default — front it with
 # nginx + TLS + basic auth if you want it reachable from outside.
 alertmanager_web_listen_ip: "127.0.0.1"
@@ -45,3 +50,17 @@ prometheus_am_custom_configs: []
 # relative to the playbook's working directory.
 prometheus_extra_rule_dirs: []
 prometheus_extra_target_dirs: []
+
+# Ship the curated rules under `files/rules/`. `false` leaves only the
+# `prometheus_extra_rule_dirs` ones, for a project with its own
+# thresholds; the bundled files are then removed from the host too.
+prometheus_bundled_rules_enabled: true
+
+# systemd `[Service]` settings per unit, written as a drop-in and
+# applied with a restart when they change. `{}` writes nothing. Typical
+# use on a host shared with a workload: keep the alerter alive and
+# bounded, e.g.
+#   {prometheus: {OOMScoreAdjust: -900, MemoryMax: "256M"},
+#    alertmanager: {OOMScoreAdjust: -900, MemoryMax: "128M"},
+#    node_exporter: {OOMScoreAdjust: -900, MemoryMax: "128M"}}
+prometheus_unit_overrides: {}

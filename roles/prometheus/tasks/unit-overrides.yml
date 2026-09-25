@@ -1,0 +1,39 @@
+- name: "Make room for the unit drop-ins"
+  tags: ["install"]
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item.key }}.service.d"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  loop: "{{ prometheus_unit_overrides | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: "Write the unit overrides"
+  tags: ["install"]
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.key }}.service.d/hacode-overrides.conf"
+    content: |
+      [Service]
+      {% for name, value in item.value.items() %}
+      {{ name }}={{ value }}
+      {% endfor %}
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  loop: "{{ prometheus_unit_overrides | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: "unit_overrides"
+
+- name: "Restart the units whose overrides changed"  # noqa: no-handler
+  tags: ["install"]
+  ansible.builtin.systemd:
+    name: "{{ item.item.key }}"
+    state: "restarted"
+    daemon_reload: true
+  loop: "{{ unit_overrides.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when: "item.changed"
