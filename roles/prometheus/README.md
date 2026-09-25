@@ -18,6 +18,8 @@ backend. Ships a curated set of alert rules under `files/rules/`.
 | `prometheus_am_custom_configs` | `[]` | extra AM target configs |
 | `prometheus_extra_rule_dirs` | `[]` | controller-side directories with extra `*.yml` rule files |
 | `prometheus_extra_target_dirs` | `[]` | controller-side directories with extra `*.yml` static target files |
+| `alertmanager_bundled_templates_enabled` | `true` | ship the bundled `templates/*.tmpl`; `false` keeps only `alertmanager_extra_template_files` |
+| `alertmanager_extra_template_files` | `[]` | controller-side globs of extra Alertmanager `*.tmpl` files |
 | `prometheus_bundled_rules_enabled` | `true` | ship the curated rules under `files/rules/`; `false` keeps only `prometheus_extra_rule_dirs` |
 | `node_exporter_allowed_sources` | `[]` | CIDRs allowed to reach node_exporter (RHEL family); `[]` opens the port to everyone |
 | `prometheus_unit_overrides` | `{}` | per-unit systemd `[Service]` settings written as a drop-in, e.g. `OOMScoreAdjust`, `MemoryMax` |

@@ -9,6 +9,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `prometheus` role: `alertmanager_extra_template_files` ships a
+  project's own Alertmanager templates, and
+  `alertmanager_bundled_templates_enabled: false` leaves out the bundled
+  one, so a project can define its own `telegram.default.message`. The
+  template paths are now resolved before the upstream role runs.
+
 - `prometheus` role: knobs for a project that brings its own alerting on
   a host shared with a workload. `prometheus_bundled_rules_enabled:
   false` leaves out the curated rules (and removes them from the host)
