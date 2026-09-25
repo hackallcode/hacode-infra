@@ -181,11 +181,18 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
-- `prometheus` role: the bundled rules, static targets and Alertmanager
-  template actually reach the host. Their paths were built from
-  `role_path` in the `include_role` vars, which the upstream role
-  evaluates as its own path, so the globs matched nothing and the host
-  got none of them. They are now resolved before the include.
+- `prometheus` role: the bundled rules and the Alertmanager template
+  actually reach the host. Their paths were built from `role_path` in
+  the `include_role` vars, which the upstream role evaluates as its
+  own path, so the globs matched nothing and every deployment has been
+  running without the curated alerts. They are resolved before the
+  include now; the static-targets glob is fixed the same way, though
+  the role bundles no target files of its own.
+  **Heads-up for existing hosts**: the first run after this lands is
+  the one where the curated CPU / RAM / filesystem / instance alerts
+  start evaluating, on hosts that have never had them. Set
+  `prometheus_bundled_rules_enabled: false` on inventories that want
+  to keep only their own thresholds.
 
 - `prometheus` role: the bundled CPU, filesystem and RAM alerts carry
   `keep_firing_for: 3m`, so a host that stops answering is reported as
