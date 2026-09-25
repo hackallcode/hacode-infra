@@ -1,0 +1,27 @@
+# Leaves the CRDs, and with them every `Cluster` and its data: removing the
+# operator must never take the databases it managed.
+- name: "Check CloudNativePG release status (probes cluster reachability too)"
+  tags: ["cnpg-uninstall"]
+  kubernetes.core.helm_info:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "cloudnative-pg"
+    release_namespace: "{{ k8s_addons_cnpg_namespace }}"
+  register: "_cnpg_release_info"
+  failed_when: false
+  changed_when: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "Uninstall CloudNativePG chart"
+  tags: ["cnpg-uninstall"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "cloudnative-pg"
+    release_namespace: "{{ k8s_addons_cnpg_namespace }}"
+    state: "absent"
+    wait: true
+  when: "_cnpg_release_info.status is defined"
+  delegate_to: "localhost"
+  run_once: true
+  become: false

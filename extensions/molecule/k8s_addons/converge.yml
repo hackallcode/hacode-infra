@@ -199,6 +199,18 @@
         k8s_addons_headlamp_enabled: true
         k8s_addons_kube_state_metrics_enabled: true
         k8s_addons_envoy_gateway_enabled: true
+        k8s_addons_cnpg_enabled: true
+        k8s_addons_cnpg_chart_timeout: "15m0s"
+        k8s_addons_coredns_custom_enabled: true
+        k8s_addons_coredns_custom_overrides:
+          molecule: "rewrite name exact molecule.example.com kubernetes.default.svc.cluster.local"
+        k8s_addons_cert_manager_enabled: true
+        k8s_addons_cert_manager_chart_timeout: "15m0s"
+        # selfSigned needs no ACME endpoint, so the issuer reaches Ready
+        # inside the container and verify can assert on its status.
+        k8s_addons_cert_manager_cluster_issuers:
+          molecule-selfsigned:
+            selfSigned: {}
         # Fixed NodePort so verify can assert a deterministic value on the
         # controller-provisioned data-plane Service.
         k8s_addons_envoy_gateway_node_ports:
@@ -208,3 +220,77 @@
         k8s_addons_headlamp_chart_timeout: "15m0s"
         k8s_addons_kube_state_metrics_chart_timeout: "15m0s"
         k8s_addons_envoy_gateway_chart_timeout: "15m0s"
+
+# Both the coredns ConfigMap and the ClusterIssuer set are reconciled both
+# ways, which a single converge cannot show: the role has to meet state a
+# previous run left behind. So give it one - an extra override the role
+# writes and the next run no longer lists, an issuer carrying the role's
+# managed-by label that the dict does not name, and one without the label
+# standing in for an issuer some other tool owns. The last run must drop
+# the first two and leave the third alone. (No `idempotence` step in this
+# scenario, so staging runs here costs nothing.)
+#
+# The override has to be written *by the role*: the ConfigMap is
+# server-side applied, and apply only reclaims the keys its own field
+# manager wrote. A key planted with a plain patch belongs to whoever
+# patched it and would survive on purpose, which would make this a test of
+# the wrong thing.
+- name: "Converge: leave state behind for the reconcilers to clean up"
+  hosts: "localhost"
+  connection: "local"
+  gather_facts: false
+
+  vars:
+    _kubeconfig: "/tmp/molecule-k3s-kubeconfig/almalinux10.yaml"
+    _molecule_override:
+      molecule: "rewrite name exact molecule.example.com kubernetes.default.svc.cluster.local"
+
+  tasks:
+    - name: "Run coredns-custom once with an override the next run drops"
+      ansible.builtin.include_role:
+        name: "hacode.infra.k8s_addons"
+      vars:
+        k8s_addons_kubeconfig: "{{ _kubeconfig }}"
+        k8s_addons_coredns_custom_enabled: true
+        k8s_addons_coredns_custom_overrides:
+          molecule: "rewrite name exact molecule.example.com kubernetes.default.svc.cluster.local"
+          stale: "rewrite name exact stale.example.com kubernetes.default.svc.cluster.local"
+
+    - name: "Plant a role-owned ClusterIssuer the dict no longer names"
+      kubernetes.core.k8s:
+        kubeconfig: "{{ _kubeconfig }}"
+        state: "present"
+        definition:
+          apiVersion: "cert-manager.io/v1"
+          kind: "ClusterIssuer"
+          metadata:
+            name: "molecule-orphan"
+            labels:
+              app.kubernetes.io/managed-by: "hacode.infra"
+          spec:
+            selfSigned: {}
+
+    - name: "Plant a ClusterIssuer owned by something else"
+      kubernetes.core.k8s:
+        kubeconfig: "{{ _kubeconfig }}"
+        state: "present"
+        definition:
+          apiVersion: "cert-manager.io/v1"
+          kind: "ClusterIssuer"
+          metadata:
+            name: "molecule-foreign"
+          spec:
+            selfSigned: {}
+
+    - name: "Run the two reconciling addons against the trimmed inventory"
+      ansible.builtin.include_role:
+        name: "hacode.infra.k8s_addons"
+      vars:
+        k8s_addons_kubeconfig: "{{ _kubeconfig }}"
+        k8s_addons_cert_manager_enabled: true
+        k8s_addons_cert_manager_chart_timeout: "15m0s"
+        k8s_addons_cert_manager_cluster_issuers:
+          molecule-selfsigned:
+            selfSigned: {}
+        k8s_addons_coredns_custom_enabled: true
+        k8s_addons_coredns_custom_overrides: "{{ _molecule_override }}"

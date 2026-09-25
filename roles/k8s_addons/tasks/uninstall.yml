@@ -53,6 +53,10 @@
   tags: ["ingress-nginx-uninstall"]
   ansible.builtin.include_tasks: "ingress-nginx-uninstall.yml"
 
+- name: "Uninstall CloudNativePG"
+  tags: ["cnpg-uninstall"]
+  ansible.builtin.include_tasks: "cnpg-uninstall.yml"
+
 - name: "Uninstall Longhorn"
   tags: ["longhorn-uninstall"]
   ansible.builtin.include_tasks: "longhorn-uninstall.yml"

@@ -148,3 +148,76 @@
         or _eg_service.resources[0].spec.type != 'NodePort'
         or (_eg_service.resources[0].spec.ports
             | selectattr('nodePort', 'eq', 30080) | list | length) == 0
+
+    - name: "Helm release `cloudnative-pg` is deployed"
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        name: "cloudnative-pg"
+        release_namespace: "cnpg-system"
+      register: "_cnpg_release"
+      failed_when: "(_cnpg_release.status.status | default('')) != 'deployed'"
+
+    - name: "CRD `clusters.postgresql.cnpg.io` exists"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "apiextensions.k8s.io/v1"
+        kind: "CustomResourceDefinition"
+        name: "clusters.postgresql.cnpg.io"
+      register: "_cnpg_crd"
+      failed_when: "_cnpg_crd.resources | length != 1"
+
+    - name: "ConfigMap `coredns-custom` carries the override"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        kind: "ConfigMap"
+        namespace: "kube-system"
+        name: "coredns-custom"
+      register: "_coredns_custom"
+      # Exactly the rule: a stray escape glued to it would change the rewrite
+      # target, and the name would resolve nowhere.
+      failed_when: >-
+        (_coredns_custom.resources[0].data['molecule.override'] | default(''))
+        != 'rewrite name exact molecule.example.com kubernetes.default.svc.cluster.local'
+
+    # An earlier converge run wrote this key through the role; the last one
+    # no longer lists it. The ConfigMap is applied, not patched, so it must
+    # be gone - a rewrite the inventory stopped listing cannot keep answering.
+    - name: "Override dropped between runs is gone from the ConfigMap"
+      ansible.builtin.assert:
+        that: "'stale.override' not in _coredns_custom.resources[0].data"
+        fail_msg: >-
+          coredns-custom still carries stale.override, so the ConfigMap is
+          merging rather than replacing and dropped entries survive.
+
+    - name: "ClusterIssuer from the dict is applied and Ready"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "cert-manager.io/v1"
+        kind: "ClusterIssuer"
+        name: "molecule-selfsigned"
+      register: "_cm_issuer"
+      failed_when: >-
+        _cm_issuer.resources | length != 1
+        or (_cm_issuer.resources[0].status.conditions | default([])
+            | selectattr('type', 'eq', 'Ready')
+            | selectattr('status', 'eq', 'True') | list | length) != 1
+
+    - name: "Role-owned ClusterIssuer the dict no longer names was removed"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "cert-manager.io/v1"
+        kind: "ClusterIssuer"
+        name: "molecule-orphan"
+      register: "_cm_orphan"
+      failed_when: "_cm_orphan.resources | length != 0"
+
+    # The other half of the same claim: pruning is scoped by the managed-by
+    # label, so an issuer the role did not create survives.
+    - name: "ClusterIssuer without the managed-by label was left alone"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "cert-manager.io/v1"
+        kind: "ClusterIssuer"
+        name: "molecule-foreign"
+      register: "_cm_foreign"
+      failed_when: "_cm_foreign.resources | length != 1"

@@ -1,0 +1,35 @@
+- name: "Add CloudNativePG Helm repo"
+  tags: ["cnpg-install"]
+  kubernetes.core.helm_repository:
+    name: "cnpg"
+    repo_url: "https://cloudnative-pg.github.io/charts"
+  check_mode: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- ansible.builtin.import_tasks: "_helm-preflight.yml"
+  tags: ["cnpg-install"]
+  vars:
+    _helm_preflight_release_name: "cloudnative-pg"
+    _helm_preflight_release_namespace: "{{ k8s_addons_cnpg_namespace }}"
+
+- name: "Install/upgrade CloudNativePG chart"
+  tags: ["cnpg-install"]
+  kubernetes.core.helm:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    name: "cloudnative-pg"
+    chart_ref: "cnpg/cloudnative-pg"
+    chart_version: "{{ k8s_addons_cnpg_chart_version }}"
+    release_namespace: "{{ k8s_addons_cnpg_namespace }}"
+    create_namespace: true
+    wait: true
+    timeout: "{{ k8s_addons_cnpg_chart_timeout }}"
+    values: >-
+      {{
+        {'crds': {'create': true}}
+        | combine(k8s_addons_cnpg_extra_values, recursive=true)
+      }}
+  delegate_to: "localhost"
+  run_once: true
+  become: false

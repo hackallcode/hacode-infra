@@ -325,6 +325,15 @@ k8s_addons_coredns_custom_enabled: false
 #     cache: 30              # optional, seconds (default 30)
 k8s_addons_coredns_custom_servers: []
 
+# Raw snippets k3s imports into its main `.:53` block, keyed by name (each
+# becomes a `<name>.override` key). For rules that must run before the
+# cluster's own resolution, e.g. split-horizon DNS that sends an app domain
+# to the in-cluster ingress instead of the external IP pods can't hairpin to:
+#   {app: "rewrite name exact app.example.com ingress-nginx-controller.ingress-nginx.svc.cluster.local"}
+# `{}` adds none. This and `_servers` together are the whole ConfigMap: an
+# entry dropped here is removed from the cluster on the next run.
+k8s_addons_coredns_custom_overrides: {}
+
 # ===== trust-manager (publish a corporate/internal CA) =====
 # Installs trust-manager and fans a CA cert out to namespaces that carry the
 # target label, as a ConfigMap workloads can trust. Per-cluster opt-in.
@@ -360,6 +369,15 @@ k8s_addons_cert_manager_chart_timeout: "5m0s"
 k8s_addons_cert_manager_namespace: "cert-manager"
 # Extra helm values (deep-merged over {crds: {enabled, keep}}).
 k8s_addons_cert_manager_extra_values: {}
+
+# ClusterIssuers applied once the chart is up: name -> the issuer's `spec`,
+# e.g. {letsencrypt: {acme: {server: "...", email: "...",
+# privateKeySecretRef: {name: "..."}, solvers: [...]}}}. `{}` applies none.
+# Reconciled both ways: the role labels what it creates
+# (`app.kubernetes.io/managed-by: hacode.infra`) and deletes any labelled
+# issuer this dict no longer names, so dropping an entry actually retires
+# it. Issuers created by anything else are untouched.
+k8s_addons_cert_manager_cluster_issuers: {}
 
 # ===== Kyverno (policy engine; required by the egress-proxy addon) =====
 # Generic admission policy engine. Enabled on its own so other addons (e.g.
@@ -450,3 +468,18 @@ k8s_addons_egress_proxy_policy_name: "inject-egress-proxy-sidecar"
 # Kyverno webhook failurePolicy for the injection - Ignore keeps pod admission
 # working when Kyverno is down (pods just come up without the sidecar).
 k8s_addons_egress_proxy_policy_failure_policy: "Ignore"
+
+# ===== CloudNativePG (Postgres operator) =====
+# Operator only: the `Cluster` resources live with the apps that own the
+# databases. CRDs come with the chart so a `Cluster` applies right after.
+# Per-cluster opt-in.
+k8s_addons_cnpg_enabled: false
+
+# Pinned chart version. Repo: https://cloudnative-pg.github.io/charts.
+k8s_addons_cnpg_chart_version: "0.29.0"
+k8s_addons_cnpg_chart_timeout: "5m0s"
+k8s_addons_cnpg_namespace: "cnpg-system"
+
+# Extra values deep-merged over `{crds: {create: true}}` (user wins on
+# conflicts): replicas, resources, monitoring switches.
+k8s_addons_cnpg_extra_values: {}

@@ -6,12 +6,24 @@
 #     zone: "k.int-net:53"       # CoreDNS zone the block serves
 #     forward: "10.0.1.10"       # upstream(s); string or list of IPs
 #     cache: 30                  # optional, default 30
+
+# `set_fact` outlives the include, so without this the second invocation in
+# a play would build on the first one's keys: the dict would only ever grow,
+# and the apply below could never drop an entry the vars stopped listing.
+- name: "Reset coredns-custom ConfigMap data"
+  tags: ["coredns-custom-install"]
+  ansible.builtin.set_fact:
+    _coredns_custom_data: {}
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
 - name: "Build coredns-custom ConfigMap data"
   tags: ["coredns-custom-install"]
   ansible.builtin.set_fact:
     _coredns_custom_data: >-
       {{
-        _coredns_custom_data | default({})
+        _coredns_custom_data
         | combine({(item.name ~ '.server'): _block})
       }}
   loop: "{{ k8s_addons_coredns_custom_servers }}"
@@ -29,18 +41,38 @@
   run_once: true
   become: false
 
+- name: "Add coredns-custom overrides"
+  tags: ["coredns-custom-install"]
+  ansible.builtin.set_fact:
+    _coredns_custom_data: >-
+      {{ _coredns_custom_data
+         | combine({(item.key ~ '.override'): item.value}) }}
+  loop: "{{ k8s_addons_coredns_custom_overrides | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+# `apply` rather than a plain patch: a patch only ever merges keys, so a
+# server dropped from `_servers`, or an override from `_overrides`, would
+# keep its key - and CoreDNS auto-imports the map, so a rewrite the
+# inventory no longer lists would go on answering for that name. Server-side
+# apply reclaims the keys this role wrote; a key some other tool put in the
+# map is owned by that tool and is left alone.
 - name: "Apply coredns-custom ConfigMap"
   tags: ["coredns-custom-install"]
   kubernetes.core.k8s:
     kubeconfig: "{{ k8s_addons_kubeconfig }}"
     state: "present"
+    apply: true
     definition:
       apiVersion: "v1"
       kind: "ConfigMap"
       metadata:
         name: "coredns-custom"
         namespace: "kube-system"
-      data: "{{ _coredns_custom_data | default({}) }}"
+      data: "{{ _coredns_custom_data }}"
   delegate_to: "localhost"
   run_once: true
   become: false

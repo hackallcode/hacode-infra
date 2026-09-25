@@ -367,6 +367,7 @@ the ConfigMap.
 | --- | --- | --- |
 | `k8s_addons_coredns_custom_enabled` | `false` | opt-in flag |
 | `k8s_addons_coredns_custom_servers` | `[]` | list of server blocks (see schema below); empty = no-op |
+| `k8s_addons_coredns_custom_overrides` | `{}` | raw snippets imported into the main `.:53` block, name -> text (each a `<name>.override` key); empty = none |
 
 Each entry:
 
@@ -384,6 +385,22 @@ k8s_addons_coredns_custom_servers:
     zone: "k.int-net:53"
     forward: ["10.0.1.10", "10.0.1.11"]
 ```
+
+Overrides run inside the cluster's own `.:53` block, before its
+resolution - the place for a split-horizon rewrite that sends an app
+domain to the in-cluster ingress instead of the external IP pods can't
+hairpin to:
+
+```yaml
+k8s_addons_coredns_custom_overrides:
+  app: "rewrite name exact app.example.com ingress-nginx-controller.ingress-nginx.svc.cluster.local"
+```
+
+`k8s_addons_coredns_custom_servers` and
+`k8s_addons_coredns_custom_overrides` together are the entire ConfigMap:
+it is applied, not patched, so an entry removed from either variable is
+gone from the cluster on the next run rather than lingering as a rule
+CoreDNS still imports.
 
 Uninstall removes the `coredns-custom` ConfigMap; CoreDNS reverts to
 the stock cluster zones.
@@ -408,11 +425,34 @@ on).
 | `k8s_addons_cert_manager_chart_timeout` | `5m0s` | helm `--timeout` |
 | `k8s_addons_cert_manager_namespace` | `cert-manager` | release namespace |
 | `k8s_addons_cert_manager_extra_values` | `{}` | deep-merged over `{crds: {enabled: true, keep: true}}` (user wins on conflicts) |
+| `k8s_addons_cert_manager_cluster_issuers` | `{}` | ClusterIssuers applied after the chart, name -> `spec`; empty = none |
+
+ClusterIssuers are reconciled both ways. The role labels the ones it
+creates with `app.kubernetes.io/managed-by: hacode.infra` and deletes any
+labelled issuer the dict no longer names, so removing an entry retires the
+issuer instead of leaving it signing renewals. Issuers created by anything
+else carry no such label and are never touched.
 
 When both cert-manager and trust-manager are enabled in the same
 play, the role installs cert-manager first and uninstalls it last
 (reverse-order), so trust-manager's webhook serving cert always
 sees the cert-manager controller during both lifecycles.
+
+### CloudNativePG
+
+[CloudNativePG](https://cloudnative-pg.io/) runs Postgres clusters:
+it picks the primary, streams to replicas and fails over on its own.
+The role installs only the operator (with its CRDs); the `Cluster`
+resources belong to the apps that own the databases. Uninstall leaves
+the CRDs, so removing the operator never takes a database with it.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `k8s_addons_cnpg_enabled` | `false` | opt-in flag |
+| `k8s_addons_cnpg_chart_version` | `0.29.0` | chart from `https://cloudnative-pg.github.io/charts` |
+| `k8s_addons_cnpg_chart_timeout` | `5m0s` | helm `--timeout` |
+| `k8s_addons_cnpg_namespace` | `cnpg-system` | release namespace |
+| `k8s_addons_cnpg_extra_values` | `{}` | deep-merged over `{crds: {create: true}}` (user wins on conflicts) |
 
 ### trust-manager
 

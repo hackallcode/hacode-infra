@@ -32,3 +32,60 @@
   delegate_to: "localhost"
   run_once: true
   become: false
+
+# The managed-by label is what makes the removal below safe: it marks the
+# issuers this role created, so an issuer some other tool put on the
+# cluster is never a candidate. `apply` so that dropping a field from a
+# spec (a solver, say) actually removes it instead of merging.
+- name: "Apply cert-manager ClusterIssuers"
+  tags: ["cert-manager-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    apply: true
+    definition:
+      apiVersion: "cert-manager.io/v1"
+      kind: "ClusterIssuer"
+      metadata:
+        name: "{{ item.key }}"
+        labels:
+          app.kubernetes.io/managed-by: "hacode.infra"
+      spec: "{{ item.value }}"
+  loop: "{{ k8s_addons_cert_manager_cluster_issuers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+- name: "List the ClusterIssuers this role owns"
+  tags: ["cert-manager-install"]
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    api_version: "cert-manager.io/v1"
+    kind: "ClusterIssuer"
+    label_selectors: ["app.kubernetes.io/managed-by=hacode.infra"]
+  register: "_cert_manager_owned_issuers"
+  changed_when: false
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
+# Dropping an entry from the dict has to mean the issuer goes. Otherwise it
+# keeps signing: a `Certificate` still pointing at it renews happily, and
+# the inventory no longer says where those certs come from.
+- name: "Remove ClusterIssuers no longer listed"
+  tags: ["cert-manager-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "absent"
+    api_version: "cert-manager.io/v1"
+    kind: "ClusterIssuer"
+    name: "{{ item }}"
+  loop: >-
+    {{ _cert_manager_owned_issuers.resources
+       | map(attribute='metadata.name') | list
+       | difference(k8s_addons_cert_manager_cluster_issuers.keys() | list) }}
+  delegate_to: "localhost"
+  run_once: true
+  become: false

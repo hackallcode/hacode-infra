@@ -9,6 +9,21 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `k8s_addons` role: a CloudNativePG operator addon
+  (`k8s_addons_cnpg_*`, CRDs with the chart, CRDs kept on uninstall);
+  `k8s_addons_cert_manager_cluster_issuers` applies ClusterIssuers once
+  cert-manager is up; `k8s_addons_coredns_custom_overrides` adds raw
+  `<name>.override` snippets to the main `.:53` block, e.g. a
+  split-horizon rewrite of an app domain to the in-cluster ingress.
+  Both new lists reconcile both ways. The `coredns-custom` ConfigMap is
+  now server-side applied and its accumulator reset per run, so a server
+  or override dropped from the inventory stops answering instead of
+  lingering as a key CoreDNS still imports (this also fixes
+  `k8s_addons_coredns_custom_servers`, which had the same leak). ClusterIssuers the role creates carry
+  `app.kubernetes.io/managed-by: hacode.infra`, and a labelled issuer
+  the dict no longer names is deleted rather than left signing renewals;
+  issuers created by anything else are untouched.
+
 - `prometheus` role: `alertmanager_extra_template_files` ships a
   project's own Alertmanager templates, and
   `alertmanager_bundled_templates_enabled: false` leaves out the bundled
