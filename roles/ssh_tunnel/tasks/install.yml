@@ -11,10 +11,17 @@
         (tunnel.reverse_port is not defined)
         or ((tunnel.reverse_port | int) >= 1 and (tunnel.reverse_port | int) <= 65535)
       - "tunnel.forwards is not defined or (tunnel.forwards is sequence and tunnel.forwards is not string)"
+      - "tunnel.user is not defined or (tunnel.user | string) is match('^[A-Za-z_][A-Za-z0-9_.-]*$')"
+      - >-
+        tunnel.identity_file is not defined
+        or ((tunnel.identity_file | string) is match('^[A-Za-z0-9_./@+-]+$')
+            and not (tunnel.identity_file | string).endswith('/'))
     fail_msg: >-
       Invalid ssh_tunnels entry {{ tunnel }}. `name` must match [A-Za-z0-9_.-]+,
       `remote_user`/`remote_host` must be non-empty, ports (if set) must be
-      1..65535, `forwards` (if set) must be a list.
+      1..65535, `forwards` (if set) must be a list, `user` (if set) must be
+      a plain login name, `identity_file` (if set) a file path without
+      spaces or shell characters.
   loop: "{{ ssh_tunnels }}"
   loop_control:
     loop_var: "tunnel"
@@ -48,6 +55,28 @@
     label: "{{ item.0.name }}: {{ item.1.type | default('?') }} {{ item.1.bind_port | default('?') }}"
   vars:
     fwd: "{{ item.1 }}"
+
+# A tunnel run by a non-root `user` keeps its known_hosts (and a relative
+# `identity_file`) in that user's home, which is looked up rather than
+# guessed. A user that does not exist fails the run here, before any unit
+# is written. `root` keeps the historical /root, so its units don't change.
+- name: "Look up home directories of tunnel users"
+  ansible.builtin.getent:
+    database: "passwd"
+    key: "{{ item }}"
+  loop: >-
+    {{ ssh_tunnels | map(attribute='user', default='root')
+       | reject('equalto', 'root') | unique | list }}
+  register: "ssh_tunnel_getent"
+
+- name: "Remember tunnel users' home directories"
+  ansible.builtin.set_fact:
+    ssh_tunnel_homes: >-
+      {{ ssh_tunnel_homes | default({})
+         | combine({item.item: item.ansible_facts.getent_passwd[item.item][4]}) }}
+  loop: "{{ ssh_tunnel_getent.results }}"
+  loop_control:
+    label: "{{ item.item }}"
 
 # StrictHostKeyChecking=accept-new (TOFU) — host keys aren't known at
 # deploy time. First connect vulnerable to MITM; pre-seed known_hosts

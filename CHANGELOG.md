@@ -32,6 +32,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   still render first and unchanged, so existing units are not
   restarted.
 
+- `ssh_tunnel` role: per-tunnel `user` and `identity_file`. A tunnel
+  can run as a workstation's own account with the key that account
+  already has, instead of `root` with a key provisioned for it: the
+  unit gets `User=<user>`, that user's `~/.ssh/known_hosts` (home
+  looked up with getent) and, if given, `IdentityFile` plus
+  `IdentitiesOnly=yes`. Without `user` the unit is byte-for-byte what
+  it was, so existing root tunnels are not restarted.
+
 - `machine` role: forwarding-only accounts. User entries take an
   optional `shell` (e.g. `/usr/sbin/nologin`), the new
   `machine_ssh_dropins` list writes `/etc/ssh/sshd_config.d/<name>.conf`

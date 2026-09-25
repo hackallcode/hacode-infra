@@ -66,6 +66,13 @@ provisioner:
               - {type: "remote", bind_address: "127.0.0.1", bind_port: 18083, host: "127.0.0.1", port: 22}
               - {type: "remote", bind_port: 18084}
               - {type: "dynamic", bind_address: "127.0.0.1", bind_port: 18085}
+          - name: "ci-as-user"
+            user: "ci-tunnel"
+            identity_file: ".ssh/id_ed25519"
+            remote_user: "ci"
+            remote_host: "127.0.0.1"
+            forwards:
+              - {type: "remote", bind_address: "127.0.0.1", bind_port: 18086, host: "127.0.0.1", port: 22}
 
 verifier:
   name: "ansible"

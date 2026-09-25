@@ -28,5 +28,12 @@
         state: "present"
       when: "ansible_os_family == 'Debian'"
 
+    # A non-root tunnel user must exist before the role runs (it looks the
+    # home up, it does not create the account).
+    - name: "Create the non-root tunnel user"
+      ansible.builtin.user:
+        name: "ci-tunnel"
+        home: "/var/lib/ci-tunnel"
+
   roles:
     - role: "hacode.infra.ssh_tunnel"

@@ -6,6 +6,12 @@
 #   - name:          systemd unit base name (no `.service` suffix)
 #     remote_user:   user on the remote host
 #     remote_host:   destination (hostname or IP)
+#     user:          local account the unit runs ssh as, optional ("root" by
+#                    default). Its home holds `.ssh/known_hosts`; a non-root
+#                    user must already exist (it is looked up, not created)
+#     identity_file: private key ssh uses, optional: an absolute path or one
+#                    relative to the user's home (".ssh/id_ed25519"). Adds
+#                    `IdentitiesOnly=yes`. Omitted -> ssh's own default keys
 #     forward_port:  shorthand for a SOCKS proxy on 0.0.0.0:<port> (-D), optional
 #     reverse_port:  shorthand for a SOCKS proxy on the remote's 0.0.0.0:<port>
 #                    (-R <port> without a target), optional

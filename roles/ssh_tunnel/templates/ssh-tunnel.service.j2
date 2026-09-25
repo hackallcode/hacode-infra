@@ -1,4 +1,11 @@
 {% set _flags = {'local': '-L', 'remote': '-R', 'dynamic': '-D'} %}
+{% set _user = tunnel.user | default('root') %}
+{% set _home = '/root' if _user == 'root' else ssh_tunnel_homes[_user] %}
+{% set _opts = ['-o UserKnownHostsFile=' ~ _home ~ '/.ssh/known_hosts'] %}
+{% if tunnel.identity_file is defined %}
+{%   set _key = tunnel.identity_file if (tunnel.identity_file | string).startswith('/') else (_home ~ '/' ~ tunnel.identity_file) %}
+{%   set _ = _opts.extend(['-o IdentityFile=' ~ _key, '-o IdentitiesOnly=yes']) %}
+{% endif %}
 {% set _args = [] %}
 {% if tunnel.forward_port is defined %}
 {%   set _ = _args.append('-D 0.0.0.0:' ~ tunnel.forward_port) %}
@@ -17,8 +24,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
-ExecStart=/bin/ssh -N -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/root/.ssh/known_hosts -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3{% for arg in _args %} {{ arg }}{% endfor %} {{ tunnel.remote_user }}@{{ tunnel.remote_host }}
+User={{ _user }}
+ExecStart=/bin/ssh -N -o BatchMode=yes -o StrictHostKeyChecking=accept-new {{ _opts | join(' ') }} -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3{% for arg in _args %} {{ arg }}{% endfor %} {{ tunnel.remote_user }}@{{ tunnel.remote_host }}
 Restart=on-failure
 RestartSec=10
 

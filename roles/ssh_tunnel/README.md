@@ -13,8 +13,15 @@ produces a `<name>.service` unit that runs `ssh -N` with the requested local
 
 | Variable      | Default | Description                                                                                                   |
 | ------------- | ------- | ------------------------------------------------------------------------------------------------------------- |
-| `ssh_tunnels` | `[]`    | List of tunnels. Each entry: `name`, `remote_user`, `remote_host`, and any of `forward_port`, `reverse_port`, `forwards` (below). |
+| `ssh_tunnels` | `[]`    | List of tunnels. Each entry: `name`, `remote_user`, `remote_host`, optionally `user` and `identity_file` (below), and any of `forward_port`, `reverse_port`, `forwards` (below). |
 | `force`       | `false` | When `true`, restart services even if the unit file did not change.                                           |
+
+Tunnel entry keys that pick who runs ssh:
+
+| Key             | Default         | Description                                                                                                  |
+| --------------- | --------------- | ------------------------------------------------------------------------------------------------------------ |
+| `user`          | `root`          | Local account in the unit's `User=`. Its home (looked up with getent, so the account must exist) holds `.ssh/known_hosts`. |
+| `identity_file` | ssh's defaults  | Private key to use: absolute, or relative to the user's home (`.ssh/id_ed25519`). Adds `IdentitiesOnly=yes`. |
 
 Tunnel entry keys that pick the forwards:
 
@@ -53,8 +60,11 @@ not restarted.
             forward_port: 61173
             reverse_port: 61173
           # Publish this host's ssh and RDP on the jump host's private
-          # address, and reach a dashboard behind it on local 3000.
+          # address, and reach a dashboard behind it on local 3000. Runs
+          # as the workstation's own user, with that user's key.
           - name: "office-link"
+            user: "alice"
+            identity_file: ".ssh/id_ed25519"
             remote_user: "tunnel"
             remote_host: "203.0.113.10"
             forwards:
@@ -65,9 +75,14 @@ not restarted.
 
 ## Notes
 
-- The unit runs as `root` so it can bind low ports remotely if needed.
-- Authentication relies on `root`'s existing SSH key/agent. Provision keys
-  out of band (the role does not manage SSH credentials).
+- The unit runs as `root` unless the entry sets `user`. A root tunnel keeps
+  exactly the unit it had before `user` existed, so it is not restarted.
+- Authentication relies on the running user's existing SSH key (`BatchMode`,
+  no agent, so the key must not need a passphrase). Provision keys out of
+  band: the role does not manage SSH credentials or create the user.
+- A non-root user's `~/.ssh/config` still applies to the connection; the
+  unit's `-o` options win over it, other settings (`ControlMaster`,
+  `ProxyJump`, ...) do not, so keep the `remote_host` out of such blocks.
 - The `ssh` binary is provided by the base OS; the role does not install it.
 - A remote bind on a specific address needs `GatewayPorts clientspecified` on
   the server; `permitlisten` / `PermitListen` there can pin what the key may
