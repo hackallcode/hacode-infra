@@ -35,3 +35,25 @@
       failed_when: >-
         'OOMScoreAdjust=-900' not in p_overrides.stdout
         or 'MemoryMax=268435456' not in p_overrides.stdout
+
+    - name: "Gather OS family for the RHEL-only firewall checks"
+      ansible.builtin.setup:
+        gather_subset: ["!all", "min"]
+
+    - name: "Read the firewalld config node_exporter left behind (RHEL)"
+      ansible.builtin.command:
+        argv: ["firewall-cmd", "--permanent", "--list-all"]
+      register: "ne_fw"
+      changed_when: false
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Node Exporter is fenced to the allowed source only (RHEL)"
+      ansible.builtin.assert:
+        that:
+          - "'source address=\"10.99.0.0/16\"' in ne_fw.stdout"
+          - "'port port=\"9100\" protocol=\"tcp\" accept' in ne_fw.stdout"
+          - "'9100/tcp' not in ne_fw.stdout"
+        fail_msg: >-
+          Expected a rich rule opening 9100/tcp to 10.99.0.0/16 and no plain
+          9100/tcp port rule. Got: {{ ne_fw.stdout }}
+      when: "ansible_os_family == 'RedHat'"

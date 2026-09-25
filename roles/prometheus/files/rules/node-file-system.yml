@@ -1,5 +1,7 @@
 groups:
   - name: "node_file_system"
+    # A host that stops answering has no fresh samples; without
+    # keep_firing_for its alerts would resolve before InstanceDown fires.
     rules:
       - alert: "NodeFilesystemReadOnly"
         expr: 'node_filesystem_readonly{job="node",fstype="ext4"} != 0'
