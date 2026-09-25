@@ -18,6 +18,7 @@
       - "{{ k8s_addons_trust_manager_enabled | default(false) | bool }}"
       - "{{ k8s_addons_kyverno_enabled | default(false) | bool }}"
       - "{{ k8s_addons_egress_proxy_enabled | default(false) | bool }}"
+      - "{{ k8s_addons_cnpg_enabled | default(false) | bool }}"
   ansible.builtin.assert:
     that: "(k8s_addons_kubeconfig | length) > 0"
     fail_msg: >-

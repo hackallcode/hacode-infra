@@ -199,6 +199,11 @@
         k8s_addons_headlamp_enabled: true
         k8s_addons_kube_state_metrics_enabled: true
         k8s_addons_envoy_gateway_enabled: true
+        k8s_addons_cnpg_enabled: true
+        k8s_addons_cnpg_chart_timeout: "15m0s"
+        k8s_addons_coredns_custom_enabled: true
+        k8s_addons_coredns_custom_overrides:
+          molecule: "rewrite name exact molecule.example.com kubernetes.default.svc.cluster.local"
         # Fixed NodePort so verify can assert a deterministic value on the
         # controller-provisioned data-plane Service.
         k8s_addons_envoy_gateway_node_ports:

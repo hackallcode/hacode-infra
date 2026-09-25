@@ -32,3 +32,21 @@
   delegate_to: "localhost"
   run_once: true
   become: false
+
+- name: "Apply cert-manager ClusterIssuers"
+  tags: ["cert-manager-install"]
+  kubernetes.core.k8s:
+    kubeconfig: "{{ k8s_addons_kubeconfig }}"
+    state: "present"
+    definition:
+      apiVersion: "cert-manager.io/v1"
+      kind: "ClusterIssuer"
+      metadata:
+        name: "{{ item.key }}"
+      spec: "{{ item.value }}"
+  loop: "{{ k8s_addons_cert_manager_cluster_issuers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false

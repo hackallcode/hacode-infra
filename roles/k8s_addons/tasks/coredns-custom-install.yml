@@ -29,6 +29,19 @@
   run_once: true
   become: false
 
+- name: "Add coredns-custom overrides"
+  tags: ["coredns-custom-install"]
+  ansible.builtin.set_fact:
+    _coredns_custom_data: >-
+      {{ _coredns_custom_data | default({})
+         | combine({(item.key ~ '.override'): item.value ~ '\n'}) }}
+  loop: "{{ k8s_addons_coredns_custom_overrides | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  delegate_to: "localhost"
+  run_once: true
+  become: false
+
 - name: "Apply coredns-custom ConfigMap"
   tags: ["coredns-custom-install"]
   kubernetes.core.k8s:
