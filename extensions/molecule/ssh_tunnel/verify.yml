@@ -7,6 +7,7 @@
     expected_units:
       - "ci-forward-only"
       - "ci-reverse-only"
+      - "ci-explicit"
 
   tasks:
     - name: "Service unit files are rendered"
@@ -31,6 +32,14 @@
       failed_when:
         - "'-R 0.0.0.0:18081' not in rev_exec.stdout"
         - "'-D ' in rev_exec.stdout"
+
+    - name: "Explicit forwards render in order with bind address and target"
+      ansible.builtin.command: "grep '^ExecStart=' /etc/systemd/system/ci-explicit.service"
+      register: "explicit_exec"
+      changed_when: false
+      failed_when: >-
+        ' -L 18082:127.0.0.1:22 -R 127.0.0.1:18083:127.0.0.1:22 -R 18084 -D 127.0.0.1:18085 ci@127.0.0.1'
+        not in explicit_exec.stdout
 
     - name: "Units are enabled"  # noqa: command-instead-of-module
       ansible.builtin.command: "systemctl is-enabled {{ item }}.service"

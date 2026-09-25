@@ -58,6 +58,14 @@ provisioner:
             remote_user: "ci"
             remote_host: "127.0.0.1"
             reverse_port: 18081
+          - name: "ci-explicit"
+            remote_user: "ci"
+            remote_host: "127.0.0.1"
+            forwards:
+              - {type: "local", bind_port: 18082, host: "127.0.0.1", port: 22}
+              - {type: "remote", bind_address: "127.0.0.1", bind_port: 18083, host: "127.0.0.1", port: 22}
+              - {type: "remote", bind_port: 18084}
+              - {type: "dynamic", bind_address: "127.0.0.1", bind_port: 18085}
 
 verifier:
   name: "ansible"

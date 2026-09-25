@@ -1,3 +1,16 @@
+{% set _flags = {'local': '-L', 'remote': '-R', 'dynamic': '-D'} %}
+{% set _args = [] %}
+{% if tunnel.forward_port is defined %}
+{%   set _ = _args.append('-D 0.0.0.0:' ~ tunnel.forward_port) %}
+{% endif %}
+{% if tunnel.reverse_port is defined %}
+{%   set _ = _args.append('-R 0.0.0.0:' ~ tunnel.reverse_port) %}
+{% endif %}
+{% for fwd in tunnel.forwards | default([]) %}
+{%   set _bind = ((fwd.bind_address ~ ':') if fwd.bind_address is defined else '') ~ fwd.bind_port %}
+{%   set _target = (':' ~ fwd.host ~ ':' ~ fwd.port) if fwd.host is defined else '' %}
+{%   set _ = _args.append(_flags[fwd.type] ~ ' ' ~ _bind ~ _target) %}
+{% endfor %}
 [Unit]
 Description=SSH Tunnel: {{ tunnel.name }}
 After=network.target
@@ -5,7 +18,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/bin/ssh -N -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/root/.ssh/known_hosts -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3{% if tunnel.forward_port is defined %} -D 0.0.0.0:{{ tunnel.forward_port }}{% endif %}{% if tunnel.reverse_port is defined %} -R 0.0.0.0:{{ tunnel.reverse_port }}{% endif %} {{ tunnel.remote_user }}@{{ tunnel.remote_host }}
+ExecStart=/bin/ssh -N -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/root/.ssh/known_hosts -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3{% for arg in _args %} {{ arg }}{% endfor %} {{ tunnel.remote_user }}@{{ tunnel.remote_host }}
 Restart=on-failure
 RestartSec=10
 

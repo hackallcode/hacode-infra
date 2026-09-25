@@ -22,6 +22,16 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `MemoryMax`, so the kernel kills the workload before the alerter and
   the alerter cannot press the host.
 
+- `ssh_tunnel` role: per-tunnel `forwards` list for explicit `-L`,
+  `-R` and `-D` forwards with a bind address and, for `-L` / `-R`, a
+  destination (`{type, bind_address, bind_port, host, port}`). The
+  old `forward_port` / `reverse_port` shorthands could only open a
+  SOCKS proxy on `0.0.0.0`, so publishing one port of the host on a
+  jump box's private address (ssh or RDP back into a laptop) or
+  reaching one service behind it was out of reach. The shorthands
+  still render first and unchanged, so existing units are not
+  restarted.
+
 - `machine` role: `machine_yum_repos` entries take an optional `file`
   key (default `<name>.repo`). Point it at the distro's own repo
   filename (`almalinux-baseos.repo`, ...) to overwrite the stock repo

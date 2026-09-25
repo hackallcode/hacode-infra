@@ -1,12 +1,25 @@
 # List of SSH tunnels to manage as systemd units. Each entry produces a
-# `<name>.service` running `ssh -N` with the requested forward (`-D`)
-# and/or reverse (`-R`) port bindings. Both bindings are optional but at
-# least one should be provided for the tunnel to do anything useful.
+# `<name>.service` running `ssh -N` with the requested port forwards. At
+# least one forward should be given for the tunnel to do anything useful.
 #
 # Entry schema:
 #   - name:          systemd unit base name (no `.service` suffix)
 #     remote_user:   user on the remote host
 #     remote_host:   destination (hostname or IP)
-#     forward_port:  bind 0.0.0.0:<port> as a local SOCKS forward (-D), optional
-#     reverse_port:  bind 0.0.0.0:<port> on the remote as a reverse forward (-R), optional
+#     forward_port:  shorthand for a SOCKS proxy on 0.0.0.0:<port> (-D), optional
+#     reverse_port:  shorthand for a SOCKS proxy on the remote's 0.0.0.0:<port>
+#                    (-R <port> without a target), optional
+#     forwards:      explicit forwards, optional ([] by default). Each item:
+#       type:          "local" (-L), "remote" (-R) or "dynamic" (-D)
+#       bind_address:  address the listening side binds, optional. Omitted
+#                      -> ssh's own default: loopback, and for "remote" the
+#                      server's `GatewayPorts` decides. IPv6 in brackets.
+#       bind_port:     port the listening side binds
+#       host, port:    where connections are sent. Required for "local";
+#                      optional pair for "remote" (omitted -> a SOCKS proxy on
+#                      the remote); not allowed for "dynamic".
+#
+# The shorthands keep their historical 0.0.0.0 bind and render before
+# `forwards`, so existing entries produce the same unit as before and are
+# not restarted.
 ssh_tunnels: []
