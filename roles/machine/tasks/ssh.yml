@@ -95,9 +95,7 @@
   loop_control:
     label: "{{ item.name | default('(unnamed)') }}"
 
-# A fragment nobody includes is silently dead config, which for a
-# `Match User` restriction means the account runs unrestricted. EL8 and
-# older Debian/Ubuntu ship an sshd_config without the Include line.
+# An unincluded `Match User` fragment would silently leave its account unrestricted.
 - name: "Check that sshd_config includes sshd_config.d"
   tags: ["ssh"]
   ansible.builtin.command:
@@ -136,9 +134,7 @@
   register: "ssh_config_dropins_absent"
   when: "(item.state | default('present')) == 'absent'"
 
-# Each fragment passed `sshd -t` alone; check the assembled config too,
-# so a fragment that only breaks in combination fails the run here
-# instead of taking sshd down on the restart below.
+# Fragments that only break in combination must fail here, not on the restart below.
 - name: "Check the full sshd config"
   tags: ["ssh"]
   ansible.builtin.command:

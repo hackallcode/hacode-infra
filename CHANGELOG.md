@@ -23,32 +23,21 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   the alerter cannot press the host.
 
 - `ssh_tunnel` role: per-tunnel `forwards` list for explicit `-L`,
-  `-R` and `-D` forwards with a bind address and, for `-L` / `-R`, a
-  destination (`{type, bind_address, bind_port, host, port}`). The
-  old `forward_port` / `reverse_port` shorthands could only open a
-  SOCKS proxy on `0.0.0.0`, so publishing one port of the host on a
-  jump box's private address (ssh or RDP back into a laptop) or
-  reaching one service behind it was out of reach. The shorthands
-  still render first and unchanged, so existing units are not
-  restarted.
+  `-R` and `-D` forwards with a bind address and a destination
+  (`{type, bind_address, bind_port, host, port}`). The
+  `forward_port` / `reverse_port` shorthands render unchanged, so
+  existing units are not restarted.
 
-- `ssh_tunnel` role: per-tunnel `user` and `identity_file`. A tunnel
-  can run as a workstation's own account with the key that account
-  already has, instead of `root` with a key provisioned for it: the
-  unit gets `User=<user>`, that user's `~/.ssh/known_hosts` (home
-  looked up with getent) and, if given, `IdentityFile` plus
-  `IdentitiesOnly=yes`. Without `user` the unit is byte-for-byte what
-  it was, so existing root tunnels are not restarted.
+- `ssh_tunnel` role: per-tunnel `user` and `identity_file`, so a
+  tunnel can run as a local account with its own key (`User=`, that
+  user's `known_hosts`, `IdentityFile` + `IdentitiesOnly=yes`).
+  Root tunnels render unchanged.
 
 - `machine` role: forwarding-only accounts. User entries take an
-  optional `shell` (e.g. `/usr/sbin/nologin`), the new
-  `machine_ssh_dropins` list writes `/etc/ssh/sshd_config.d/<name>.conf`
-  fragments verbatim (typically a `Match User` block: no tty,
-  `AllowTcpForwarding remote`), and `machine_tmux_users` picks who
-  gets `~/.tmux.conf` the way `machine_zsh_users` already does for
-  oh-my-zsh. Together they let an inventory describe a hand-made
-  tunnel account exactly, so adopting it is a no-op run instead of a
-  chsh, a new dotfile and a lost sshd restriction.
+  optional `shell`, `machine_ssh_dropins` writes
+  `/etc/ssh/sshd_config.d/<name>.conf` fragments verbatim, and
+  `machine_tmux_users` picks who gets `~/.tmux.conf` like
+  `machine_zsh_users` does for oh-my-zsh.
 
 - `machine` role: `machine_yum_repos` entries take an optional `file`
   key (default `<name>.repo`). Point it at the distro's own repo

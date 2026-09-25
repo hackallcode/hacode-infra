@@ -59,9 +59,8 @@ not restarted.
             remote_host: "203.0.113.10"
             forward_port: 61173
             reverse_port: 61173
-          # Publish this host's ssh and RDP on the jump host's private
-          # address, and reach a dashboard behind it on local 3000. Runs
-          # as the workstation's own user, with that user's key.
+          # This host's ssh and RDP on the jump host's private address,
+          # a dashboard behind it on local 3000, as the workstation's user.
           - name: "office-link"
             user: "alice"
             identity_file: ".ssh/id_ed25519"

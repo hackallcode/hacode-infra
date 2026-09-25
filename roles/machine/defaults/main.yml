@@ -48,9 +48,8 @@ setup_user_name: "root"
 #   - password_update            (optional; overrides machine_password_update —
 #                                 "on_create" | "always")
 #   - groups                     (optional list of extra groups; append-only)
-#   - shell                      (optional login shell, e.g. "/usr/sbin/nologin"
-#                                 for a forwarding-only account; omitted ->
-#                                 left as is, distro default on create)
+#   - shell                      (optional login shell; omitted -> left as is,
+#                                 distro default on create)
 # Members of `machine_admin_group` get passwordless sudo.
 machine_users: []
 machine_extra_users: []
@@ -70,15 +69,8 @@ machine_ssh_max_sessions: 50
 # it for hosts that get parallel ansible/rsync invocations.
 machine_ssh_max_startups: "60:30:200"
 
-# Extra sshd config fragments, dropped as
-# `/etc/ssh/sshd_config.d/<name>.conf` (root:root 0644) and picked up by the
-# stock `Include /etc/ssh/sshd_config.d/*.conf` line (EL9+, Debian 11+,
-# Ubuntu 22.04+; the role fails early if `sshd_config` lacks it). The usual
-# payload is a `Match User` block that narrows one account, e.g. a
-# forwarding-only user that must not get a tty. `content` is written
-# verbatim, so a hand-made fragment can be adopted without a diff. Each
-# fragment is checked with `sshd -t` on its own before it lands, the full
-# config once more before sshd restarts. Each entry:
+# `/etc/ssh/sshd_config.d/<name>.conf` fragments, `content` written verbatim.
+# Each entry:
 #   - name     file basename without `.conf` (required; [A-Za-z0-9_.-])
 #   - content  file body (required unless `state: absent`)
 #   - state    "present" (default) | "absent"
@@ -306,10 +298,7 @@ machine_zsh_users: >-
 # as ~/.tmux.conf for each user in `machine_tmux_users`.
 tmux_version: "3.5a"
 
-# Users that get ~/.tmux.conf. By default every entry in machine_users /
-# machine_extra_users; shrink it to skip accounts that never get a shell
-# (forwarding-only users with a nologin shell), same idea as
-# `machine_zsh_users`.
+# Users that get ~/.tmux.conf; leave nologin accounts out.
 machine_tmux_users: >-
   {{ (machine_users + machine_extra_users) | map(attribute='name') | list }}
 

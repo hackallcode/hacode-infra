@@ -27,8 +27,7 @@
     loop_var: "tunnel"
     label: "{{ tunnel.name | default('(unnamed)') }}"
 
-# Every value lands unquoted on the unit's ExecStart line, so addresses are
-# held to a hostname / IPv4 / bracketed-IPv6 / `*` alphabet.
+# Values land unquoted on ExecStart, hence the strict address alphabet.
 - name: "Validate explicit forwards"
   ansible.builtin.assert:
     that:
@@ -56,10 +55,7 @@
   vars:
     fwd: "{{ item.1 }}"
 
-# A tunnel run by a non-root `user` keeps its known_hosts (and a relative
-# `identity_file`) in that user's home, which is looked up rather than
-# guessed. A user that does not exist fails the run here, before any unit
-# is written. `root` keeps the historical /root, so its units don't change.
+# Homes are looked up, not guessed; root keeps /root so its units don't change.
 - name: "Look up home directories of tunnel users"
   ansible.builtin.getent:
     database: "passwd"
@@ -107,6 +103,5 @@
   loop: "{{ ssh_tunnel_units.results }}"
   loop_control:
     label: "{{ item.tunnel.name }}"
-  # In check mode a new unit was never written, so systemd can't find it;
-  # the (re)start is implied by the template change reported above.
+  # In check mode a new unit was never written, so systemd can't find it.
   when: "not (ansible_check_mode and item.changed)"
