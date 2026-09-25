@@ -330,7 +330,8 @@ k8s_addons_coredns_custom_servers: []
 # cluster's own resolution, e.g. split-horizon DNS that sends an app domain
 # to the in-cluster ingress instead of the external IP pods can't hairpin to:
 #   {app: "rewrite name exact app.example.com ingress-nginx-controller.ingress-nginx.svc.cluster.local"}
-# `{}` adds none.
+# `{}` adds none. This and `_servers` together are the whole ConfigMap: an
+# entry dropped here is removed from the cluster on the next run.
 k8s_addons_coredns_custom_overrides: {}
 
 # ===== trust-manager (publish a corporate/internal CA) =====
@@ -372,6 +373,10 @@ k8s_addons_cert_manager_extra_values: {}
 # ClusterIssuers applied once the chart is up: name -> the issuer's `spec`,
 # e.g. {letsencrypt: {acme: {server: "...", email: "...",
 # privateKeySecretRef: {name: "..."}, solvers: [...]}}}. `{}` applies none.
+# Reconciled both ways: the role labels what it creates
+# (`app.kubernetes.io/managed-by: hacode.infra`) and deletes any labelled
+# issuer this dict no longer names, so dropping an entry actually retires
+# it. Issuers created by anything else are untouched.
 k8s_addons_cert_manager_cluster_issuers: {}
 
 # ===== Kyverno (policy engine; required by the egress-proxy addon) =====

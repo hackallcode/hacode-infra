@@ -396,6 +396,12 @@ k8s_addons_coredns_custom_overrides:
   app: "rewrite name exact app.example.com ingress-nginx-controller.ingress-nginx.svc.cluster.local"
 ```
 
+`k8s_addons_coredns_custom_servers` and
+`k8s_addons_coredns_custom_overrides` together are the entire ConfigMap:
+it is applied, not patched, so an entry removed from either variable is
+gone from the cluster on the next run rather than lingering as a rule
+CoreDNS still imports.
+
 Uninstall removes the `coredns-custom` ConfigMap; CoreDNS reverts to
 the stock cluster zones.
 
@@ -420,6 +426,12 @@ on).
 | `k8s_addons_cert_manager_namespace` | `cert-manager` | release namespace |
 | `k8s_addons_cert_manager_extra_values` | `{}` | deep-merged over `{crds: {enabled: true, keep: true}}` (user wins on conflicts) |
 | `k8s_addons_cert_manager_cluster_issuers` | `{}` | ClusterIssuers applied after the chart, name -> `spec`; empty = none |
+
+ClusterIssuers are reconciled both ways. The role labels the ones it
+creates with `app.kubernetes.io/managed-by: hacode.infra` and deletes any
+labelled issuer the dict no longer names, so removing an entry retires the
+issuer instead of leaving it signing renewals. Issuers created by anything
+else carry no such label and are never touched.
 
 When both cert-manager and trust-manager are enabled in the same
 play, the role installs cert-manager first and uninstalls it last
