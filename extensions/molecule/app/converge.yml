@@ -5,3 +5,52 @@
 
   roles:
     - role: "hacode.infra.app"
+
+# The backup archive's contents are the whole point of `app_exclude_paths`
+# and `app_global_exclude`, and nothing exercised them: `exclude_path` alone
+# silently matched nothing, so every archive carried caches, `.git` and the
+# app's own backups. Plant a data dir that holds one of each, back it up,
+# and let verify read the archive.
+- name: "Converge: back up a data dir that carries junk"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  vars:
+    app_data_paths: ["data"]
+    app_exclude_paths: ["config/backups"]
+    app_backup_local_dir: "/tmp/molecule-app-backups"
+
+  tasks:
+    - name: "Create the data tree, junk and keepers alike"
+      ansible.builtin.file:
+        path: "/opt/molecule-static/{{ item }}"
+        state: "directory"
+        mode: "0755"
+      loop:
+        - "data/uploads"
+        - "data/log"
+        - "data/.git/objects"
+        - "data/deep/nested/log"
+        - "data/config/backups"
+
+    - name: "Fill it"
+      ansible.builtin.copy:
+        dest: "/opt/molecule-static/{{ item }}"
+        content: "x\n"
+        mode: "0644"
+      loop:
+        # kept
+        - "data/important.db"
+        - "data/uploads/photo.bin"
+        # dropped by app_global_exclude, at the archive root and below it
+        - "data/log/app.log"
+        - "data/.git/objects/abc"
+        - "data/deep/nested/log/deep.log"
+        # dropped by app_exclude_paths, a multi-segment path
+        - "data/config/backups/old.tar.gz"
+
+    - name: "Run the backup entrypoint"
+      ansible.builtin.include_role:
+        name: "hacode.infra.app"
+        tasks_from: "backup.yml"

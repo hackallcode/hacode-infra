@@ -141,7 +141,8 @@ app_post_deploy_services: []
 # Paths excluded from rsync but kept on the remote between deploys. Typical use:
 # DBs / uploaded files that should survive a redeploy. Backed up by tasks_from=backup.
 app_data_paths: []
-# Paths excluded from rsync AND not backed up. Use for build artifacts, caches.
+# Paths excluded from rsync AND not backed up (see
+# app_backup_exclusion_patterns). Use for build artifacts, caches.
 app_exclude_paths: []
 # Curated exclude list applied automatically (always merged with the above).
 # Override in inventory if you want a different baseline.
@@ -165,3 +166,19 @@ app_global_exclude: >-
 # Where to put archived data dirs on the controller after the backup task runs.
 app_backup_local_dir: "{{ playbook_dir }}/backups/app"
 app_backup_remote_dir: "/opt/backups/app"
+
+# What the backup archive leaves out. `exclude_path` can only drop a whole
+# entry of the module's `path` list, so anything *inside* an archived data dir
+# needs `exclusion_patterns`: fnmatch globs tested against each member's path
+# as it appears in the archive (`*` crosses `/` there). For every excluded
+# name both the name itself and its subtree are emitted, anchored at the
+# archive root and at any depth below it -- so basenames like `log` or `.git`
+# are dropped wherever they sit, and a path like `config/backups` is dropped
+# as a whole subtree. Override `app_backup_exclusion_patterns` to hand the
+# module a different set.
+app_backup_exclude: "{{ app_global_exclude + app_exclude_paths }}"
+app_backup_exclusion_patterns: >-
+  {{ app_backup_exclude
+     + (app_backup_exclude | map('regex_replace', '^(.*)$', '\1/*') | list)
+     + (app_backup_exclude | map('regex_replace', '^(.*)$', '*/\1') | list)
+     + (app_backup_exclude | map('regex_replace', '^(.*)$', '*/\1/*') | list) }}

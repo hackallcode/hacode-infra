@@ -24,7 +24,10 @@
   tags: ["backup"]
   community.general.archive:
     path: "{{ app_data_paths | map('regex_replace', '^(.*)', app_content_dir ~ '/\\1') | list }}"
-    exclude_path: "{{ app_global_exclude + app_exclude_paths }}"
+    exclude_path: >-
+      {{ app_backup_exclude
+         | map('regex_replace', '^(.*)', app_content_dir ~ '/\1') | list }}
+    exclusion_patterns: "{{ app_backup_exclusion_patterns }}"
     dest: "{{ app_backup_remote_dir }}/{{ app_backup_archive }}"
     format: "gz"
     mode: "0600"

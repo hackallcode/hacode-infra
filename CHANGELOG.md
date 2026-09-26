@@ -380,6 +380,21 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   kernels stay tolerated as before, and the assert is skipped in
   containers, which have no modules of their own to load.
 
+- `app` role: `app_exclude_paths` and `app_global_exclude` now actually
+  keep things out of the backup archive. They were passed to
+  `community.general.archive` as `exclude_path`, which only drops whole
+  entries of the module's `path` list and only matches absolute paths -
+  so relative names like `log` or `config/backups` matched nothing and
+  every archive has been carrying build caches, `.git`, and whatever a
+  data dir happened to hold, including an app's own backups. The lists
+  are now expanded into `exclusion_patterns` (new
+  `app_backup_exclusion_patterns`, derived from `app_backup_exclude`),
+  which the module tests against each member's path inside the archive;
+  `exclude_path` is still passed, made absolute so it can do the one job
+  it has. Backups get smaller on the next run - a data dir that was
+  meant to be excluded stops being archived, so check
+  `app_exclude_paths` if you were relying on the old contents.
+
 ## [0.4.0] - 2026-07-03
 
 ### Added
