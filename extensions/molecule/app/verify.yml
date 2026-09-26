@@ -15,3 +15,44 @@
         path: "/opt/molecule-static/index.html"
       register: "index_html"
       failed_when: "not index_html.stat.exists"
+
+    # The archive is fetched to the controller and the remote copy deleted,
+    # so the assertions below run there. Every platform fetches into the
+    # same directory and the archive name carries the host, so match on
+    # that rather than on `*.tar.gz`. Listing beats stat-ing: the bug this
+    # guards against did not fail, it silently packed more.
+    - name: "Locate the fetched backup archive on the controller"
+      ansible.builtin.find:
+        paths: "/tmp/molecule-app-backups"
+        patterns: "*_{{ inventory_hostname }}_*.tar.gz"
+      register: "app_backup_found"
+      delegate_to: "localhost"
+      become: false
+      failed_when: "app_backup_found.files | length != 1"
+
+    - name: "List what the archive actually contains"
+      ansible.builtin.command:
+        argv: ["tar", "-tzf", "{{ app_backup_found.files[0].path }}"]
+      register: "app_backup_members"
+      changed_when: false
+      delegate_to: "localhost"
+      become: false
+
+    - name: "Excluded names are absent and the wanted data is present"
+      ansible.builtin.assert:
+        that:
+          # present - an exclude list that swallowed everything would
+          # otherwise satisfy the checks below
+          - "'data/important.db' in _members"
+          - "'data/uploads/photo.bin' in _members"
+          # app_global_exclude, at the archive root
+          - "'data/log/app.log' not in _members"
+          - "'data/.git/objects/abc' not in _members"
+          # and at any depth below it
+          - "'data/deep/nested/log/deep.log' not in _members"
+          # app_exclude_paths, a multi-segment path
+          - "'data/config/backups/old.tar.gz' not in _members"
+        fail_msg: >-
+          Archive contents are wrong. Members: {{ _members }}
+      vars:
+        _members: "{{ app_backup_members.stdout_lines | map('regex_replace', '/$', '') | list }}"
