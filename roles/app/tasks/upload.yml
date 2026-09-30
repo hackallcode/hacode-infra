@@ -18,15 +18,31 @@
   delegate_to: "localhost"
   become: false
 
+# `set_fact` outlives the include: without the reset, a second app deployed
+# in the same play would inherit the first one's excludes, data paths
+# included, and drop its own source dirs that happen to share their names.
+- name: "Reset rsync exclude args"
+  tags: ["upload"]
+  ansible.builtin.set_fact:
+    _app_rsync_excludes: []
+
+# Data paths and rendered templates name one spot under the content dir, so
+# they are anchored to its root: a bare `--exclude=db` also drops every
+# nested `db` (a source package, say) at any depth. The global and
+# per-app exclude lists are names or globs meant to match anywhere. Which
+# list an entry came from decides it, not its name, so a name in both keeps
+# each meaning.
 - name: "Build rsync exclude args"
   tags: ["upload"]
   ansible.builtin.set_fact:
     _app_rsync_excludes: >-
-      {{ _app_rsync_excludes | default([])
-         + ['--exclude=' ~ ((item if item is string else item.path) | quote)] }}
-  loop: "{{ app_global_exclude + app_exclude_paths + app_data_paths + app_templates }}"
+      {{ _app_rsync_excludes
+         + ['--exclude=' ~ ((item.1 ~ (item.0 if item.0 is string else item.0.path)) | quote)] }}
+  loop: >-
+    {{ ((app_global_exclude + app_exclude_paths) | product(['']) | list)
+       + ((app_data_paths + app_templates) | product(['/']) | list) }}
   loop_control:
-    label: "{{ item if item is string else item.path }}"
+    label: "{{ item.1 }}{{ item.0 if item.0 is string else item.0.path }}"
   when: "app_source_stat.stat.exists"
 
 - name: "Sync sources to remote"
@@ -45,7 +61,7 @@
         '--chmod=u=rwX,g=rX,o=',
         '--numeric-ids',
         '--rsh=' ~ (hacode_sync_rsh | quote),
-      ] + (_app_rsync_excludes | default([])) }}"
+      ] + _app_rsync_excludes }}"
   when: "app_source_stat.stat.exists"
   register: "app_sync_res"
 

@@ -215,6 +215,20 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `app` role: `upload` no longer drops source dirs that share a name
+  with a data path or template. They went to rsync as bare
+  `--exclude=<name>`, which matches at any depth, so `app_data_paths:
+  ["db"]` also kept a `internal/pkg/db` package off the host and the
+  build failed there. Data paths and templates are now anchored to the
+  content dir's root; the global and per-app exclude lists still match
+  anywhere. The exclude list is also built afresh per upload: a second
+  app deployed in the same play used to inherit the first one's.
+
+- `app` role: `restart` picks up a changed `.env` or compose file. It ran
+  `compose restart`, which keeps each container's config and environment,
+  so an edited `env_file` took effect only on a later `up`; it now applies
+  the config first, then restarts the whole stack as before.
+
 - `machine` role: root and password SSH logins really are off. The
   settings went into `sshd_config` below its `Include`, and sshd keeps
   the first value it reads, so a fragment the image ships — a hoster's

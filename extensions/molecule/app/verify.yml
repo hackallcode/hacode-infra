@@ -10,6 +10,12 @@
       register: "content_dir"
       failed_when: "not content_dir.stat.isdir"
 
+    - name: "A nested source dir named like a data path was synced"
+      ansible.builtin.stat:
+        path: "/opt/molecule-static/src/data/keep.txt"
+      register: "nested_data_named"
+      failed_when: "not nested_data_named.stat.exists"
+
     - name: "Source files were synced to the remote"
       ansible.builtin.stat:
         path: "/opt/molecule-static/index.html"

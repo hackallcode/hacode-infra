@@ -47,7 +47,7 @@ Deploy and manage an application on a remote host. Wraps three concerns:
 | (default) | `prepare` + `upload` + `restart` |
 | `prepare` | create remote content dir |
 | `upload` | rsync sources, dispatch to docker/node_js, set firewall ports |
-| `restart` | restart compose stack (or stop it when `app_disabled`) |
+| `restart` | apply compose config (recreating containers whose config or `env_file` values changed), then restart the whole stack so bind-mounted files the upload changed are picked up too; stop it when `app_disabled` |
 | `start` | start compose stack |
 | `stop` | stop compose stack |
 | `delete` | down compose stack (volumes+orphans), remove content dir, close ports |

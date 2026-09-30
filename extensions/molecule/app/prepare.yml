@@ -15,6 +15,20 @@
         content: "molecule\n"
         mode: "0644"
 
+    # A source dir named like a data path, below the root: upload must keep
+    # it, only the top-level data path is the app's own.
+    - name: "Ensure a nested dir sharing the data path's name exists"
+      ansible.builtin.file:
+        path: "/tmp/molecule-source/src/data"
+        state: "directory"
+        mode: "0755"
+
+    - name: "Write a source file inside it"
+      ansible.builtin.copy:
+        dest: "/tmp/molecule-source/src/data/keep.txt"
+        content: "source\n"
+        mode: "0644"
+
 - name: "Prepare: install rsync on the targets"
   hosts: "all"
   become: true
