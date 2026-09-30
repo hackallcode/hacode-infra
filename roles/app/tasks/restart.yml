@@ -2,8 +2,11 @@
 
 # `restart` keeps a container's config, environment included, so a changed
 # `.env` or compose file reached the service only on a later `up`. Apply the
-# config first: compose recreates what changed (env_file values count), and
-# a stack with nothing to recreate is restarted as before.
+# config first: compose recreates what changed (env_file values count). The
+# restart below still runs for the whole stack either way - files the upload
+# changed under a bind mount aren't part of the config, and a service whose
+# config didn't change would otherwise keep serving the old ones whenever
+# another service in the same stack was recreated.
 - name: "Apply docker compose config changes"
   tags: ["restart"]
   community.docker.docker_compose_v2:
@@ -13,7 +16,6 @@
     recreate: "auto"
     wait: "{{ docker_compose_wait | default(true) | bool }}"
     wait_timeout: "{{ docker_compose_wait_timeout | default(60) | int }}"
-  register: "app_restart_apply"
   when:
     - "app_type == 'docker'"
     - "not (app_disabled | bool)"
@@ -33,7 +35,6 @@
     - "not (app_disabled | bool)"
     - "(sources_changed | default(true)) or (force | default(false) | bool)"
     - "not ansible_check_mode"
-    - "app_restart_apply is not changed"
 
 - name: "Stop docker compose stack (app_disabled=true)"
   tags: ["restart"]
