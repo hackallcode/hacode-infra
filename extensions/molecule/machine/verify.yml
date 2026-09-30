@@ -112,6 +112,21 @@
             path: "/etc/ssh/sshd_config.d/00-aaa.conf"
             state: "absent"
 
+    - name: "Look for the repo file machine_yum_repos renders on RHEL"
+      ansible.builtin.stat:
+        path: "/etc/yum.repos.d/molecule-signed.repo"
+      register: "signed_repo"
+
+    - name: "The repo file carries its gpgkey"
+      ansible.builtin.command:
+        argv:
+          - "grep"
+          - "-qx"
+          - "gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-molecule"
+          - "/etc/yum.repos.d/molecule-signed.repo"
+      changed_when: false
+      when: "signed_repo.stat.exists"
+
     - name: "Forwarding-only user got the requested login shell"
       ansible.builtin.command: "getent passwd molecule-tunnel"
       register: "tunnel_passwd"

@@ -9,6 +9,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `machine` role: `machine_yum_repos` entries take an optional `gpgkey`,
+  so a repo overridden in place (`file:`) can keep `gpgcheck: 1` — e.g.
+  EPEL pinned to the host's minor release where an image's own
+  `epel.repo` tracks the newest one.
+
 - `k8s_addons` role: a CloudNativePG operator addon
   (`k8s_addons_cnpg_*`, CRDs with the chart, CRDs kept on uninstall);
   `k8s_addons_cert_manager_cluster_issuers` applies ClusterIssuers once

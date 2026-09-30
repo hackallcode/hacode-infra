@@ -156,6 +156,13 @@ provisioner:
               ssh-ed25519
               AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
               molecule-tunnel@test
+        # Disabled, so dnf never fetches it; verify reads the rendered file.
+        machine_yum_repos:
+          - name: "molecule-signed"
+            baseurl: "https://repo.invalid/$basearch/"
+            enabled: 0
+            gpgcheck: 1
+            gpgkey: "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-molecule"
         machine_ssh_dropins:
           - name: "10-molecule-tunnel"
             content: |

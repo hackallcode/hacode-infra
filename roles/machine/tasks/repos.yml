@@ -70,6 +70,9 @@
       baseurl={{ item.baseurl }}
       enabled={{ item.enabled | default(1) }}
       gpgcheck={{ item.gpgcheck | default(0) }}
+      {% if item.gpgkey is defined %}
+      gpgkey={{ item.gpgkey }}
+      {% endif %}
   loop: "{{ machine_yum_repos }}"
   loop_control:
     label: "{{ item.name }}"
