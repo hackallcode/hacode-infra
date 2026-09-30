@@ -18,12 +18,17 @@
   delegate_to: "localhost"
   become: false
 
+# Data paths and rendered templates name one spot under the content dir, so
+# they are anchored to its root: a bare `--exclude=db` also drops every
+# nested `db` (a source package, say) at any depth. The global and
+# per-app exclude lists are names or globs meant to match anywhere.
 - name: "Build rsync exclude args"
   tags: ["upload"]
   ansible.builtin.set_fact:
     _app_rsync_excludes: >-
       {{ _app_rsync_excludes | default([])
-         + ['--exclude=' ~ ((item if item is string else item.path) | quote)] }}
+         + ['--exclude=' ~ ((('/' if item in app_data_paths or item in app_templates else '')
+                             ~ (item if item is string else item.path)) | quote)] }}
   loop: "{{ app_global_exclude + app_exclude_paths + app_data_paths + app_templates }}"
   loop_control:
     label: "{{ item if item is string else item.path }}"

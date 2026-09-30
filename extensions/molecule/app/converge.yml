@@ -6,6 +6,22 @@
   roles:
     - role: "hacode.infra.app"
 
+# `app_data_paths` are excluded from the upload, but only at the content
+# dir's root: `src/data` in the sources is code, not the app's data.
+- name: "Converge: upload with a data path named like a nested source dir"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  vars:
+    app_data_paths: ["data"]
+
+  tasks:
+    - name: "Run the upload entrypoint"
+      ansible.builtin.include_role:
+        name: "hacode.infra.app"
+        tasks_from: "upload.yml"
+
 # The backup archive's contents are the whole point of `app_exclude_paths`
 # and `app_global_exclude`, and nothing exercised them: `exclude_path` alone
 # silently matched nothing, so every archive carried caches, `.git` and the
