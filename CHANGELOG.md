@@ -224,6 +224,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `Match` blocks, and the role adds the `Include` where the distro ships
   none (EL8, older Debian/Ubuntu), so `machine_ssh_dropins` works there
   too instead of failing the run.
+  The role then checks what sshd applies (`sshd -T`) and stops the run
+  when root or password logins are not off, so a fragment named to sort
+  ahead of `00-hacode` can't win silently either; a
+  `machine_ssh_dropins` entry named that way is the deliberate override
+  and skips the check. **Heads-up**: on a host where an image fragment
+  had turned root or password logins back on, the next run really turns
+  them off. Make sure a non-root user can reach it with a key before
+  running it.
 
 - `machine` role: a fresh host bootstraps again. Since repos moved first
   (#64), their facts gathering was the play's first contact and ran as

@@ -80,6 +80,17 @@
           PasswordAuthentication yes
         mode: "0644"
 
+    # EL8 and older Debian/Ubuntu ship sshd_config without the Include, and
+    # every image in this matrix has it. Take it out on the RHEL platforms so
+    # the role's insertion - and the order it happens in - runs somewhere;
+    # the Debian ones keep the stock line.
+    - name: "Remove the stock Include on RHEL, as EL8 ships without one"
+      ansible.builtin.lineinfile:
+        path: "/etc/ssh/sshd_config"
+        regexp: '^[ \t]*Include[ \t]+/etc/ssh/sshd_config\.d/'
+        state: "absent"
+      when: "ansible_os_family == 'RedHat'"
+
     # A per-user exception in sshd_config itself, which the role must leave
     # as it is while it comments the global settings out.
     - name: "Add a Match block with its own PasswordAuthentication"

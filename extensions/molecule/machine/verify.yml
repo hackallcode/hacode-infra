@@ -73,6 +73,45 @@
       changed_when: false
       failed_when: "sshd_main_active.stdout | trim != '0'"
 
+    # On RHEL prepare took the stock Include out, as EL8 ships without one,
+    # so this is the role's insertion; on Debian it is the stock line.
+    - name: "The Include is sshd_config's first directive"
+      ansible.builtin.command:
+        argv: ["awk", "NF && !/^[[:space:]]*#/ {print; exit}", "/etc/ssh/sshd_config"]
+      register: "sshd_first_directive"
+      changed_when: false
+      failed_when: "sshd_first_directive.stdout != 'Include /etc/ssh/sshd_config.d/*.conf'"
+
+    # A fragment named to sort ahead of 00-hacode.conf would win, the same
+    # silent override the drop-in exists to end, so the role checks what sshd
+    # applies and stops instead.
+    - name: "A fragment sorting before 00-hacode stops the run instead of winning"
+      block:
+        - name: "Plant an image fragment that sorts ahead of the role's"
+          ansible.builtin.copy:
+            dest: "/etc/ssh/sshd_config.d/00-aaa.conf"
+            content: "PasswordAuthentication yes\n"
+            mode: "0644"
+
+        - name: "Run the ssh tasks over it"
+          ansible.builtin.include_role:
+            name: "hacode.infra.machine"
+            tasks_from: "ssh"
+
+        - name: "Getting here means the override went unnoticed"
+          ansible.builtin.fail:
+            msg: "sshd applies 00-aaa.conf's PasswordAuthentication yes and the role went on."
+      rescue:
+        - name: "It was the role's check that stopped it"
+          ansible.builtin.assert:
+            that: "ansible_failed_task.name is search(\"Check sshd applies the role's root and password\")"
+            fail_msg: "Stopped by something else: {{ ansible_failed_task.name }}"
+      always:
+        - name: "Take the planted fragment out"
+          ansible.builtin.file:
+            path: "/etc/ssh/sshd_config.d/00-aaa.conf"
+            state: "absent"
+
     - name: "Forwarding-only user got the requested login shell"
       ansible.builtin.command: "getent passwd molecule-tunnel"
       register: "tunnel_passwd"

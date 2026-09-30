@@ -217,6 +217,11 @@ reads, and the `Include` comes first, so the fragment sorting ahead of the rest 
 blocks in `sshd_config` are left as they are, so a per-user exception there still applies, as does a
 `machine_ssh_dropins` fragment whose name sorts before `00-hacode`.
 
+Sorting first is only a name, and an image could ship a fragment named ahead of it, so the role also checks what sshd
+applies outside `Match` blocks (`sshd -T`) and stops the run when root or password logins are not off. A
+`machine_ssh_dropins` entry named to sort before `00-hacode` is the one deliberate way to override the role's settings,
+and skips that check.
+
 ## `machine_ssh_dropins` schema
 
 Each entry becomes `/etc/ssh/sshd_config.d/<name>.conf` (root:root, `0644`), loaded through the

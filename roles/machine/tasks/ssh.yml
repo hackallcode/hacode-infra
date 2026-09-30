@@ -153,6 +153,29 @@
     ssh_config_dropins is changed or
     ssh_config_dropins_absent is changed
 
+# 00-hacode.conf wins only because its name sorts first, and a name is all
+# that decides it: a fragment an image ships as `00-a…` would override the
+# role again, silently - the failure this drop-in exists to end. So check
+# what sshd applies outside any Match block (`-T` without `-C`) instead of
+# trusting the order. A `machine_ssh_dropins` entry named to sort earlier is
+# the deliberate way to override the role, and turns the check off.
+- name: "Check sshd applies the role's root and password login settings"
+  tags: ["ssh"]
+  ansible.builtin.command:
+    argv: ["/usr/sbin/sshd", "-T"]
+  register: "ssh_effective"
+  changed_when: false
+  failed_when: >-
+    ssh_effective.rc != 0
+    or 'permitrootlogin no' not in ssh_effective.stdout_lines
+    or 'passwordauthentication no' not in ssh_effective.stdout_lines
+  when:
+    - "not ansible_check_mode"
+    - >-
+      machine_ssh_dropins | selectattr('name', 'lt', '00-hacode')
+      | map(attribute='state', default='present') | select('eq', 'present')
+      | list | length == 0
+
 - name: "Restart SSH daemon"
   tags: ["ssh"]
   ansible.builtin.service:
