@@ -4,14 +4,14 @@
   gather_facts: true
 
   tasks:
-    - name: "Install EPEL + firewalld + python3-firewall + openssl on RHEL family"
+    # No openssl: the role must install it.
+    - name: "Install EPEL + firewalld + python3-firewall on RHEL family"
       ansible.builtin.package:
         name:
           - "epel-release"
           - "firewalld"
           - "python3-firewall"
           - "cronie"
-          - "openssl"
         state: "present"
       when: "ansible_os_family == 'RedHat'"
 
@@ -22,11 +22,10 @@
         enabled: true
       when: "ansible_os_family == 'RedHat'"
 
-    - name: "Refresh apt cache + install cron + openssl on Debian"
+    - name: "Refresh apt cache + install cron on Debian"
       ansible.builtin.apt:
         name:
           - "cron"
-          - "openssl"
         state: "present"
         update_cache: true
         cache_valid_time: 600

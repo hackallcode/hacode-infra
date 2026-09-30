@@ -10,7 +10,9 @@
     - "app_domains | length > 0"
 
 # Lineage dir is named after `--cert-name` (= app_domains[0]) with any
-# leading `*.` stripped — certbot doesn't keep asterisks on disk.
+# leading `*.` stripped — certbot doesn't keep asterisks on disk. `-checkend`
+# exits 1 for an expiring or missing cert; any other code means the check
+# didn't run, which must not read as a reason to re-issue.
 - name: "Check existing certificate validity (skip certbot if valid > 30 days)"
   tags: ["certificate-get"]
   ansible.builtin.command:
@@ -19,7 +21,7 @@
       -in /etc/letsencrypt/live/{{ app_domains[0] | regex_replace('^\*\.', '') }}/fullchain.pem
       -checkend 2592000 -noout
   register: "cert_valid_check"
-  failed_when: false
+  failed_when: "cert_valid_check.rc not in [0, 1]"
   changed_when: false
   when:
     - "app_cert | bool"

@@ -19,13 +19,14 @@
           else (certbot_le_staging_url if certbot_staging | bool
                 else certbot_le_production_url) -}}
 
+# certificate-get reads a cert's expiry with `openssl`; minimal images lack it.
 - name: "Install packages"
   tags: ["package"]
   vars:
     _certbot_plugins: "{{ ([certbot_authenticator] + certbot_extra_authenticators) | unique }}"
     _certbot_plugin_pkgs: "{{ _certbot_plugins | map('extract', certbot_authenticator_packages) | flatten | unique }}"
   ansible.builtin.package:
-    name: "{{ ['certbot'] + _certbot_plugin_pkgs }}"
+    name: "{{ ['certbot', 'openssl'] + _certbot_plugin_pkgs }}"
     state: "present"
 
 - name: "Manage HTTP/HTTPS firewall rules on RHEL family"
