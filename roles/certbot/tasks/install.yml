@@ -19,9 +19,7 @@
           else (certbot_le_staging_url if certbot_staging | bool
                 else certbot_le_production_url) -}}
 
-# `openssl` is what certificate-get reads a cert's expiry with; minimal
-# images (Rocky 10) ship without the CLI, and a failed check reads as an
-# expired cert, so certbot would re-issue every run.
+# certificate-get reads a cert's expiry with `openssl`; minimal images lack it.
 - name: "Install packages"
   tags: ["package"]
   vars:

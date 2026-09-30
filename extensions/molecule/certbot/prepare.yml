@@ -4,7 +4,7 @@
   gather_facts: true
 
   tasks:
-    # No openssl here: the role installs the CLI its expiry check needs.
+    # No openssl: the role must install it.
     - name: "Install EPEL + firewalld + python3-firewall on RHEL family"
       ansible.builtin.package:
         name:
