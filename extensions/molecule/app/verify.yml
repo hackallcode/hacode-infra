@@ -76,6 +76,27 @@
     app_backup_local_dir: "/tmp/molecule-app-backups"
 
   tasks:
+    - name: "Find the owner ids backup recorded beside the archive"
+      ansible.builtin.find:
+        paths: "/tmp/molecule-app-backups"
+        patterns: "*_{{ inventory_hostname }}_*.owner"
+      register: "app_owner_files"
+      delegate_to: "localhost"
+      become: false
+      failed_when: "app_owner_files.files | length != 1"
+
+    # Same host, same ids, so a straight round trip would never exercise the
+    # remap. Pretend the archive came from a host where the app's owner was
+    # 55556: its file must move to this host's owner, while 55555 - the
+    # stand-in for container data, equally without a user here - must not.
+    - name: "Pretend the archive came from a host where the owner was 55556"
+      ansible.builtin.copy:
+        dest: "{{ app_owner_files.files[0].path }}"
+        content: '{"uid": 55556, "gid": 55556}'
+        mode: "0600"
+      delegate_to: "localhost"
+      become: false
+
     - name: "Lose the data dir"
       ansible.builtin.file:
         path: "/opt/molecule-static/data"
@@ -95,3 +116,22 @@
       ansible.builtin.assert:
         that:
           - "(restored_photo.content | b64decode) == 'x\n'"
+
+    - name: "Stat the files archived under foreign ids"
+      ansible.builtin.stat:
+        path: "/opt/molecule-static/data/{{ item }}"
+      register: "restored_ids"
+      loop: ["container.db", "from-source-owner.txt"]
+
+    - name: "Container data keeps its id, the source owner's file moves"
+      ansible.builtin.assert:
+        that:
+          - "_by_name['container.db'].uid == 55555"
+          - "_by_name['container.db'].gid == 55555"
+          - "_by_name['from-source-owner.txt'].uid == (app_dir_owner | int)"
+          - "_by_name['from-source-owner.txt'].gid == (app_dir_group | int)"
+        fail_msg: "Ownership after restore: {{ _by_name }}"
+      vars:
+        _by_name: >-
+          {{ dict(restored_ids.results | map(attribute='item')
+                  | zip(restored_ids.results | map(attribute='stat'))) }}

@@ -66,6 +66,23 @@
         # dropped by app_exclude_paths, a multi-segment path
         - "data/config/backups/old.tar.gz"
 
+    # Two files under ids no account on these images has, so the restore
+    # has to tell them apart by the recorded owner and not by whether a
+    # user exists: 55555 stands in for container data (mysql's 999 and the
+    # like), 55556 for the app's owner on the host the archive came from.
+    - name: "Add files under foreign numeric ids"
+      ansible.builtin.copy:
+        dest: "/opt/molecule-static/{{ item.path }}"
+        content: "x\n"
+        owner: "{{ item.id }}"
+        group: "{{ item.id }}"
+        mode: "0644"
+      loop:
+        - {path: "data/container.db", id: "55555"}
+        - {path: "data/from-source-owner.txt", id: "55556"}
+      loop_control:
+        label: "{{ item.path }}"
+
     - name: "Run the backup entrypoint"
       ansible.builtin.include_role:
         name: "hacode.infra.app"

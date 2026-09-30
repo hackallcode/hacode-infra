@@ -16,3 +16,33 @@
       {{ app_backup_exclude | map('regex_replace', '^(.*)', app_content_dir ~ '/\1') | list }}
     hacode_backup_exclusion_patterns: "{{ app_backup_exclusion_patterns }}"
   when: "app_data_paths | length > 0"
+
+# The archive keeps numeric ids, which is what container-owned data needs,
+# but the app's own files then carry this host's uid for `app_dir_owner` -
+# on another host that account may have a different one. Record it next to
+# the archive so `restore` can move exactly those files over and leave every
+# other id alone. Read off the content dir rather than looked up by name:
+# `app_dir_owner` may be numeric, and a stat never fails to resolve.
+- name: "Read the owner ids the data was written under"
+  tags: ["backup"]
+  ansible.builtin.stat:
+    path: "{{ app_content_dir }}"
+    get_checksum: false
+  register: "app_backup_owner_stat"
+  # `hacode_backup_res` is a host fact: without the first guard, a skipped
+  # include would read another role's archive from earlier in the play.
+  when:
+    - "app_data_paths | length > 0"
+    - "hacode_backup_res.archived | default([]) | length > 0"
+
+- name: "Record them beside the archive"
+  tags: ["backup"]
+  ansible.builtin.copy:
+    dest: "{{ app_backup_local_dir }}/{{ hacode_backup_archive | regex_replace('\\.tar\\.gz$', '.owner') }}"
+    content: "{{ {'uid': app_backup_owner_stat.stat.uid, 'gid': app_backup_owner_stat.stat.gid} | to_json }}\n"
+    mode: "0600"
+  delegate_to: "localhost"
+  become: false
+  when:
+    - "app_data_paths | length > 0"
+    - "hacode_backup_res.archived | default([]) | length > 0"

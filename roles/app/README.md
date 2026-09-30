@@ -51,8 +51,8 @@ Deploy and manage an application on a remote host. Wraps three concerns:
 | `start` | start compose stack |
 | `stop` | stop compose stack |
 | `delete` | down compose stack (volumes+orphans), remove content dir, close ports |
-| `backup` | archive `app_data_paths` on the remote, pull to `app_backup_local_dir` as `<YYYYMMDD>_<inventory_hostname>_<app_project>.tar.gz` |
-| `restore` | `prepare`, then unpack the newest such archive over `app_data_paths`; stop the app first |
+| `backup` | archive `app_data_paths` on the remote, pull to `app_backup_local_dir` as `<YYYYMMDD>_<inventory_hostname>_<app_project>.tar.gz`, with the uid / gid `app_dir_owner` had there recorded beside it as `.owner` |
+| `restore` | unpack the newest such archive over `app_data_paths`, with a running compose stack stopped for the duration and started again after. Numeric ids are kept, so container-owned data survives; only files under the recorded `.owner` ids move to `app_dir_owner` / `app_dir_group` |
 
 ## Examples
 

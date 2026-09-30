@@ -21,13 +21,15 @@
     quiet: true
 
 # Mirrors community.general.archive's own archive root: the common prefix
-# of the paths' parent directories, cut back to a whole directory.
+# of the paths' parent directories, cut back to a whole directory. The
+# rstrip keeps a top-level path (`/data`, parent `/`) from doubling the
+# slash, which `os.path.join(parent, '')` in the module never does.
 - name: "Resolve the directory the archive unpacks into"
   ansible.builtin.set_fact:
     hacode_restore_dest: >-
-      {%- set ns = namespace(prefix=(hacode_backup_paths[0] | dirname) ~ '/') -%}
+      {%- set ns = namespace(prefix=(hacode_backup_paths[0] | dirname).rstrip('/') ~ '/') -%}
       {%- for path in hacode_backup_paths[1:] -%}
-      {%- set parent = (path | dirname) ~ '/' -%}
+      {%- set parent = (path | dirname).rstrip('/') ~ '/' -%}
       {%- for _ in range(ns.prefix | length) -%}
       {%- if not parent.startswith(ns.prefix) -%}{%- set ns.prefix = ns.prefix[:-1] -%}{%- endif -%}
       {%- endfor -%}
