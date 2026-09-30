@@ -217,9 +217,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 - `machine` role: root and password SSH logins really are off. The
   settings went into `sshd_config` below its `Include`, and sshd keeps
-  the first value it reads, so a fragment the image ships - a hoster's
+  the first value it reads, so a fragment the image ships — a hoster's
   `40-hosting.conf` with `PermitRootLogin yes` / `PasswordAuthentication
-  yes`, cloud-init's `50-cloud-init.conf` - silently won. They now live in
+  yes`, cloud-init's `50-cloud-init.conf` — silently won. They now live in
   `sshd_config.d/00-hacode.conf`, commented out of `sshd_config` outside
   `Match` blocks, and the role adds the `Include` where the distro ships
   none (EL8, older Debian/Ubuntu), so `machine_ssh_dropins` works there

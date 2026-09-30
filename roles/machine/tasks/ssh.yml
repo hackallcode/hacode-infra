@@ -5,7 +5,7 @@
     filter: ["ansible_os_family"]
   when: "ansible_os_family is not defined"
 
-# `sshd -t -f %s` (the validator we attach to every lineinfile below)
+# `sshd -t -f %s` (the validator we attach to every config write below)
 # refuses to run without the privilege-separation directory. On hosts
 # where sshd has never been started (fresh cloud images, CI containers)
 # the directory does not exist yet. Create it eagerly so the validate
@@ -21,9 +21,9 @@
 
 # Every setting the role owns lives in one drop-in that sorts before all
 # others. sshd keeps the first value it reads for a keyword, and the stock
-# `Include` sits at the top of sshd_config, so a fragment an image ships -
+# `Include` sits at the top of sshd_config, so a fragment an image ships —
 # a hoster's `40-hosting.conf` with `PermitRootLogin yes` and
-# `PasswordAuthentication yes`, cloud-init's `50-cloud-init.conf` - used to
+# `PasswordAuthentication yes`, cloud-init's `50-cloud-init.conf` — used to
 # override what the role wrote into sshd_config itself.
 - name: "Harden sshd through 00-hacode.conf"
   tags: ["ssh"]
@@ -61,6 +61,19 @@
         validate: "/usr/sbin/sshd -t -f %s"
       register: "ssh_config_role"
 
+    # EL8 and older Debian/Ubuntu ship no Include line; without it neither
+    # 00-hacode.conf nor `machine_ssh_dropins` would be read at all. It goes in
+    # before the settings are commented out of sshd_config, so a run that
+    # stops in between never leaves them unread.
+    - name: "SSH config: include sshd_config.d ahead of everything else"
+      ansible.builtin.lineinfile:
+        path: "/etc/ssh/sshd_config"
+        regexp: '^[ \t]*Include[ \t]+/etc/ssh/sshd_config\.d/\*\.conf'
+        line: "Include /etc/ssh/sshd_config.d/*.conf"
+        insertbefore: "BOF"
+        validate: "/usr/sbin/sshd -t -f %s"
+      register: "ssh_config_include"
+
     - name: "Read sshd_config"
       ansible.builtin.slurp:
         src: "/etc/ssh/sshd_config"
@@ -82,17 +95,6 @@
         mode: "0600"
         validate: "/usr/sbin/sshd -t -f %s"
       register: "ssh_config_main"
-
-    # EL8 and older Debian/Ubuntu ship no Include line; without it neither
-    # 00-hacode.conf nor `machine_ssh_dropins` would be read at all.
-    - name: "SSH config: include sshd_config.d ahead of everything else"
-      ansible.builtin.lineinfile:
-        path: "/etc/ssh/sshd_config"
-        regexp: '^[ \t]*Include[ \t]+/etc/ssh/sshd_config\.d/\*\.conf'
-        line: "Include /etc/ssh/sshd_config.d/*.conf"
-        insertbefore: "BOF"
-        validate: "/usr/sbin/sshd -t -f %s"
-      register: "ssh_config_include"
 
 - name: "Validate sshd drop-in entries"
   tags: ["ssh"]

@@ -207,14 +207,6 @@ behavior would otherwise force you to redeclare the whole list when extending). 
 The `90-{{ machine_admin_group }}` sudoers entry is created by the role; you don't need a separate `sudoers:` step.
 Distro-provided `90-cloud-init-users` and (when `machine_admin_group != "wheel"`) `90-wheel` are removed.
 
-## `machine_ssh_dropins` schema
-
-Each entry becomes `/etc/ssh/sshd_config.d/<name>.conf` (root:root, `0644`), loaded through the
-`Include /etc/ssh/sshd_config.d/*.conf` line (the role adds it at the top of `sshd_config` where the distro ships
-none). `content` is written verbatim, so a hand-made fragment can be adopted without a diff. A fragment is checked with
-`sshd -t` on its own before it is written and the whole config once more before sshd restarts. `00-hacode` is taken
-by the role's own settings.
-
 ## sshd settings the role owns
 
 `PermitRootLogin no`, `PasswordAuthentication no`, `ClientAliveInterval`, `ClientAliveCountMax`, `MaxSessions`
@@ -222,7 +214,16 @@ by the role's own settings.
 the same keywords are commented out of `sshd_config` up to its first `Match` line. sshd keeps the first value it
 reads, and the `Include` comes first, so the fragment sorting ahead of the rest is what decides: a hosting image's
 `40-hosting.conf` or cloud-init's `50-cloud-init.conf` turning root or password logins back on no longer wins. `Match`
-blocks in `sshd_config` are left as they are, so a per-user exception there still applies.
+blocks in `sshd_config` are left as they are, so a per-user exception there still applies, as does a
+`machine_ssh_dropins` fragment whose name sorts before `00-hacode`.
+
+## `machine_ssh_dropins` schema
+
+Each entry becomes `/etc/ssh/sshd_config.d/<name>.conf` (root:root, `0644`), loaded through the
+`Include /etc/ssh/sshd_config.d/*.conf` line (the role adds it at the top of `sshd_config` where the distro ships
+none). `content` is written verbatim, so a hand-made fragment can be adopted without a diff. A fragment is checked with
+`sshd -t` on its own before it is written and the whole config once more before sshd restarts. `00-hacode` is taken
+by the role's own settings.
 
 | Field     | Required                | Description                                 |
 |-----------|-------------------------|---------------------------------------------|

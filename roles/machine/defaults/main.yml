@@ -70,9 +70,10 @@ machine_ssh_max_sessions: 50
 machine_ssh_max_startups: "60:30:200"
 
 # `/etc/ssh/sshd_config.d/<name>.conf` fragments, `content` written verbatim.
-# Needs the stock `Include /etc/ssh/sshd_config.d/*.conf` line (EL9+, Debian
-# 11+, Ubuntu 22.04+); where it is missing the role fails early rather than
-# writing a fragment nobody loads. Each entry:
+# Loaded through `Include /etc/ssh/sshd_config.d/*.conf`, which the role adds
+# where the distro ships none. `00-hacode` is the role's own fragment and
+# can't be used; a name sorting before it overrides the role's settings,
+# since sshd keeps the first value it reads. Each entry:
 #   - name     file basename without `.conf` (required; [A-Za-z0-9_.-])
 #   - content  file body (required unless `state: absent`)
 #   - state    "present" (default) | "absent"
