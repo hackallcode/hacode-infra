@@ -67,3 +67,78 @@
       changed_when: false
       failed_when: "enabled_check.stdout.strip() != 'enabled'"
       loop: "{{ expected_units }}"
+
+# Plant a key for root and for the non-root tunnel user, back up, lose both
+# ~/.ssh dirs, restore: the keys come back owned by their users, and
+# authorized_keys (inbound access, not the tunnel's) stays out of it.
+- name: "Verify: ssh_tunnel key backup round trip"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  vars:
+    ssh_tunnel_backup_local_dir: "/tmp/molecule-ssh-tunnel-backups"
+    _homes:
+      root: "/root"
+      ci-tunnel: "/var/lib/ci-tunnel"
+
+  tasks:
+    - name: "Create ~/.ssh for both users"
+      ansible.builtin.file:
+        path: "{{ item.value }}/.ssh"
+        state: "directory"
+        owner: "{{ item.key }}"
+        mode: "0700"
+      loop: "{{ _homes | dict2items }}"
+
+    - name: "Plant a private key and an authorized_keys for both users"
+      ansible.builtin.copy:
+        dest: "{{ item.0.value }}/.ssh/{{ item.1 }}"
+        content: "{{ item.0.key }} {{ item.1 }}\n"
+        owner: "{{ item.0.key }}"
+        mode: "0600"
+      loop: "{{ _homes | dict2items | product(['id_ed25519', 'authorized_keys']) | list }}"
+
+    - name: "Run backup"
+      ansible.builtin.include_role:
+        name: "hacode.infra.ssh_tunnel"
+        tasks_from: "backup"
+
+    - name: "Lose both ~/.ssh dirs"
+      ansible.builtin.file:
+        path: "{{ item.value }}/.ssh"
+        state: "absent"
+      loop: "{{ _homes | dict2items }}"
+
+    - name: "Run restore"
+      ansible.builtin.include_role:
+        name: "hacode.infra.ssh_tunnel"
+        tasks_from: "restore"
+
+    - name: "Read the restored keys"
+      ansible.builtin.slurp:
+        src: "{{ item.value }}/.ssh/id_ed25519"
+      loop: "{{ _homes | dict2items }}"
+      register: "restored_keys"
+
+    - name: "Stat the restored keys"
+      ansible.builtin.stat:
+        path: "{{ item.value }}/.ssh/id_ed25519"
+      loop: "{{ _homes | dict2items }}"
+      register: "restored_stat"
+
+    - name: "Stat authorized_keys"
+      ansible.builtin.stat:
+        path: "{{ item.value }}/.ssh/authorized_keys"
+      loop: "{{ _homes | dict2items }}"
+      register: "restored_authorized"
+
+    - name: "Keys are back and owned by their users; authorized_keys is not"
+      ansible.builtin.assert:
+        that:
+          - "(item.0.content | b64decode) == item.0.item.key ~ ' id_ed25519\n'"
+          - "item.1.stat.pw_name == item.0.item.key"
+          - "not item.2.stat.exists"
+      loop: "{{ restored_keys.results | zip(restored_stat.results, restored_authorized.results) | list }}"
+      loop_control:
+        label: "{{ item.0.item.key }}"

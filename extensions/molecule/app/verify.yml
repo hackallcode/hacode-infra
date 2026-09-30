@@ -62,3 +62,36 @@
           Archive contents are wrong. Members: {{ _members }}
       vars:
         _members: "{{ app_backup_members.stdout_lines | map('regex_replace', '/$', '') | list }}"
+
+# Lose the data dir the converge backed up, restore it, and the kept files
+# come back.
+- name: "Verify: app restore"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  vars:
+    app_data_paths: ["data"]
+    app_exclude_paths: ["config/backups"]
+    app_backup_local_dir: "/tmp/molecule-app-backups"
+
+  tasks:
+    - name: "Lose the data dir"
+      ansible.builtin.file:
+        path: "/opt/molecule-static/data"
+        state: "absent"
+
+    - name: "Run the restore entrypoint"
+      ansible.builtin.include_role:
+        name: "hacode.infra.app"
+        tasks_from: "restore.yml"
+
+    - name: "Read a restored file"
+      ansible.builtin.slurp:
+        src: "/opt/molecule-static/data/uploads/photo.bin"
+      register: "restored_photo"
+
+    - name: "The backed up data is back"
+      ansible.builtin.assert:
+        that:
+          - "(restored_photo.content | b64decode) == 'x\n'"

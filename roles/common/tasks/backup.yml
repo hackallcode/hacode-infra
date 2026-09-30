@@ -1,0 +1,52 @@
+# Archive remote paths and pull the archive to the controller as
+# `<hacode_backup_local_dir>/<YYYYMMDD>_<hacode_backup_name>.tar.gz`.
+#
+# Inputs:
+#   hacode_backup_paths               absolute remote paths (list)
+#   hacode_backup_name                archive stem, unique per host and role
+#   hacode_backup_local_dir           controller directory to pull into
+#   hacode_backup_remote_dir          remote scratch directory
+#   hacode_backup_exclude_paths       optional, `archive` exclude_path
+#   hacode_backup_exclusion_patterns  optional, `archive` exclusion_patterns
+#
+# Entries are stored relative to the paths' common parent directory;
+# `restore.yml` derives the same directory from the same list.
+
+- name: "Get current time"
+  ansible.builtin.setup:
+    filter: ["ansible_date_time"]
+
+- name: "Compute archive name"
+  ansible.builtin.set_fact:
+    hacode_backup_archive: "{{ ansible_date_time.date.replace('-', '') }}_{{ hacode_backup_name }}.tar.gz"
+
+- name: "Ensure remote scratch directory exists"
+  ansible.builtin.file:
+    path: "{{ hacode_backup_remote_dir }}"
+    state: "directory"
+    mode: "0700"
+
+- name: "Archive {{ hacode_backup_paths | join(', ') }}"
+  community.general.archive:
+    path: "{{ hacode_backup_paths }}"
+    exclude_path: "{{ hacode_backup_exclude_paths | default(omit) }}"
+    exclusion_patterns: "{{ hacode_backup_exclusion_patterns | default(omit) }}"
+    dest: "{{ hacode_backup_remote_dir }}/{{ hacode_backup_archive }}"
+    format: "gz"
+    mode: "0600"
+    force_archive: true
+  register: "hacode_backup_res"
+
+- name: "Move the archive to the controller"
+  ansible.builtin.import_tasks: "pull.yml"
+  vars:
+    hacode_pull_src: "{{ hacode_backup_remote_dir }}/{{ hacode_backup_archive }}"
+    hacode_pull_dest_dir: "{{ hacode_backup_local_dir }}"
+  when: "hacode_backup_res.archived | default([]) | length > 0"
+
+# Nothing archived (none of the paths exist) still leaves an empty file.
+- name: "Remove an empty archive from remote"
+  ansible.builtin.file:
+    path: "{{ hacode_backup_remote_dir }}/{{ hacode_backup_archive }}"
+    state: "absent"
+  when: "hacode_backup_res.archived | default([]) | length == 0"

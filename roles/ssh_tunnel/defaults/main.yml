@@ -29,3 +29,7 @@
 # `forwards`, so an existing entry produces the same unit as before and
 # its tunnel is not restarted.
 ssh_tunnels: []
+
+# Where `backup` pulls each tunnel user's ~/.ssh archive and `restore`
+# reads the latest one from.
+ssh_tunnel_backup_local_dir: "{{ hacode_backups_dir }}/ssh-tunnel"

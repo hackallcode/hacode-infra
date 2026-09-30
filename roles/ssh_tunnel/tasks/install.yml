@@ -55,25 +55,7 @@
   vars:
     fwd: "{{ item.1 }}"
 
-# Homes are looked up, not guessed; a user that does not exist fails the run
-# here, before any unit is written. Root keeps /root so its units don't change.
-- name: "Look up home directories of tunnel users"
-  ansible.builtin.getent:
-    database: "passwd"
-    key: "{{ item }}"
-  loop: >-
-    {{ ssh_tunnels | map(attribute='user', default='root')
-       | reject('equalto', 'root') | unique | list }}
-  register: "ssh_tunnel_getent"
-
-- name: "Remember tunnel users' home directories"
-  ansible.builtin.set_fact:
-    ssh_tunnel_homes: >-
-      {{ ssh_tunnel_homes | default({})
-         | combine({item.item: item.ansible_facts.getent_passwd[item.item][4]}) }}
-  loop: "{{ ssh_tunnel_getent.results }}"
-  loop_control:
-    label: "{{ item.item }}"
+- ansible.builtin.import_tasks: "_homes.yml"
 
 # StrictHostKeyChecking=accept-new (TOFU) — host keys aren't known at
 # deploy time. First connect vulnerable to MITM; pre-seed known_hosts

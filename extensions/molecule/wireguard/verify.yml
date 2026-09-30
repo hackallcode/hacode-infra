@@ -25,3 +25,50 @@
     - name: "Wg0.conf contains the server block"
       ansible.builtin.command: "grep -q 'server config begin' /etc/wireguard/wg0.conf"
       changed_when: false
+
+# Back the keys up, lose them, restore: the same server key comes back in a
+# directory only root can read.
+- name: "Verify: wireguard key backup round trip"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  vars:
+    wg_backup_local_dir: "/tmp/molecule-wg-backups"
+
+  tasks:
+    - name: "Read the server key before the round trip"
+      ansible.builtin.slurp:
+        src: "/etc/wireguard/keys/server"
+      register: "wg_key_before"
+
+    - name: "Run server-backup"
+      ansible.builtin.include_role:
+        name: "hacode.infra.wireguard"
+        tasks_from: "server-backup"
+
+    - name: "Lose the keys"
+      ansible.builtin.file:
+        path: "/etc/wireguard/keys"
+        state: "absent"
+
+    - name: "Run server-restore"
+      ansible.builtin.include_role:
+        name: "hacode.infra.wireguard"
+        tasks_from: "server-restore"
+
+    - name: "Read the server key after the round trip"
+      ansible.builtin.slurp:
+        src: "/etc/wireguard/keys/server"
+      register: "wg_key_after"
+
+    - name: "Stat the keys directory"
+      ansible.builtin.stat:
+        path: "/etc/wireguard/keys"
+      register: "wg_keys_dir"
+
+    - name: "The same key is back, in a 0700 directory"
+      ansible.builtin.assert:
+        that:
+          - "wg_key_after.content == wg_key_before.content"
+          - "wg_keys_dir.stat.mode == '0700'"

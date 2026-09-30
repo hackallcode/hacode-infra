@@ -22,6 +22,12 @@ maria_db_users: []
 maria_db_database: ""
 maria_db_user: ""
 
+# Where `backup` pulls `<YYYYMMDD>_<db>.sql.gz` dumps on the controller
+# and `restore` reads the latest one per database from; the remote
+# scratch dir each dump is written to first.
+maria_db_backup_local_dir: "{{ hacode_backups_dir }}/maria-db"
+maria_db_backup_remote_dir: "{{ hacode_backups_remote_dir }}/maria-db"
+
 # Required — MariaDB root password. No default; set via Ansible Vault
 # or inventory. The role asserts it's non-empty before installing.
 maria_db_root_password: ""

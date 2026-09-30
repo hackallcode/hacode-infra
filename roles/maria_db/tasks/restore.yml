@@ -1,19 +1,32 @@
+# Per database, the newest dated dump `backup` wrote, falling back to an
+# undated `<db>.sql[.gz|.bz2]` dropped in by hand. A database with neither
+# is left as it is.
 - name: "Restore DB"
   tags: ["restore"]
   vars:
-    db_name: "{{ item[0] }}"
-    backup_file: "{{ item | join('') }}"
+    _dir: "{{ maria_db_backup_local_dir }}"
+    _dated: >-
+      {{ (query('ansible.builtin.fileglob', _dir ~ '/' ~ ('[0-9]' * 8) ~ '_' ~ item ~ '.sql.gz')
+          + query('ansible.builtin.fileglob', _dir ~ '/' ~ ('[0-9]' * 8) ~ '_' ~ item ~ '.sql.bz2'))
+         | map('basename') | sort }}
+    _undated: >-
+      {{ ['.sql.gz', '.sql.bz2', '.sql'] | map('regex_replace', '^', item)
+         | select('in', query('ansible.builtin.fileglob', _dir ~ '/' ~ item ~ '.sql*') | map('basename') | list)
+         | list }}
+    db_name: "{{ item }}"
+    backup_file: "{{ (_dated | last) if _dated else (_undated | first | default('')) }}"
   ansible.builtin.include_tasks:
     file: "restore-db.yml"
     apply:
       tags: ["restore"]
   loop: >-
     {{
-      (maria_db_databases
+      maria_db_databases
       if not maria_db_database
       else (
         [maria_db_database]
         if maria_db_database in maria_db_databases
         else []
-      )) | product(['.sql', '.sql.bz2'])
+      )
     }}
+  when: "backup_file | length > 0"

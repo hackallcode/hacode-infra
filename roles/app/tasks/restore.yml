@@ -1,0 +1,40 @@
+- ansible.builtin.import_tasks: "_validate.yml"
+
+# Overwrites the data paths in place: stop the app first so a running
+# service does not write over, or hold open, what is being restored.
+- name: "Restore data paths"
+  when: "app_data_paths | length > 0"
+  block:
+    - ansible.builtin.import_tasks: "prepare.yml"
+      tags: ["restore"]
+
+    - name: "Unpack the latest data archive"
+      tags: ["restore"]
+      ansible.builtin.include_role:
+        name: "hacode.infra.common"
+        tasks_from: "restore"
+        apply:
+          tags: ["restore"]
+      vars:
+        hacode_backup_paths: "{{ _app_data_paths_abs }}"
+        hacode_backup_name: "{{ inventory_hostname }}_{{ app_project }}"
+        hacode_backup_local_dir: "{{ app_backup_local_dir }}"
+
+    # The archive keeps the source host's numeric ids so container data
+    # (mysql's uid 999 and the like) survives; ids that mean nobody here
+    # were the app's own owner/group there, whose id need not match.
+    - name: "Hand files of unknown owners to '{{ app_dir_owner }}'"
+      tags: ["restore"]
+      ansible.builtin.command:
+        argv: ["find", "{{ hacode_restore_dest }}", "-nouser", "-print",
+               "-exec", "chown", "-h", "{{ app_dir_owner }}", "{}", "+"]
+      register: "app_restore_chown"
+      changed_when: "app_restore_chown.stdout | length > 0"
+
+    - name: "Hand files of unknown groups to '{{ app_dir_group }}'"
+      tags: ["restore"]
+      ansible.builtin.command:
+        argv: ["find", "{{ hacode_restore_dest }}", "-nogroup", "-print",
+               "-exec", "chgrp", "-h", "{{ app_dir_group }}", "{}", "+"]
+      register: "app_restore_chgrp"
+      changed_when: "app_restore_chgrp.stdout | length > 0"

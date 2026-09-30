@@ -36,3 +36,14 @@ hacode_output_dir: "{{ playbook_dir }}/output"
 # group as `k3s` Just Works without per-role path plumbing. Override
 # globally to relocate kubeconfigs alongside other controller artifacts.
 hacode_kube_configs_dir: "{{ hacode_output_dir }}/kube-configs"
+
+# Controller-side root for backups the roles' `backup` entrypoints fetch
+# (and their `restore` entrypoints read back), one subdirectory per role.
+# Kept apart from `hacode_output_dir`: backups are data you keep, output
+# is regenerated.
+hacode_backups_dir: "{{ playbook_dir }}/backups"
+
+# Remote scratch root where archives are built before they are pulled to
+# the controller and deleted. On disk rather than /tmp, which is a tmpfs
+# on some distros and would hold a large archive in RAM.
+hacode_backups_remote_dir: "/opt/backups"

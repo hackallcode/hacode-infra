@@ -1,0 +1,37 @@
+- ansible.builtin.import_tasks: "_homes.yml"
+  tags: ["restore"]
+
+- name: "Ensure tunnel users' ~/.ssh exists"
+  tags: ["restore"]
+  ansible.builtin.file:
+    path: "{{ ssh_tunnel_homes[item] }}/.ssh"
+    state: "directory"
+    owner: "{{ item }}"
+    group: "{{ ssh_tunnel_gids[item] }}"
+    mode: "0700"
+  loop: "{{ ssh_tunnels | map(attribute='user', default='root') | unique | list }}"
+
+- name: "Restore tunnel users' ~/.ssh"
+  tags: ["restore"]
+  ansible.builtin.include_role:
+    name: "hacode.infra.common"
+    tasks_from: "restore"
+    apply:
+      tags: ["restore"]
+  vars:
+    hacode_backup_paths: ["{{ ssh_tunnel_homes[item] }}/.ssh"]
+    hacode_backup_name: "{{ inventory_hostname }}_{{ item }}"
+    hacode_backup_local_dir: "{{ ssh_tunnel_backup_local_dir }}"
+  loop: "{{ ssh_tunnels | map(attribute='user', default='root') | unique | list }}"
+
+# The archive keeps the uids of the host it came from, where the account
+# may have had another id; ssh refuses a key its user cannot read.
+- name: "Hand restored files to their tunnel user"
+  tags: ["restore"]
+  ansible.builtin.file:
+    path: "{{ ssh_tunnel_homes[item] }}/.ssh"
+    state: "directory"
+    owner: "{{ item }}"
+    group: "{{ ssh_tunnel_gids[item] }}"
+    recurse: true
+  loop: "{{ ssh_tunnels | map(attribute='user', default='root') | unique | list }}"

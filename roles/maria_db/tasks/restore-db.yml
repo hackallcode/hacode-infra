@@ -1,26 +1,48 @@
-- name: "Check that '{{ backup_file }}' backup exists"
+# Imports `backup_file` (a basename under `maria_db_backup_local_dir`)
+# into the existing database `db_name`, inside the container like the dump.
+
+- name: "Check that '{{ backup_file }}' exists"
   tags: ["restore"]
   ansible.builtin.stat:
-    path: "../../backups/maria-db/{{ backup_file }}"
+    path: "{{ maria_db_backup_local_dir }}/{{ backup_file }}"
+    get_checksum: false
   register: "backup_check_result"
   delegate_to: "localhost"
+  become: false
+  failed_when: "not backup_check_result.stat.exists"
 
-- name: "Upload local backup '{{ backup_file }}' to server"
+- name: "Ensure remote scratch directory exists"
+  tags: ["restore"]
+  ansible.builtin.file:
+    path: "{{ maria_db_backup_remote_dir }}"
+    state: "directory"
+    mode: "0700"
+
+- name: "Upload '{{ backup_file }}' to server"
   tags: ["restore"]
   ansible.builtin.copy:
-    src: "../../backups/maria-db/{{ backup_file }}"
-    dest: "/opt/backups/maria-db/{{ backup_file }}"
+    src: "{{ maria_db_backup_local_dir }}/{{ backup_file }}"
+    dest: "{{ maria_db_backup_remote_dir }}/{{ backup_file }}"
     mode: "0600"
-  when: "backup_check_result.stat.exists"
 
 - name: "Restore database '{{ db_name }}'"
   tags: ["restore"]
-  community.mysql.mysql_db:
-    login_host: "127.0.0.1"
-    login_port: "{{ maria_db_port }}"
-    login_user: "root"
-    login_password: "{{ maria_db_root_password }}"
-    state: "import"
-    name: "{{ db_name }}"
-    target: "/opt/backups/maria-db/{{ backup_file }}"
-  when: "backup_check_result.stat.exists"
+  vars:
+    _unpack: >-
+      {{ 'gzip -dc' if backup_file.endswith('.gz')
+         else ('bzip2 -dc' if backup_file.endswith('.bz2') else 'cat') }}
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      {{ _unpack }} {{ (maria_db_backup_remote_dir ~ '/' ~ backup_file) | quote }}
+      | docker exec -i {{ maria_db_dest_name | quote }} sh -c
+      'MYSQL_PWD="$(cat /run/secrets/mariadb_root_password)" exec
+      "$(command -v mariadb || command -v mysql)" -uroot "$1"' sh {{ db_name | quote }}
+    executable: "/bin/bash"
+  changed_when: true
+
+- name: "Remove '{{ backup_file }}' from server"
+  tags: ["restore"]
+  ansible.builtin.file:
+    path: "{{ maria_db_backup_remote_dir }}/{{ backup_file }}"
+    state: "absent"

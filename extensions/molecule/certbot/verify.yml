@@ -47,3 +47,50 @@
       register: "webroot_log"
       changed_when: false
       failed_when: "webroot_log.rc != 0"
+
+# Back /etc/letsencrypt up, wipe it, restore: every file comes back as it was.
+- name: "Verify: certbot backup round trip"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  vars:
+    certbot_backup_local_dir: "/tmp/molecule-certbot-backups"
+    _checksums: >-
+      find /etc/letsencrypt -type f -exec sha256sum {} + | sort
+
+  tasks:
+    - name: "Checksum /etc/letsencrypt before the round trip"
+      ansible.builtin.shell:
+        cmd: "set -o pipefail; {{ _checksums }}"
+        executable: "/bin/bash"
+      register: "le_before"
+      changed_when: false
+
+    - name: "Run backup"
+      ansible.builtin.include_role:
+        name: "hacode.infra.certbot"
+        tasks_from: "backup"
+
+    - name: "Wipe /etc/letsencrypt"
+      ansible.builtin.file:
+        path: "/etc/letsencrypt"
+        state: "absent"
+
+    - name: "Run restore"
+      ansible.builtin.include_role:
+        name: "hacode.infra.certbot"
+        tasks_from: "restore"
+
+    - name: "Checksum /etc/letsencrypt after the round trip"
+      ansible.builtin.shell:
+        cmd: "set -o pipefail; {{ _checksums }}"
+        executable: "/bin/bash"
+      register: "le_after"
+      changed_when: false
+
+    - name: "Every file came back unchanged"
+      ansible.builtin.assert:
+        that:
+          - "le_before.stdout | length > 0"
+          - "le_after.stdout == le_before.stdout"

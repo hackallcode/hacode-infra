@@ -28,6 +28,13 @@
         state: "present"
       when: "ansible_os_family == 'Debian'"
 
+    # The backup round trip in verify pulls archives with rsync and
+    # unpacks them with tar.
+    - name: "Install rsync, tar and gzip"
+      ansible.builtin.package:
+        name: ["rsync", "tar", "gzip"]
+        state: "present"
+
     # The role looks the home up, it does not create the account.
     - name: "Create the non-root tunnel user"
       ansible.builtin.user:

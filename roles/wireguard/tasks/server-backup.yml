@@ -1,0 +1,15 @@
+# Server and client keys are the only state `server-configure` can't
+# regenerate without re-provisioning every peer; wg0.conf is rebuilt from
+# them and `wg_clients`.
+- name: "Back up WireGuard keys"
+  tags: ["backup"]
+  ansible.builtin.include_role:
+    name: "hacode.infra.common"
+    tasks_from: "backup"
+    apply:
+      tags: ["backup"]
+  vars:
+    hacode_backup_paths: ["/etc/wireguard/keys"]
+    hacode_backup_name: "{{ inventory_hostname }}"
+    hacode_backup_local_dir: "{{ wg_backup_local_dir }}"
+    hacode_backup_remote_dir: "{{ hacode_backups_remote_dir }}/wireguard"

@@ -1,0 +1,29 @@
+# Move one remote file to the controller: `hacode_pull_src` (remote path)
+# lands in `hacode_pull_dest_dir` under the same basename, then the remote
+# copy is deleted.
+#
+# Not `fetch`: under become it reads the file through `slurp`, which holds
+# it whole, base64-encoded, in the remote's memory and dies with MemoryError
+# on a small host. rsync streams it.
+
+- name: "Ensure '{{ hacode_pull_dest_dir }}' exists"
+  ansible.builtin.file:
+    path: "{{ hacode_pull_dest_dir }}"
+    state: "directory"
+    mode: "0700"
+  delegate_to: "localhost"
+  become: false
+
+- name: "Pull '{{ hacode_pull_src | basename }}' to the controller"
+  ansible.posix.synchronize:
+    mode: "pull"
+    src: "{{ hacode_pull_src }}"
+    dest: "{{ hacode_pull_dest_dir }}/{{ hacode_pull_src | basename }}"
+    archive: false
+    times: true
+    rsync_opts: ["--rsh={{ hacode_sync_rsh | quote }}"]
+
+- name: "Remove '{{ hacode_pull_src }}' from remote"
+  ansible.builtin.file:
+    path: "{{ hacode_pull_src }}"
+    state: "absent"

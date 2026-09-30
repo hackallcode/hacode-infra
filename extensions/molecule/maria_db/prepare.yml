@@ -43,3 +43,10 @@
     - name: "Install the docker role"
       ansible.builtin.include_role:
         name: "hacode.infra.docker"
+
+    # The backup round trip in verify pulls archives with rsync and
+    # unpacks them with tar.
+    - name: "Install rsync, tar and gzip"
+      ansible.builtin.package:
+        name: ["rsync", "tar", "gzip"]
+        state: "present"

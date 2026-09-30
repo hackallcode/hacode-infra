@@ -1,6 +1,6 @@
 {% set _flags = {'local': '-L', 'remote': '-R', 'dynamic': '-D'} %}
 {% set _user = tunnel.user | default('root') %}
-{% set _home = '/root' if _user == 'root' else ssh_tunnel_homes[_user] %}
+{% set _home = ssh_tunnel_homes[_user] %}
 {% set _opts = ['-o UserKnownHostsFile=' ~ _home ~ '/.ssh/known_hosts'] %}
 {% if tunnel.identity_file is defined %}
 {%   set _key = tunnel.identity_file if (tunnel.identity_file | string).startswith('/') else (_home ~ '/' ~ tunnel.identity_file) %}

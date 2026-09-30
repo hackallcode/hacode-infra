@@ -14,6 +14,19 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   EPEL pinned to the host's minor release where an image's own
   `epel.repo` tracks the newest one.
 
+- Backup / restore for server state the roles can't regenerate, so a
+  host can move to a new machine: `wireguard` `server-backup` /
+  `server-restore` (the keys; peers keep their configs and only need the
+  new endpoint), `certbot` `backup` / `restore` (`/etc/letsencrypt`, so
+  certs stay valid before DNS moves), `ssh_tunnel` `backup` / `restore`
+  (each tunnel user's `~/.ssh` without `authorized_keys`), and `app`
+  `restore` to go with its `backup`. All archive to
+  `<hacode_backups_dir>/<role>/<YYYYMMDD>_<host>[_...].tar.gz` and
+  restore the newest one, keeping numeric uids so container-owned data
+  survives a distro change. Built on new `common` helpers
+  (`tasks_from: backup | restore | pull`) and the `hacode_backups_dir` /
+  `hacode_backups_remote_dir` defaults.
+
 - `k8s_addons` role: a CloudNativePG operator addon
   (`k8s_addons_cnpg_*`, CRDs with the chart, CRDs kept on uninstall);
   `k8s_addons_cert_manager_cluster_issuers` applies ClusterIssuers once
@@ -213,6 +226,19 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Changed
 
+- `maria_db` role: `backup` / `restore` run `mariadb-dump` / `mariadb`
+  inside the container, with `--single-transaction`, and dumps are
+  `<YYYYMMDD>_<db>.sql.gz` under `maria_db_backup_local_dir`. `restore`
+  now finds what `backup` wrote (it only looked for undated
+  `<db>.sql[.bz2]`) and takes the newest dump per database.
+  **Migration**: dumps used to land in `{{ playbook_dir }}/../../backups/maria-db`;
+  set `maria_db_backup_local_dir` (or `hacode_backups_dir`) to keep that
+  location.
+
+- `app` role: `app_backup_local_dir` / `app_backup_remote_dir` default to
+  `hacode_backups_dir` / `hacode_backups_remote_dir` subdirectories (same
+  paths as before unless those are overridden).
+
 - `prometheus` role: the RAM, CPU and filesystem-space rules keep firing
   for 3 minutes through missing samples. A host that goes away used to
   resolve its open alerts first and only then fire InstanceDown, so the
@@ -261,6 +287,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `gather_facts` off for this: implicit fact gathering runs as
   `ansible_user` before any task. The README example now does, and a
   new section explains the bootstrap.
+
+- `app` role: `backup` no longer dies with `MemoryError` on a small host.
+  `fetch` under become reads the archive through `slurp`, whole and
+  base64-encoded in the remote's memory; archives now come over rsync.
+
+- `maria_db` role: `backup` failed on EL8/9 hosts, where the `mysql`
+  client package gives a MySQL 8 `mysqldump` that community.mysql
+  refuses for a MariaDB server (it wants `mariadb-dump`).
 
 - `prometheus` role: the bundled rules and the Alertmanager template
   actually reach the host. Their paths were built from `role_path` in

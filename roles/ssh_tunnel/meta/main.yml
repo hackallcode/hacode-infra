@@ -22,4 +22,5 @@ galaxy_info:
     - "tunnel"
     - "systemd"
 
-dependencies: []
+dependencies:
+  - role: "hacode.infra.common"
