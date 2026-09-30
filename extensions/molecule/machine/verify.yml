@@ -275,3 +275,15 @@
       when:
         - "ansible_os_family == 'RedHat'"
         - "ansible_distribution_major_version | int >= 10"
+
+    # Keyed on the OS family, not on the file being there: a repo file that
+    # was never rendered must fail this rather than skip it (grep exits 2).
+    - name: "The machine_yum_repos file carries its gpgkey (RHEL)"
+      ansible.builtin.command:
+        argv:
+          - "grep"
+          - "-qx"
+          - "gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-molecule"
+          - "/etc/yum.repos.d/molecule-signed.repo"
+      changed_when: false
+      when: "ansible_os_family == 'RedHat'"

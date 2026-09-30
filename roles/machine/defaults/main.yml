@@ -228,6 +228,9 @@ machine_install_epel: true
 #     description optional friendly description (defaults to name)
 #     enabled     1/0 (default 1)
 #     gpgcheck    1/0 (default 0)
+#     gpgkey      optional gpgkey= line, e.g. "file:///etc/pki/rpm-gpg/<key>";
+#                 with gpgcheck 1 dnf needs it unless the key is already
+#                 imported into the rpm database
 #     file        optional filename (default "<name>.repo"). Set it to the
 #                 distro's own repo filename (e.g. almalinux-baseos.repo) to
 #                 override a stock repo in place: .repo files are
