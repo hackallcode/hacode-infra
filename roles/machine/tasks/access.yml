@@ -1,0 +1,18 @@
+# Connect as the setup user while `ansible_user` doesn't exist yet (a
+# fresh cloud image). Runs before anything else touches the host, facts
+# gathering included: an unreachable first task drops the host from the
+# play before any later fallback could run. users.yml reverts the switch
+# once the real accounts exist.
+
+- name: "Probe '{{ ansible_user | default('') }}' user remote access"
+  tags: ["always"]
+  ansible.builtin.command: "true"
+  ignore_unreachable: true
+  register: "access_check"
+  changed_when: false
+
+- name: "Fall back to setup user '{{ setup_user_name }}' while bootstrapping"
+  tags: ["always"]
+  ansible.builtin.set_fact:
+    ansible_user: "{{ setup_user_name }}"
+  when: "(access_check.unreachable | default(false)) | bool"

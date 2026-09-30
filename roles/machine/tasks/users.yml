@@ -21,19 +21,6 @@
   ansible.builtin.set_fact:
     _machine_users_all: "{{ machine_users + machine_extra_users }}"
 
-- name: "Probe '{{ ansible_user | default('') }}' user remote access"
-  tags: ["always"]
-  ansible.builtin.command: "true"
-  ignore_unreachable: true
-  register: "access_check"
-  changed_when: false
-
-- name: "Fall back to setup user '{{ setup_user_name }}' while bootstrapping"
-  tags: ["always"]
-  ansible.builtin.set_fact:
-    ansible_user: "{{ setup_user_name }}"
-  when: "(access_check.unreachable | default(false)) | bool"
-
 - name: "Change root password"
   tags: ["root_user"]
   ansible.builtin.user:

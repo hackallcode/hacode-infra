@@ -289,7 +289,8 @@ without re-checking / rebuilding tmux itself.
 ## Convenience entrypoint
 
 `tasks_from: host` runs `users` → `ssh` → `system` in one call - handy when an inventory wants the combined identity
-bootstrap without the rest of the role.
+bootstrap without the rest of the role. Like the default entrypoint, it first probes `ansible_user` and falls back to
+`setup_user_name` on a fresh host, then drops the managed repos before any package operation.
 
 ## Notes
 
