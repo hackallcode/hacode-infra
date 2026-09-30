@@ -1,0 +1,71 @@
+# Unpack the latest `backup.yml` archive for `hacode_backup_name` back
+# onto the remote, overwriting what is there.
+#
+# Inputs: `hacode_backup_paths`, `hacode_backup_name`,
+# `hacode_backup_local_dir`, same values as the backup was taken with.
+# Sets `hacode_restore_res` (the unarchive result) and
+# `hacode_restore_dest` for callers that fix ownership afterwards.
+
+# Archives are named by `hacode_backup_stamp`; ones taken before it carry
+# only the date. Any stamped archive is newer than every date-only one - the
+# code that writes stamps replaced the code that wrote dates - so the older
+# form is only a fallback. The two are not sorted together: `T` sorts below
+# `_`, so a same-day date-only archive would win over a stamped one.
+- name: "Pick the latest '{{ hacode_backup_name }}' archive"
+  ansible.builtin.set_fact:
+    hacode_restore_archive: >-
+      {{ (_stamped | sort | last) if _stamped else (_dated | sort | last | default('')) }}
+  vars:
+    _stamped: >-
+      {{ query('ansible.builtin.fileglob', hacode_backup_local_dir ~ '/' ~ ('[0-9]' * 8)
+               ~ 'T' ~ ('[0-9]' * 6) ~ 'Z_' ~ hacode_backup_name ~ '.tar.gz') }}
+    _dated: >-
+      {{ query('ansible.builtin.fileglob', hacode_backup_local_dir ~ '/' ~ ('[0-9]' * 8)
+               ~ '_' ~ hacode_backup_name ~ '.tar.gz') }}
+
+- name: "Fail when there is nothing to restore"
+  ansible.builtin.assert:
+    that: "hacode_restore_archive | length > 0"
+    fail_msg: >-
+      No {{ hacode_backup_local_dir }}/<YYYYMMDDTHHMMSSZ>_{{ hacode_backup_name }}.tar.gz
+      (or an older <YYYYMMDD>_ one) to restore from.
+    quiet: true
+
+# Mirrors community.general.archive's own archive root: the common prefix
+# of the paths' parent directories, cut back to a whole directory. The
+# rstrip keeps a top-level path (`/data`, parent `/`) from doubling the
+# slash, which `os.path.join(parent, '')` in the module never does.
+- name: "Resolve the directory the archive unpacks into"
+  ansible.builtin.set_fact:
+    hacode_restore_dest: >-
+      {%- set ns = namespace(prefix=(hacode_backup_paths[0] | dirname).rstrip('/') ~ '/') -%}
+      {%- for path in hacode_backup_paths[1:] -%}
+      {%- set parent = (path | dirname).rstrip('/') ~ '/' -%}
+      {%- for _ in range(ns.prefix | length) -%}
+      {%- if not parent.startswith(ns.prefix) -%}{%- set ns.prefix = ns.prefix[:-1] -%}{%- endif -%}
+      {%- endfor -%}
+      {%- endfor -%}
+      {{ ns.prefix | dirname }}
+
+- name: "Check whether '{{ hacode_restore_dest }}' exists"
+  ansible.builtin.stat:
+    path: "{{ hacode_restore_dest }}"
+    get_checksum: false
+  register: "hacode_restore_dest_stat"
+
+# Created only when missing: an existing parent (/root, a home) keeps its mode.
+- name: "Create '{{ hacode_restore_dest }}'"
+  ansible.builtin.file:
+    path: "{{ hacode_restore_dest }}"
+    state: "directory"
+    mode: "0755"
+  when: "not hacode_restore_dest_stat.stat.exists"
+
+# Numeric ids: container-owned data keeps its uid (e.g. mysql's 999) even
+# where that name maps to another id on the target, or does not exist.
+- name: "Unpack '{{ hacode_restore_archive | basename }}' into '{{ hacode_restore_dest }}'"
+  ansible.builtin.unarchive:
+    src: "{{ hacode_restore_archive }}"
+    dest: "{{ hacode_restore_dest }}"
+    extra_opts: ["--numeric-owner"]
+  register: "hacode_restore_res"

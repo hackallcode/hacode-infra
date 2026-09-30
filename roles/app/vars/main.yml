@@ -1,0 +1,3 @@
+# `app_data_paths` as absolute remote paths; `backup` archives exactly
+# these and `restore` unpacks back into their common parent.
+_app_data_paths_abs: "{{ app_data_paths | map('regex_replace', '^(.*)', app_content_dir ~ '/\\1') | list }}"

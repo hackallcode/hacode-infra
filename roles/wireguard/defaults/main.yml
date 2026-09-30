@@ -16,6 +16,10 @@ wg_dns_enabled: false
 # the controller.
 wg_client_configs_local_dir: "{{ hacode_output_dir }}/wg-configs"
 
+# Where `server-backup` pulls the key archive and `server-restore` reads
+# the latest one from.
+wg_backup_local_dir: "{{ hacode_backups_dir }}/wireguard"
+
 # UDP port the server listens on.
 wg_port: 1194
 

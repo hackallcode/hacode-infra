@@ -1,0 +1,27 @@
+# Homes are looked up, not guessed; a user that does not exist fails the run
+# here, before anything is written. Root keeps /root so its units don't change.
+- name: "Look up home directories of tunnel users"
+  ansible.builtin.getent:
+    database: "passwd"
+    key: "{{ item }}"
+  loop: >-
+    {{ ssh_tunnels | map(attribute='user', default='root')
+       | reject('equalto', 'root') | unique | list }}
+  register: "ssh_tunnel_getent"
+
+- name: "Seed root's home directory and primary group"
+  ansible.builtin.set_fact:
+    ssh_tunnel_homes: {"root": "/root"}
+    ssh_tunnel_gids: {"root": "0"}
+
+- name: "Remember tunnel users' home directories and primary groups"
+  ansible.builtin.set_fact:
+    ssh_tunnel_homes: >-
+      {{ ssh_tunnel_homes
+         | combine({item.item: item.ansible_facts.getent_passwd[item.item][4]}) }}
+    ssh_tunnel_gids: >-
+      {{ ssh_tunnel_gids
+         | combine({item.item: item.ansible_facts.getent_passwd[item.item][2]}) }}
+  loop: "{{ ssh_tunnel_getent.results }}"
+  loop_control:
+    label: "{{ item.item }}"

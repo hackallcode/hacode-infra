@@ -8,6 +8,10 @@ produces a `<name>.service` unit that runs `ssh -N` with the requested local
 
 - `install` (default): render service units and (re)start them.
 - `uninstall`: stop, disable and remove service units.
+- `backup`: archive each tunnel user's `~/.ssh` (without `authorized_keys`) to
+  `ssh_tunnel_backup_local_dir` as `<YYYYMMDDTHHMMSSZ>_<inventory_hostname>_<user>.tar.gz`.
+- `restore`: unpack the newest archive per tunnel user back into its `~/.ssh`
+  and hand the files to that user.
 
 ## Variables
 
@@ -15,6 +19,7 @@ produces a `<name>.service` unit that runs `ssh -N` with the requested local
 | ------------- | ------- | ------------------------------------------------------------------------------------------------------------- |
 | `ssh_tunnels` | `[]`    | List of tunnels. Each entry: `name`, `remote_user`, `remote_host`, optionally `user` and `identity_file` (below), and any of `forward_port`, `reverse_port`, `forwards` (below). |
 | `force`       | `false` | When `true`, restart services even if the unit file did not change.                                           |
+| `ssh_tunnel_backup_local_dir` | `{{ hacode_backups_dir }}/ssh-tunnel` | Controller dir `backup` pulls into and `restore` reads the newest archive from. |
 
 Tunnel entry keys that pick who runs ssh:
 
@@ -78,7 +83,9 @@ not restarted.
   exactly the unit it had before `user` existed, so it is not restarted.
 - Authentication relies on the running user's existing SSH key (`BatchMode`,
   no agent, so the key must not need a passphrase). Provision keys out of
-  band: the role does not manage SSH credentials or create the user.
+  band: the role does not manage SSH credentials or create the user. Since
+  the keys live only on the host, `backup` / `restore` carry them to a new
+  one, so the remotes keep accepting the same key.
 - A non-root user's `~/.ssh/config` still applies to the connection; the
   unit's `-o` options win over it, other settings (`ControlMaster`,
   `ProxyJump`, ...) do not, so keep the `remote_host` out of such blocks.

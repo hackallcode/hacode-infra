@@ -18,4 +18,5 @@ galaxy_info:
     - "mysql"
     - "docker"
 
-dependencies: []
+dependencies:
+  - role: "hacode.infra.common"

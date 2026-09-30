@@ -8,7 +8,7 @@ Deploy and manage an application on a remote host. Wraps three concerns:
    - `docker`  - call `hacode.infra.docker` `tasks_from: compose` against the synced tree.
    - `node_js` - call `hacode.infra.node_js` `tasks_from: build` against the synced tree.
    - `static`  - sync only; no service supervision.
-3. **Lifecycle** entrypoints: `start`, `stop`, `restart`, `delete`, `backup`.
+3. **Lifecycle** entrypoints: `start`, `stop`, `restart`, `delete`, `backup`, `restore`.
 
 ## Variables
 
@@ -37,8 +37,8 @@ Deploy and manage an application on a remote host. Wraps three concerns:
 | `app_data_permissions` | `[]` | post-sync chmod/chown of specific paths inside the project tree (`{path, state?, owner?, group?, mode?, recurse?}`) |
 | `app_templates` | `[]` | Jinja templates rendered into `app_content_dir`. Entries are either `"<basename>"` or `{path, mode}` |
 | `app_templates_src_dir` | `app_source_dir` | controller-side dir holding `<name>.j2` source files |
-| `app_backup_local_dir` | `{{ playbook_dir }}/backups/app` | fetch destination on controller |
-| `app_backup_remote_dir` | `/opt/backups/app` | scratch dir on the remote |
+| `app_backup_local_dir` | `{{ hacode_backups_dir }}/app` | controller dir `backup` pulls into and `restore` reads the newest archive from |
+| `app_backup_remote_dir` | `{{ hacode_backups_remote_dir }}/app` | scratch dir on the remote |
 
 ## Entrypoints
 
@@ -51,7 +51,8 @@ Deploy and manage an application on a remote host. Wraps three concerns:
 | `start` | start compose stack |
 | `stop` | stop compose stack |
 | `delete` | down compose stack (volumes+orphans), remove content dir, close ports |
-| `backup` | archive `app_data_paths` on the remote, fetch to `app_backup_local_dir` |
+| `backup` | archive `app_data_paths` on the remote, pull to `app_backup_local_dir` as `<YYYYMMDDTHHMMSSZ>_<inventory_hostname>_<app_project>.tar.gz`, with the uid / gid `app_dir_owner` had there recorded beside it as `.owner` |
+| `restore` | unpack the newest such archive over `app_data_paths`, with a running compose stack stopped for the duration and started again after. Numeric ids are kept, so container-owned data survives; only files under the recorded `.owner` ids move to `app_dir_owner` / `app_dir_group` |
 
 ## Examples
 

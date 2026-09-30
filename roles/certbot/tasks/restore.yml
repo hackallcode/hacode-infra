@@ -1,0 +1,11 @@
+- name: "Restore Let's Encrypt state"
+  tags: ["restore"]
+  ansible.builtin.include_role:
+    name: "hacode.infra.common"
+    tasks_from: "restore"
+    apply:
+      tags: ["restore"]
+  vars:
+    hacode_backup_paths: ["/etc/letsencrypt"]
+    hacode_backup_name: "{{ inventory_hostname }}"
+    hacode_backup_local_dir: "{{ certbot_backup_local_dir }}"

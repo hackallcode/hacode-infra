@@ -1,29 +1,32 @@
 - name: "Get backup name for {{ db_name }}"
   tags: ["backup"]
   ansible.builtin.set_fact:
-    backup_name: "{{ ansible_date_time.date.replace('-', '') }}_{{ db_name }}.sql.bz2"
+    backup_name: "{{ hacode_backup_stamp }}_{{ inventory_hostname }}_{{ db_name }}.sql.gz"
 
-- name: "Backup database {{ db_name }}"
+# Dumped inside the container: the host's client (mysql-8 `mysqldump` on
+# EL8/9, which community.mysql refuses for a MariaDB server, or none at
+# all) doesn't have to match the server. The password never leaves the
+# container's secret file.
+- name: "Dump database {{ db_name }}"
   tags: ["backup"]
-  community.mysql.mysql_db:
-    login_host: "127.0.0.1"
-    login_port: "{{ maria_db_port }}"
-    login_user: "root"
-    login_password: "{{ maria_db_root_password }}"
-    state: "dump"
-    name: "{{ db_name }}"
-    target: "/opt/backups/maria-db/{{ backup_name }}"
-    dump_extra_args: "--column-statistics=0"
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      docker exec {{ maria_db_dest_name | quote }} sh -c
+      'MYSQL_PWD="$(cat /run/secrets/mariadb_root_password)" exec
+      "$(command -v mariadb-dump || command -v mysqldump)" -uroot
+      --single-transaction --routines --triggers --events "$1"' sh {{ db_name | quote }}
+      | gzip > {{ (maria_db_backup_remote_dir ~ '/' ~ backup_name) | quote }}
+    executable: "/bin/bash"
+  changed_when: true
 
-- name: "Fetch backup of {{ db_name }}"
+- name: "Move the dump of {{ db_name }} to the controller"
   tags: ["backup"]
-  ansible.builtin.fetch:
-    src: "/opt/backups/maria-db/{{ backup_name }}"
-    dest: "../../backups/maria-db/{{ backup_name }}"
-    flat: true
-
-- name: "Remove backup of {{ db_name }} from remote"
-  tags: ["backup"]
-  ansible.builtin.file:
-    path: "/opt/backups/maria-db/{{ backup_name }}"
-    state: "absent"
+  ansible.builtin.include_role:
+    name: "hacode.infra.common"
+    tasks_from: "pull"
+    apply:
+      tags: ["backup"]
+  vars:
+    hacode_pull_src: "{{ maria_db_backup_remote_dir }}/{{ backup_name }}"
+    hacode_pull_dest_dir: "{{ maria_db_backup_local_dir }}"

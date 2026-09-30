@@ -55,6 +55,11 @@ certbot_extra_args: []
 app_domains: []
 certbot_add_www: true
 
+# Where `backup` pulls the /etc/letsencrypt archive and `restore` reads
+# the latest one from. Restoring onto a new host keeps its certs valid
+# before DNS points at it, when an HTTP-01 challenge could not pass yet.
+certbot_backup_local_dir: "{{ hacode_backups_dir }}/certbot"
+
 # Plugin → distro package list. `standalone` and `webroot` are built
 # into certbot itself, hence empty. Override (per-host or per-OS) to
 # rename packages or teach the role new plugins.

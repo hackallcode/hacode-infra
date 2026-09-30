@@ -11,6 +11,18 @@
     state: "present"
   when: "app_owner != 'root'"
 
+# The content dir is chowned to this group below. It is often a shared one
+# (`www`) another role creates, nginx's install for one, which a `restore`
+# onto a fresh host runs ahead of. A numeric gid is taken as it is.
+- name: "Ensure '{{ app_dir_group }}' group exists"
+  tags: ["prepare"]
+  ansible.builtin.group:
+    name: "{{ app_dir_group }}"
+    state: "present"
+  when:
+    - "app_dir_group != 'root'"
+    - "app_dir_group is not match('^[0-9]+$')"
+
 - name: "Tear down compose stack before cleanup"
   tags: ["prepare"]
   community.docker.docker_compose_v2:

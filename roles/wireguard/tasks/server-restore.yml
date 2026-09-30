@@ -1,0 +1,20 @@
+# The archive holds the keys, not their directory, so create it with the
+# mode `server-configure` expects before unpacking into it.
+- name: "Create a directory for WireGuard keys"
+  tags: ["restore"]
+  ansible.builtin.file:
+    path: "/etc/wireguard/keys"
+    state: "directory"
+    mode: "0700"
+
+- name: "Restore WireGuard keys"
+  tags: ["restore"]
+  ansible.builtin.include_role:
+    name: "hacode.infra.common"
+    tasks_from: "restore"
+    apply:
+      tags: ["restore"]
+  vars:
+    hacode_backup_paths: ["/etc/wireguard/keys"]
+    hacode_backup_name: "{{ inventory_hostname }}"
+    hacode_backup_local_dir: "{{ wg_backup_local_dir }}"

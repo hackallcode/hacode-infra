@@ -1,0 +1,21 @@
+- ansible.builtin.import_tasks: "_homes.yml"
+  tags: ["backup"]
+
+# The role never creates the keys a tunnel authenticates with, so they
+# exist only on the host; losing them means re-authorising a new key on
+# every remote. `authorized_keys` is left out: it is inbound access, owned
+# by whoever provisions users.
+- name: "Back up tunnel users' ~/.ssh"
+  tags: ["backup"]
+  ansible.builtin.include_role:
+    name: "hacode.infra.common"
+    tasks_from: "backup"
+    apply:
+      tags: ["backup"]
+  vars:
+    hacode_backup_paths: ["{{ ssh_tunnel_homes[item] }}/.ssh"]
+    hacode_backup_name: "{{ inventory_hostname }}_{{ item }}"
+    hacode_backup_local_dir: "{{ ssh_tunnel_backup_local_dir }}"
+    hacode_backup_remote_dir: "{{ hacode_backups_remote_dir }}/ssh-tunnel"
+    hacode_backup_exclusion_patterns: ["*authorized_keys*"]
+  loop: "{{ ssh_tunnels | map(attribute='user', default='root') | unique | list }}"

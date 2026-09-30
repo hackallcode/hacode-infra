@@ -1,0 +1,92 @@
+- ansible.builtin.import_tasks: "_validate.yml"
+
+- name: "Restore data paths"
+  when: "app_data_paths | length > 0"
+  vars:
+    _app_restore_owner_file: >-
+      {{ hacode_restore_archive | default('') | regex_replace('\.tar\.gz$', '.owner') }}
+  block:
+    # For the account and the content dir a fresh host may not have yet.
+    # Never with cleanup: an inventory that sets it for clean redeploys
+    # would otherwise have the restore tear the stack down or wipe the dir.
+    - ansible.builtin.import_tasks: "prepare.yml"
+      tags: ["restore"]
+      vars:
+        app_cleanup: false
+
+    # Whatever runs on the data must not write over, or hold open, what is
+    # being unpacked under it. Ask docker rather than stat a compose file:
+    # its name comes from the app's sources, and a stack that is deployed
+    # but stopped is left stopped afterwards.
+    - name: "See whether the compose stack is running"
+      tags: ["restore"]
+      ansible.builtin.command:
+        argv: ["docker", "compose", "-p", "{{ app_project }}", "ps", "-q"]
+      register: "app_restore_running"
+      changed_when: false
+      check_mode: false
+      when: "app_type == 'docker'"
+
+    - ansible.builtin.import_tasks: "stop.yml"
+      tags: ["restore"]
+      when: "app_restore_running.stdout | default('') | length > 0"
+
+    - name: "Unpack the latest data archive"
+      tags: ["restore"]
+      ansible.builtin.include_role:
+        name: "hacode.infra.common"
+        tasks_from: "restore"
+        apply:
+          tags: ["restore"]
+      vars:
+        hacode_backup_paths: "{{ _app_data_paths_abs }}"
+        hacode_backup_name: "{{ inventory_hostname }}_{{ app_project }}"
+        hacode_backup_local_dir: "{{ app_backup_local_dir }}"
+
+    # `backup` recorded the uid/gid `app_dir_owner` had where the archive
+    # was taken. Files under exactly those ids were the app's own and move
+    # to its account here; every other id - container data such as mysql's
+    # 999, whether or not this host has a user for it - stays as archived.
+    - name: "Look for the owner ids recorded with the archive"
+      tags: ["restore"]
+      ansible.builtin.stat:
+        path: "{{ _app_restore_owner_file }}"
+        get_checksum: false
+      register: "app_restore_owner_stat"
+      delegate_to: "localhost"
+      become: false
+
+    - name: "Hand the app's own files to '{{ app_dir_owner }}:{{ app_dir_group }}'"
+      tags: ["restore"]
+      ansible.builtin.command:
+        argv: >-
+          {{ ['find'] + _app_data_paths_abs
+             + ['-' ~ item.id_test, (_app_restore_owner[item.key] | string),
+                '!', '-' ~ item.name_test, item.to,
+                '-print', '-exec', item.cmd, '-h', item.to, '{}', '+'] }}
+      register: "app_restore_chown"
+      changed_when: "app_restore_chown.stdout | length > 0"
+      loop:
+        - {key: "uid", id_test: "uid", name_test: "user", cmd: "chown", to: "{{ app_dir_owner }}"}
+        - {key: "gid", id_test: "gid", name_test: "group", cmd: "chgrp", to: "{{ app_dir_group }}"}
+      loop_control:
+        label: "{{ item.key }} -> {{ item.to }}"
+      vars:
+        _app_restore_owner: "{{ lookup('ansible.builtin.file', _app_restore_owner_file) | from_json }}"
+      when: "app_restore_owner_stat.stat.exists"
+
+    # Archives taken before the ids were recorded: keep them as they are
+    # rather than guess which ones were the app's.
+    - name: "Say so when there are no recorded ids"
+      tags: ["restore"]
+      ansible.builtin.debug:
+        msg: >-
+          {{ _app_restore_owner_file | basename }} is missing, so restored files
+          keep the numeric ids they were archived with. If '{{ app_dir_owner }}'
+          has a different uid on this host, chown its files under
+          {{ _app_data_paths_abs | join(', ') }} by hand.
+      when: "not app_restore_owner_stat.stat.exists"
+
+    - ansible.builtin.import_tasks: "start.yml"
+      tags: ["restore"]
+      when: "app_restore_running.stdout | default('') | length > 0"

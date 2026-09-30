@@ -1,0 +1,14 @@
+# The whole config dir: renewal configs point into `archive/`, `live/` is
+# symlinks into it, and `accounts/` keeps the ACME registration.
+- name: "Back up Let's Encrypt state"
+  tags: ["backup"]
+  ansible.builtin.include_role:
+    name: "hacode.infra.common"
+    tasks_from: "backup"
+    apply:
+      tags: ["backup"]
+  vars:
+    hacode_backup_paths: ["/etc/letsencrypt"]
+    hacode_backup_name: "{{ inventory_hostname }}"
+    hacode_backup_local_dir: "{{ certbot_backup_local_dir }}"
+    hacode_backup_remote_dir: "{{ hacode_backups_remote_dir }}/certbot"

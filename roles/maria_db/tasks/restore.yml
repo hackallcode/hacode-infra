@@ -1,19 +1,41 @@
+# Per database, the newest dump `backup` wrote for this host (stamped
+# `hacode_backup_stamp`, then the host - several hosts share the directory;
+# date-only dumps from before carry no host), falling back to an undated
+# `<db>.sql[.gz|.bz2]` dropped in by hand. A database with none of these is
+# left as it is. Each form is a fallback for the one before, never sorted
+# with it: `T` sorts below `_`, so a same-day date-only dump would win.
 - name: "Restore DB"
   tags: ["restore"]
   vars:
-    db_name: "{{ item[0] }}"
-    backup_file: "{{ item | join('') }}"
+    _dir: "{{ maria_db_backup_local_dir }}"
+    _stamped: >-
+      {{ query('ansible.builtin.fileglob', _dir ~ '/' ~ ('[0-9]' * 8) ~ 'T' ~ ('[0-9]' * 6) ~ 'Z_'
+               ~ inventory_hostname ~ '_' ~ item ~ '.sql.gz')
+         | map('basename') | sort }}
+    _dated: >-
+      {{ (query('ansible.builtin.fileglob', _dir ~ '/' ~ ('[0-9]' * 8) ~ '_' ~ item ~ '.sql.gz')
+          + query('ansible.builtin.fileglob', _dir ~ '/' ~ ('[0-9]' * 8) ~ '_' ~ item ~ '.sql.bz2'))
+         | map('basename') | sort }}
+    _undated: >-
+      {{ ['.sql.gz', '.sql.bz2', '.sql'] | map('regex_replace', '^', item)
+         | select('in', query('ansible.builtin.fileglob', _dir ~ '/' ~ item ~ '.sql*') | map('basename') | list)
+         | list }}
+    db_name: "{{ item }}"
+    backup_file: >-
+      {{ (_stamped | last) if _stamped
+         else ((_dated | last) if _dated else (_undated | first | default(''))) }}
   ansible.builtin.include_tasks:
     file: "restore-db.yml"
     apply:
       tags: ["restore"]
   loop: >-
     {{
-      (maria_db_databases
+      maria_db_databases
       if not maria_db_database
       else (
         [maria_db_database]
         if maria_db_database in maria_db_databases
         else []
-      )) | product(['.sql', '.sql.bz2'])
+      )
     }}
+  when: "backup_file | length > 0"

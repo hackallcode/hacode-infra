@@ -60,3 +60,64 @@
       check_mode: true
       register: "user_check"
       failed_when: "user_check.changed"
+
+# Put a row in, back up, drop the table, restore: the row comes back. Dump
+# and import both run inside the container.
+- name: "Verify: maria_db backup round trip"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  vars:
+    maria_db_backup_local_dir: "/tmp/molecule-maria-db-backups"
+    _login:
+      login_host: "127.0.0.1"
+      login_port: 3306
+      login_user: "root"
+      login_password: "moleculeRootPw"
+
+  tasks:
+    - name: "Create a table with a row"
+      community.mysql.mysql_query:
+        login_host: "{{ _login.login_host }}"
+        login_port: "{{ _login.login_port }}"
+        login_user: "{{ _login.login_user }}"
+        login_password: "{{ _login.login_password }}"
+        login_db: "molecule_db_a"
+        query:
+          - "CREATE TABLE IF NOT EXISTS t (v VARCHAR(16))"
+          - "INSERT INTO t VALUES ('kept')"
+
+    - name: "Run backup"
+      ansible.builtin.include_role:
+        name: "hacode.infra.maria_db"
+        tasks_from: "backup"
+
+    - name: "Drop the table"
+      community.mysql.mysql_query:
+        login_host: "{{ _login.login_host }}"
+        login_port: "{{ _login.login_port }}"
+        login_user: "{{ _login.login_user }}"
+        login_password: "{{ _login.login_password }}"
+        login_db: "molecule_db_a"
+        query: "DROP TABLE t"
+
+    - name: "Run restore"
+      ansible.builtin.include_role:
+        name: "hacode.infra.maria_db"
+        tasks_from: "restore"
+
+    - name: "Read the row back"
+      community.mysql.mysql_query:
+        login_host: "{{ _login.login_host }}"
+        login_port: "{{ _login.login_port }}"
+        login_user: "{{ _login.login_user }}"
+        login_password: "{{ _login.login_password }}"
+        login_db: "molecule_db_a"
+        query: "SELECT v FROM t"
+      register: "restored_rows"
+
+    - name: "The row is back"
+      ansible.builtin.assert:
+        that:
+          - "restored_rows.query_result[0] == [{'v': 'kept'}]"

@@ -62,3 +62,130 @@
           Archive contents are wrong. Members: {{ _members }}
       vars:
         _members: "{{ app_backup_members.stdout_lines | map('regex_replace', '/$', '') | list }}"
+
+# Lose the data dir the converge backed up, restore it, and the kept files
+# come back.
+- name: "Verify: app restore"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  vars:
+    app_data_paths: ["data"]
+    app_exclude_paths: ["config/backups"]
+    app_backup_local_dir: "/tmp/molecule-app-backups"
+
+  tasks:
+    - name: "Find the owner ids backup recorded beside the archive"
+      ansible.builtin.find:
+        paths: "/tmp/molecule-app-backups"
+        patterns: "*_{{ inventory_hostname }}_*.owner"
+      register: "app_owner_files"
+      delegate_to: "localhost"
+      become: false
+      failed_when: "app_owner_files.files | length != 1"
+
+    # Same host, same ids, so a straight round trip would never exercise the
+    # remap. Pretend the archive came from a host where the app's owner was
+    # 55556: its file must move to this host's owner, while 55555 - the
+    # stand-in for container data, equally without a user here - must not.
+    - name: "Pretend the archive came from a host where the owner was 55556"
+      ansible.builtin.copy:
+        dest: "{{ app_owner_files.files[0].path }}"
+        content: '{"uid": 55556, "gid": 55556}'
+        mode: "0600"
+      delegate_to: "localhost"
+      become: false
+
+    - name: "Lose the data dir"
+      ansible.builtin.file:
+        path: "/opt/molecule-static/data"
+        state: "absent"
+
+    - name: "Run the restore entrypoint"
+      ansible.builtin.include_role:
+        name: "hacode.infra.app"
+        tasks_from: "restore.yml"
+
+    - name: "Read a restored file"
+      ansible.builtin.slurp:
+        src: "/opt/molecule-static/data/uploads/photo.bin"
+      register: "restored_photo"
+
+    - name: "The backed up data is back"
+      ansible.builtin.assert:
+        that:
+          - "(restored_photo.content | b64decode) == 'x\n'"
+
+    - name: "Stat the files archived under foreign ids"
+      ansible.builtin.stat:
+        path: "/opt/molecule-static/data/{{ item }}"
+      register: "restored_ids"
+      loop: ["container.db", "from-source-owner.txt"]
+
+    - name: "Container data keeps its id, the source owner's file moves"
+      ansible.builtin.assert:
+        that:
+          - "_by_name['container.db'].uid == 55555"
+          - "_by_name['container.db'].gid == 55555"
+          - "_by_name['from-source-owner.txt'].uid == (app_dir_owner | int)"
+          - "_by_name['from-source-owner.txt'].gid == (app_dir_group | int)"
+        fail_msg: "Ownership after restore: {{ _by_name }}"
+      vars:
+        _by_name: >-
+          {{ dict(restored_ids.results | map(attribute='item')
+                  | zip(restored_ids.results | map(attribute='stat'))) }}
+
+# The two ways a restore skips the ownership fix-up. Both once failed the
+# whole host: the fix-up's loop label read the recorded ids, and Ansible
+# renders a label even for an item it skips, so a missing record meant a
+# failed file lookup on a task that was never going to run.
+- name: "Verify: app restore without recorded ids"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  vars:
+    app_data_paths: ["data"]
+    app_exclude_paths: ["config/backups"]
+    app_backup_local_dir: "/tmp/molecule-app-backups"
+
+  tasks:
+    # An archive taken before `backup` recorded the owner's ids.
+    - name: "Drop the recorded ids, as an older archive has none"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: "absent"
+      loop: "{{ query('ansible.builtin.fileglob', '/tmp/molecule-app-backups/*_' ~ inventory_hostname ~ '_*.owner') }}"
+      delegate_to: "localhost"
+      become: false
+
+    - name: "Lose the data dir again"
+      ansible.builtin.file:
+        path: "/opt/molecule-static/data"
+        state: "absent"
+
+    - name: "Run the restore entrypoint with no recorded ids"
+      ansible.builtin.include_role:
+        name: "hacode.infra.app"
+        tasks_from: "restore.yml"
+
+    - name: "Stat the file archived under the source owner's id"
+      ansible.builtin.stat:
+        path: "/opt/molecule-static/data/from-source-owner.txt"
+      register: "unmapped_owner"
+
+    # Nothing to map by, so it keeps the id it was archived with rather than
+    # being guessed onto this host's owner.
+    - name: "Its archived id is kept as it is"
+      ansible.builtin.assert:
+        that:
+          - "unmapped_owner.stat.exists"
+          - "unmapped_owner.stat.uid == 55556"
+
+    - name: "Run the restore entrypoint for an app with no data paths"
+      ansible.builtin.include_role:
+        name: "hacode.infra.app"
+        tasks_from: "restore.yml"
+      vars:
+        app_data_paths: []

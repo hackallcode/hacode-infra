@@ -15,6 +15,8 @@ many certs via per-cert calls.
 | `install` | install certbot, register the ACME account, install renewal cron — no cert issuance |
 | `certificate-get` | issue or renew a single certificate (`certbot certonly`); call repeatedly for multi-cert hosts |
 | `certificate-delete` | revoke a single certificate (`certbot revoke`) |
+| `backup` | archive `/etc/letsencrypt` and pull it to `certbot_backup_local_dir` as `<YYYYMMDDTHHMMSSZ>_<inventory_hostname>.tar.gz` |
+| `restore` | unpack the newest archive from `certbot_backup_local_dir` over `/etc/letsencrypt` |
 
 ## Variables
 
@@ -50,6 +52,17 @@ many certs via per-cert calls.
 | `certbot_le_production_url` | LE prod directory URL | exposed for intranet proxies |
 | `certbot_le_staging_url` | LE staging directory URL | exposed for intranet proxies |
 | `certbot_authenticator_packages` | dict | plugin → package list; override to teach the role about new plugins or rename distro packages |
+
+### Backup (`backup` / `restore`)
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `certbot_backup_local_dir` | `{{ hacode_backups_dir }}/certbot` | controller dir `backup` pulls into and `restore` reads the newest archive from |
+
+Restoring onto a new host before DNS points at it keeps every cert valid, so
+`certificate-get` skips them (more than 30 days left) instead of failing an
+HTTP-01 challenge that still reaches the old host. Renewal picks up from the
+restored `renewal/` configs once DNS has moved.
 
 ### Per-cert (`certificate-get` / `certificate-delete`)
 

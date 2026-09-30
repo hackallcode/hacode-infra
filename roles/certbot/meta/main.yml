@@ -19,4 +19,5 @@ galaxy_info:
     - "letsencrypt"
     - "certbot"
 
-dependencies: []
+dependencies:
+  - role: "hacode.infra.common"
