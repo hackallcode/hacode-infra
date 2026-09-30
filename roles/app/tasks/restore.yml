@@ -70,7 +70,7 @@
         - {key: "uid", id_test: "uid", name_test: "user", cmd: "chown", to: "{{ app_dir_owner }}"}
         - {key: "gid", id_test: "gid", name_test: "group", cmd: "chgrp", to: "{{ app_dir_group }}"}
       loop_control:
-        label: "{{ item.key }} {{ _app_restore_owner[item.key] }} -> {{ item.to }}"
+        label: "{{ item.key }} -> {{ item.to }}"
       vars:
         _app_restore_owner: "{{ lookup('ansible.builtin.file', _app_restore_owner_file) | from_json }}"
       when: "app_restore_owner_stat.stat.exists"
