@@ -271,6 +271,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   template needs. Each install now gathers when any fact it needs is
   missing.
 
+- `certbot` role: installs `openssl`, which `certificate-get` reads a
+  cert's expiry with. Minimal images (Rocky 10) ship without the CLI,
+  the check failed, and every run tried to re-issue certs that had
+  months left — failing outright on a host DNS doesn't point at yet. The
+  check itself now fails when it can't run, instead of reading as an
+  expiring cert.
+
 - `machine` role: root and password SSH logins really are off. The
   settings went into `sshd_config` below its `Include`, and sshd keeps
   the first value it reads, so a fragment the image ships — a hoster's

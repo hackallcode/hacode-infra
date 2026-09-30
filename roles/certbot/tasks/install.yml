@@ -19,13 +19,16 @@
           else (certbot_le_staging_url if certbot_staging | bool
                 else certbot_le_production_url) -}}
 
+# `openssl` is what certificate-get reads a cert's expiry with; minimal
+# images (Rocky 10) ship without the CLI, and a failed check reads as an
+# expired cert, so certbot would re-issue every run.
 - name: "Install packages"
   tags: ["package"]
   vars:
     _certbot_plugins: "{{ ([certbot_authenticator] + certbot_extra_authenticators) | unique }}"
     _certbot_plugin_pkgs: "{{ _certbot_plugins | map('extract', certbot_authenticator_packages) | flatten | unique }}"
   ansible.builtin.package:
-    name: "{{ ['certbot'] + _certbot_plugin_pkgs }}"
+    name: "{{ ['certbot', 'openssl'] + _certbot_plugin_pkgs }}"
     state: "present"
 
 - name: "Manage HTTP/HTTPS firewall rules on RHEL family"
