@@ -9,7 +9,7 @@ produces a `<name>.service` unit that runs `ssh -N` with the requested local
 - `install` (default): render service units and (re)start them.
 - `uninstall`: stop, disable and remove service units.
 - `backup`: archive each tunnel user's `~/.ssh` (without `authorized_keys`) to
-  `ssh_tunnel_backup_local_dir` as `<YYYYMMDD>_<inventory_hostname>_<user>.tar.gz`.
+  `ssh_tunnel_backup_local_dir` as `<YYYYMMDDTHHMMSSZ>_<inventory_hostname>_<user>.tar.gz`.
 - `restore`: unpack the newest archive per tunnel user back into its `~/.ssh`
   and hand the files to that user.
 

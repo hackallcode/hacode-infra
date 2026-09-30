@@ -16,6 +16,7 @@ consumer having to define them.
 | `hacode_kube_configs_dir` | `{{ hacode_output_dir }}/kube-configs`                         | Shared kubeconfig drop-off. `hacode.infra.k3s` writes here by default, `hacode.infra.k8s_addons` reads from here by default — both roles share this single convention so adding `k8s_addons` to the same inventory group as `k3s` Just Works without per-role path plumbing.    |
 | `hacode_backups_dir` | `{{ playbook_dir }}/backups` | Controller-side root for backups, one subdirectory per role (`app`, `wireguard`, `certbot`, `ssh-tunnel`, `maria-db`). Kept apart from `hacode_output_dir`: backups are data you keep, output is regenerated. |
 | `hacode_backups_remote_dir` | `/opt/backups` | Remote scratch root where archives are built before they are pulled to the controller and deleted. On disk rather than `/tmp`, which is a tmpfs on some distros. |
+| `hacode_backup_stamp` | `ansible_date_time.iso8601` as `YYYYMMDDTHHMMSSZ` | What every backup's file name starts with: the time it was taken, in UTC, so two backups the same day don't replace each other and a host that moves timezone still sorts its archives in order. `restore` looks for exactly this shape; archives named by the date alone, from before it, are still restored when no stamped one exists. |
 
 ## Backup helpers
 
@@ -24,8 +25,8 @@ Called via `include_role` (`tasks_from:`) by the roles' own `backup` /
 
 | `tasks_from` | What it does |
 | --- | --- |
-| `backup` | archive `hacode_backup_paths` (optionally less `hacode_backup_exclude_paths` / `hacode_backup_exclusion_patterns`) in `hacode_backup_remote_dir` and pull it to `hacode_backup_local_dir/<YYYYMMDD>_<hacode_backup_name>.tar.gz` |
-| `restore` | unpack the newest `<YYYYMMDD>_<hacode_backup_name>.tar.gz` from `hacode_backup_local_dir` over the same `hacode_backup_paths`, keeping numeric uids / gids; fails when there is none |
+| `backup` | archive `hacode_backup_paths` (optionally less `hacode_backup_exclude_paths` / `hacode_backup_exclusion_patterns`) in `hacode_backup_remote_dir` and pull it to `hacode_backup_local_dir/<YYYYMMDDTHHMMSSZ>_<hacode_backup_name>.tar.gz` |
+| `restore` | unpack the newest `<YYYYMMDDTHHMMSSZ>_<hacode_backup_name>.tar.gz` from `hacode_backup_local_dir` over the same `hacode_backup_paths`, keeping numeric uids / gids; fails when there is none |
 | `pull` | move the remote file `hacode_pull_src` into `hacode_pull_dest_dir` on the controller |
 
 Archives store entries relative to the paths' common parent directory, and

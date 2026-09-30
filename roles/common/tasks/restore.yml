@@ -6,18 +6,29 @@
 # Sets `hacode_restore_res` (the unarchive result) and
 # `hacode_restore_dest` for callers that fix ownership afterwards.
 
+# Archives are named by `hacode_backup_stamp`; ones taken before it carry
+# only the date. Any stamped archive is newer than every date-only one - the
+# code that writes stamps replaced the code that wrote dates - so the older
+# form is only a fallback. The two are not sorted together: `T` sorts below
+# `_`, so a same-day date-only archive would win over a stamped one.
 - name: "Pick the latest '{{ hacode_backup_name }}' archive"
   ansible.builtin.set_fact:
     hacode_restore_archive: >-
-      {{ lookup('ansible.builtin.fileglob',
-                hacode_backup_local_dir ~ '/' ~ ('[0-9]' * 8) ~ '_' ~ hacode_backup_name ~ '.tar.gz',
-                wantlist=True)
-         | sort | last | default('') }}
+      {{ (_stamped | sort | last) if _stamped else (_dated | sort | last | default('')) }}
+  vars:
+    _stamped: >-
+      {{ query('ansible.builtin.fileglob', hacode_backup_local_dir ~ '/' ~ ('[0-9]' * 8)
+               ~ 'T' ~ ('[0-9]' * 6) ~ 'Z_' ~ hacode_backup_name ~ '.tar.gz') }}
+    _dated: >-
+      {{ query('ansible.builtin.fileglob', hacode_backup_local_dir ~ '/' ~ ('[0-9]' * 8)
+               ~ '_' ~ hacode_backup_name ~ '.tar.gz') }}
 
 - name: "Fail when there is nothing to restore"
   ansible.builtin.assert:
     that: "hacode_restore_archive | length > 0"
-    fail_msg: "No {{ hacode_backup_local_dir }}/<YYYYMMDD>_{{ hacode_backup_name }}.tar.gz to restore from."
+    fail_msg: >-
+      No {{ hacode_backup_local_dir }}/<YYYYMMDDTHHMMSSZ>_{{ hacode_backup_name }}.tar.gz
+      (or an older <YYYYMMDD>_ one) to restore from.
     quiet: true
 
 # Mirrors community.general.archive's own archive root: the common prefix

@@ -1,7 +1,7 @@
 - name: "Get backup name for {{ db_name }}"
   tags: ["backup"]
   ansible.builtin.set_fact:
-    backup_name: "{{ ansible_date_time.date.replace('-', '') }}_{{ db_name }}.sql.gz"
+    backup_name: "{{ hacode_backup_stamp }}_{{ db_name }}.sql.gz"
 
 # Dumped inside the container: the host's client (mysql-8 `mysqldump` on
 # EL8/9, which community.mysql refuses for a MariaDB server, or none at

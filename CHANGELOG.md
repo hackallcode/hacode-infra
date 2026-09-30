@@ -16,15 +16,19 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 - Backup / restore for server state the roles can't regenerate, so a
   host can move to a new machine: `wireguard` `server-backup` /
-  `server-restore` (the keys; peers keep their configs and only need the
-  new endpoint), `certbot` `backup` / `restore` (`/etc/letsencrypt`, so
-  certs stay valid before DNS moves), `ssh_tunnel` `backup` / `restore`
-  (each tunnel user's `~/.ssh` without `authorized_keys`), and `app`
-  `restore` to go with its `backup`. All archive to
-  `<hacode_backups_dir>/<role>/<YYYYMMDD>_<host>[_...].tar.gz` and
-  restore the newest one, keeping numeric uids so container-owned data
-  survives a distro change. Built on new `common` helpers
-  (`tasks_from: backup | restore | pull`) and the `hacode_backups_dir` /
+  `server-restore` (the keys; peers keep their configs and only need
+  the new endpoint), `certbot` `backup` / `restore`
+  (`/etc/letsencrypt`, so certs stay valid before DNS moves),
+  `ssh_tunnel` `backup` / `restore` (each tunnel user's `~/.ssh`
+  without `authorized_keys`), and `app` `restore` to go with its
+  `backup`. All archive to
+  `<hacode_backups_dir>/<role>/<YYYYMMDDTHHMMSSZ>_<host>[_...].tar.gz`
+  and restore the newest one, keeping numeric uids so container-owned
+  data survives a distro change. The name carries the UTC time, so a
+  second backup the same day no longer replaces the first; restore
+  falls back to the date-only names that earlier `app` and `maria_db`
+  backups carry. Built on new `common` helpers (`tasks_from: backup |
+  restore | pull`) and the `hacode_backups_dir` /
   `hacode_backups_remote_dir` defaults.
 
 - `k8s_addons` role: a CloudNativePG operator addon
@@ -228,7 +232,7 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 - `maria_db` role: `backup` / `restore` run `mariadb-dump` / `mariadb`
   inside the container, with `--single-transaction`, and dumps are
-  `<YYYYMMDD>_<db>.sql.gz` under `maria_db_backup_local_dir`. `restore`
+  `<YYYYMMDDTHHMMSSZ>_<db>.sql.gz` under `maria_db_backup_local_dir`. `restore`
   now finds what `backup` wrote (it only looked for undated
   `<db>.sql[.bz2]`) and takes the newest dump per database.
   **Migration**: dumps used to land in `{{ playbook_dir }}/../../backups/maria-db`;

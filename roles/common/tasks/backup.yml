@@ -1,5 +1,5 @@
 # Archive remote paths and pull the archive to the controller as
-# `<hacode_backup_local_dir>/<YYYYMMDD>_<hacode_backup_name>.tar.gz`.
+# `<hacode_backup_local_dir>/<hacode_backup_stamp>_<hacode_backup_name>.tar.gz`.
 #
 # Inputs:
 #   hacode_backup_paths               absolute remote paths (list)
@@ -18,7 +18,7 @@
 
 - name: "Compute archive name"
   ansible.builtin.set_fact:
-    hacode_backup_archive: "{{ ansible_date_time.date.replace('-', '') }}_{{ hacode_backup_name }}.tar.gz"
+    hacode_backup_archive: "{{ hacode_backup_stamp }}_{{ hacode_backup_name }}.tar.gz"
 
 - name: "Ensure remote scratch directory exists"
   ansible.builtin.file:

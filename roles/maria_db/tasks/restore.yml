@@ -1,10 +1,15 @@
-# Per database, the newest dated dump `backup` wrote, falling back to an
-# undated `<db>.sql[.gz|.bz2]` dropped in by hand. A database with neither
-# is left as it is.
+# Per database, the newest dump `backup` wrote (stamped `hacode_backup_stamp`,
+# or date-only from before it), falling back to an undated
+# `<db>.sql[.gz|.bz2]` dropped in by hand. A database with none of these is
+# left as it is. Each form is a fallback for the one before, never sorted
+# with it: `T` sorts below `_`, so a same-day date-only dump would win.
 - name: "Restore DB"
   tags: ["restore"]
   vars:
     _dir: "{{ maria_db_backup_local_dir }}"
+    _stamped: >-
+      {{ query('ansible.builtin.fileglob', _dir ~ '/' ~ ('[0-9]' * 8) ~ 'T' ~ ('[0-9]' * 6) ~ 'Z_' ~ item ~ '.sql.gz')
+         | map('basename') | sort }}
     _dated: >-
       {{ (query('ansible.builtin.fileglob', _dir ~ '/' ~ ('[0-9]' * 8) ~ '_' ~ item ~ '.sql.gz')
           + query('ansible.builtin.fileglob', _dir ~ '/' ~ ('[0-9]' * 8) ~ '_' ~ item ~ '.sql.bz2'))
@@ -14,7 +19,9 @@
          | select('in', query('ansible.builtin.fileglob', _dir ~ '/' ~ item ~ '.sql*') | map('basename') | list)
          | list }}
     db_name: "{{ item }}"
-    backup_file: "{{ (_dated | last) if _dated else (_undated | first | default('')) }}"
+    backup_file: >-
+      {{ (_stamped | last) if _stamped
+         else ((_dated | last) if _dated else (_undated | first | default(''))) }}
   ansible.builtin.include_tasks:
     file: "restore-db.yml"
     apply:

@@ -20,7 +20,7 @@ Run MariaDB in Docker compose; manage databases and users.
 
 - `install` (default): bring up MariaDB compose stack with root password.
 - `add-db` / `delete-db`, `add-user` / `delete-user`: lifecycle.
-- `backup` / `backup-db`: dump each database as `<YYYYMMDD>_<db>.sql.gz` into
+- `backup` / `backup-db`: dump each database as `<YYYYMMDDTHHMMSSZ>_<db>.sql.gz` into
   `maria_db_backup_local_dir`.
 - `restore` / `restore-db`: import the newest dump per database (an undated
   `<db>.sql[.gz|.bz2]` as a fallback) into the existing database; run `add-db`

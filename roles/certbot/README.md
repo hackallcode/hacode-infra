@@ -15,7 +15,7 @@ many certs via per-cert calls.
 | `install` | install certbot, register the ACME account, install renewal cron — no cert issuance |
 | `certificate-get` | issue or renew a single certificate (`certbot certonly`); call repeatedly for multi-cert hosts |
 | `certificate-delete` | revoke a single certificate (`certbot revoke`) |
-| `backup` | archive `/etc/letsencrypt` and pull it to `certbot_backup_local_dir` as `<YYYYMMDD>_<inventory_hostname>.tar.gz` |
+| `backup` | archive `/etc/letsencrypt` and pull it to `certbot_backup_local_dir` as `<YYYYMMDDTHHMMSSZ>_<inventory_hostname>.tar.gz` |
 | `restore` | unpack the newest archive from `certbot_backup_local_dir` over `/etc/letsencrypt` |
 
 ## Variables

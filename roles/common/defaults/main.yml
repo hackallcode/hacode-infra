@@ -47,3 +47,10 @@ hacode_backups_dir: "{{ playbook_dir }}/backups"
 # the controller and deleted. On disk rather than /tmp, which is a tmpfs
 # on some distros and would hold a large archive in RAM.
 hacode_backups_remote_dir: "/opt/backups"
+
+# What a backup's file name starts with: the time it was taken, UTC, as
+# `YYYYMMDDTHHMMSSZ`. The time part keeps a second backup the same day from
+# replacing the first; UTC keeps a host that moves to a machine in another
+# timezone sorting its archives in the order they were taken. The roles'
+# `restore` entrypoints look for exactly this shape, so change them with it.
+hacode_backup_stamp: "{{ ansible_date_time.iso8601 | regex_replace('[-:]', '') }}"

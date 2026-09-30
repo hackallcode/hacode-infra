@@ -27,12 +27,11 @@ material, IP allocations, listen port).
 
 ## Moving a server to a new host
 
-The keys are the one piece of server state the role can't regenerate: new ones would mean re-provisioning every
-peer. `server-backup` archives `/etc/wireguard/keys` into `wg_backup_local_dir` (default
-`{{ hacode_backups_dir }}/wireguard`) as `<YYYYMMDD>_<inventory_hostname>.tar.gz`; `server-restore` unpacks the newest
-one onto the host, overwriting what's there. Run `server-restore` before `server-configure` on the new host:
-key generation is skipped for keys that exist, and `wg0.conf` is rebuilt from them and `wg_clients`. Peers then only
-need the new endpoint.
+The keys are the one piece of server state the role can't regenerate: new ones would mean re-provisioning every peer.
+`server-backup` archives `/etc/wireguard/keys` into `wg_backup_local_dir` (default `{{ hacode_backups_dir }}/wireguard`)
+as `<YYYYMMDDTHHMMSSZ>_<inventory_hostname>.tar.gz`; `server-restore` unpacks the newest one onto the host, overwriting
+what's there. Run `server-restore` before `server-configure` on the new host: key generation is skipped for keys that
+exist, and `wg0.conf` is rebuilt from them and `wg_clients`. Peers then only need the new endpoint.
 
 ## Client-side firewalld zone
 
