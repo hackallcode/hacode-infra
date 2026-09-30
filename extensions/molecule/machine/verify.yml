@@ -32,17 +32,85 @@
       failed_when: >-
         'molecule@test' not in (user_keys.content | b64decode | string)
 
-    - name: "Sshd disallows root login"
-      ansible.builtin.command: "grep -E '^PermitRootLogin' /etc/ssh/sshd_config"
-      register: "sshd_root"
+    # What sshd actually applies, over the hoster's fragment planted in
+    # prepare, not what one file says.
+    - name: "Sshd effectively disallows root and password logins"
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          /usr/sbin/sshd -T -C user={{ item.user }},host=molecule,addr=127.0.0.1
+          | grep -E '^(permitrootlogin|passwordauthentication|maxsessions) '
+        executable: "/bin/bash"
+      register: "sshd_hardening"
       changed_when: false
-      failed_when: "'no' not in sshd_root.stdout"
+      failed_when: "sshd_hardening.stdout_lines | sort != item.expect"
+      loop:
+        - user: "molecule"
+          expect: ["maxsessions 50", "passwordauthentication no", "permitrootlogin no"]
+        # The Match block in sshd_config still applies to its user.
+        - user: "molecule-pw"
+          expect: ["maxsessions 50", "passwordauthentication yes", "permitrootlogin no"]
+      loop_control:
+        label: "{{ item.user }}"
 
-    - name: "Sshd disallows password auth"
-      ansible.builtin.command: "grep -E '^PasswordAuthentication' /etc/ssh/sshd_config"
-      register: "sshd_pw"
+    - name: "Sshd_config keeps no active copy of the role's settings outside Match"
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          sed '/^[[:space:]]*Match[[:space:]]/,$d' /etc/ssh/sshd_config
+          | grep -Eic '^[[:space:]]*({{ _owned | join("|") }})[[:space:]=]'
+          || true
+        executable: "/bin/bash"
+      vars:
+        _owned:
+          - "PermitRootLogin"
+          - "PasswordAuthentication"
+          - "ClientAliveInterval"
+          - "ClientAliveCountMax"
+          - "MaxSessions"
+          - "MaxStartups"
+      register: "sshd_main_active"
       changed_when: false
-      failed_when: "'no' not in sshd_pw.stdout"
+      failed_when: "sshd_main_active.stdout | trim != '0'"
+
+    # On RHEL prepare took the stock Include out, as EL8 ships without one,
+    # so this is the role's insertion; on Debian it is the stock line.
+    - name: "The Include is sshd_config's first directive"
+      ansible.builtin.command:
+        argv: ["awk", "NF && !/^[[:space:]]*#/ {print; exit}", "/etc/ssh/sshd_config"]
+      register: "sshd_first_directive"
+      changed_when: false
+      failed_when: "sshd_first_directive.stdout != 'Include /etc/ssh/sshd_config.d/*.conf'"
+
+    # A fragment named to sort ahead of 00-hacode.conf would win, the same
+    # silent override the drop-in exists to end, so the role checks what sshd
+    # applies and stops instead.
+    - name: "A fragment sorting before 00-hacode stops the run instead of winning"
+      block:
+        - name: "Plant an image fragment that sorts ahead of the role's"
+          ansible.builtin.copy:
+            dest: "/etc/ssh/sshd_config.d/00-aaa.conf"
+            content: "PasswordAuthentication yes\n"
+            mode: "0644"
+
+        - name: "Run the ssh tasks over it"
+          ansible.builtin.include_role:
+            name: "hacode.infra.machine"
+            tasks_from: "ssh"
+
+        - name: "Getting here means the override went unnoticed"
+          ansible.builtin.fail:
+            msg: "sshd applies 00-aaa.conf's PasswordAuthentication yes and the role went on."
+      rescue:
+        - name: "It was the role's check that stopped it"
+          ansible.builtin.assert:
+            that: "ansible_failed_task.name is search(\"Check sshd applies the role's root and password\")"
+            fail_msg: "Stopped by something else: {{ ansible_failed_task.name }}"
+      always:
+        - name: "Take the planted fragment out"
+          ansible.builtin.file:
+            path: "/etc/ssh/sshd_config.d/00-aaa.conf"
+            state: "absent"
 
     - name: "Forwarding-only user got the requested login shell"
       ansible.builtin.command: "getent passwd molecule-tunnel"

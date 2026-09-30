@@ -9,7 +9,7 @@ off by default.
 | Variable                      | Default | Component                                                                  |
 |-------------------------------|---------|----------------------------------------------------------------------------|
 | `machine_users_enabled`       | `true`  | create users from `machine_users`, install SSH keys, remove bootstrap user |
-| `machine_ssh_enabled`         | `true`  | harden `sshd_config`: disable root login, password auth, keepalives; drop `machine_ssh_dropins` fragments |
+| `machine_ssh_enabled`         | `true`  | harden sshd via `sshd_config.d/00-hacode.conf`: disable root login, password auth, keepalives; drop `machine_ssh_dropins` fragments |
 | `machine_system_enabled`      | `true`  | hostname + aliases in /etc/hosts, locale, motd, /usr/local/bin in PATH     |
 | `machine_swap_enabled`        | `true`  | swap file at `/swapfile` (size configurable)                               |
 | `machine_disks_enabled`       | `true`  | mount extra block devices listed in `machine_disks` via fstab (no-op when `machine_disks` is empty) |
@@ -207,13 +207,28 @@ behavior would otherwise force you to redeclare the whole list when extending). 
 The `90-{{ machine_admin_group }}` sudoers entry is created by the role; you don't need a separate `sudoers:` step.
 Distro-provided `90-cloud-init-users` and (when `machine_admin_group != "wheel"`) `90-wheel` are removed.
 
+## sshd settings the role owns
+
+`PermitRootLogin no`, `PasswordAuthentication no`, `ClientAliveInterval`, `ClientAliveCountMax`, `MaxSessions`
+(`machine_ssh_max_sessions`) and `MaxStartups` (`machine_ssh_max_startups`) go to `sshd_config.d/00-hacode.conf`, and
+the same keywords are commented out of `sshd_config` up to its first `Match` line. sshd keeps the first value it
+reads, and the `Include` comes first, so the fragment sorting ahead of the rest is what decides: a hosting image's
+`40-hosting.conf` or cloud-init's `50-cloud-init.conf` turning root or password logins back on no longer wins. `Match`
+blocks in `sshd_config` are left as they are, so a per-user exception there still applies, as does a
+`machine_ssh_dropins` fragment whose name sorts before `00-hacode`.
+
+Sorting first is only a name, and an image could ship a fragment named ahead of it, so the role also checks what sshd
+applies outside `Match` blocks (`sshd -T`) and stops the run when root or password logins are not off. A
+`machine_ssh_dropins` entry named to sort before `00-hacode` is the one deliberate way to override the role's settings,
+and skips that check.
+
 ## `machine_ssh_dropins` schema
 
-Each entry becomes `/etc/ssh/sshd_config.d/<name>.conf` (root:root, `0644`), loaded through the stock
-`Include /etc/ssh/sshd_config.d/*.conf` line; the role fails when `sshd_config` has no such line, since an unloaded
-`Match` restriction would leave its account unrestricted. `content` is written verbatim, so a hand-made fragment can
-be adopted without a diff. A fragment is checked with `sshd -t` on its own before it is written and the whole config
-once more before sshd restarts.
+Each entry becomes `/etc/ssh/sshd_config.d/<name>.conf` (root:root, `0644`), loaded through the
+`Include /etc/ssh/sshd_config.d/*.conf` line (the role adds it at the top of `sshd_config` where the distro ships
+none). `content` is written verbatim, so a hand-made fragment can be adopted without a diff. A fragment is checked with
+`sshd -t` on its own before it is written and the whole config once more before sshd restarts. `00-hacode` is taken
+by the role's own settings.
 
 | Field     | Required                | Description                                 |
 |-----------|-------------------------|---------------------------------------------|
