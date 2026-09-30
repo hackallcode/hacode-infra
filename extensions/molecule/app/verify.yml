@@ -135,3 +135,57 @@
         _by_name: >-
           {{ dict(restored_ids.results | map(attribute='item')
                   | zip(restored_ids.results | map(attribute='stat'))) }}
+
+# The two ways a restore skips the ownership fix-up. Both once failed the
+# whole host: the fix-up's loop label read the recorded ids, and Ansible
+# renders a label even for an item it skips, so a missing record meant a
+# failed file lookup on a task that was never going to run.
+- name: "Verify: app restore without recorded ids"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  vars:
+    app_data_paths: ["data"]
+    app_exclude_paths: ["config/backups"]
+    app_backup_local_dir: "/tmp/molecule-app-backups"
+
+  tasks:
+    # An archive taken before `backup` recorded the owner's ids.
+    - name: "Drop the recorded ids, as an older archive has none"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: "absent"
+      loop: "{{ query('ansible.builtin.fileglob', '/tmp/molecule-app-backups/*_' ~ inventory_hostname ~ '_*.owner') }}"
+      delegate_to: "localhost"
+      become: false
+
+    - name: "Lose the data dir again"
+      ansible.builtin.file:
+        path: "/opt/molecule-static/data"
+        state: "absent"
+
+    - name: "Run the restore entrypoint with no recorded ids"
+      ansible.builtin.include_role:
+        name: "hacode.infra.app"
+        tasks_from: "restore.yml"
+
+    - name: "Stat the file archived under the source owner's id"
+      ansible.builtin.stat:
+        path: "/opt/molecule-static/data/from-source-owner.txt"
+      register: "unmapped_owner"
+
+    # Nothing to map by, so it keeps the id it was archived with rather than
+    # being guessed onto this host's owner.
+    - name: "Its archived id is kept as it is"
+      ansible.builtin.assert:
+        that:
+          - "unmapped_owner.stat.exists"
+          - "unmapped_owner.stat.uid == 55556"
+
+    - name: "Run the restore entrypoint for an app with no data paths"
+      ansible.builtin.include_role:
+        name: "hacode.infra.app"
+        tasks_from: "restore.yml"
+      vars:
+        app_data_paths: []
