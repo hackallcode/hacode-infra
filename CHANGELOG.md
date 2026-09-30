@@ -215,6 +215,16 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: a fresh host bootstraps again. Since repos moved first
+  (#64), their facts gathering was the play's first contact and ran as
+  `ansible_user` before the fallback to `setup_user_name` in `users.yml`,
+  so a host without that account yet was dropped as unreachable. The
+  access probe and fallback now run before everything else, repos still
+  before the first package operation. The play itself has to leave
+  `gather_facts` off for this: implicit fact gathering runs as
+  `ansible_user` before any task. The README example now does, and a
+  new section explains the bootstrap.
+
 - `prometheus` role: the bundled rules and the Alertmanager template
   actually reach the host. Their paths were built from `role_path` in
   the `include_role` vars, which the upstream role evaluates as its

@@ -250,6 +250,9 @@ machine_tmux_users: []         # and ~/.tmux.conf
 ```yaml
 - hosts: "vps"
   become: true
+  # The role gathers the facts it needs itself, after it has found a user it
+  # can log in as - see "Bootstrapping a fresh host" below.
+  gather_facts: false
   roles:
     - role: "hacode.infra.machine"
       vars:
@@ -268,6 +271,16 @@ machine_tmux_users: []         # and ~/.tmux.conf
         machine_docker_enabled: true
         machine_tmux_enabled: true
 ```
+
+## Bootstrapping a fresh host
+
+On a fresh image the accounts in `machine_users` don't exist yet, so `ansible_user` can't log in. The role's first task
+probes it and, when the host is unreachable that way, switches the rest of the run to `setup_user_name` (the image's
+own account, `root` by default); once the real users exist, `users` switches back and removes a non-root setup user.
+
+That only works if the role makes the first contact. Leave `gather_facts` off for the play: the implicit fact gathering
+runs before any task, as `ansible_user`, and on a fresh host it drops the host as unreachable before the fallback can
+run. The role gathers what it needs once it can connect.
 
 ## Tags
 
@@ -289,7 +302,8 @@ without re-checking / rebuilding tmux itself.
 ## Convenience entrypoint
 
 `tasks_from: host` runs `users` → `ssh` → `system` in one call - handy when an inventory wants the combined identity
-bootstrap without the rest of the role.
+bootstrap without the rest of the role. Like the default entrypoint, it first probes `ansible_user` and falls back to
+`setup_user_name` on a fresh host, then drops the managed repos before any package operation.
 
 ## Notes
 
