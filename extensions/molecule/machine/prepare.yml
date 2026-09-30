@@ -62,3 +62,30 @@
           [ "$1" = "apply" ] && rm -f /etc/netplan/95-molecule.yaml
           exit 0
       when: "ansible_os_family == 'Debian'"
+
+    # What a hosting image ships: a fragment that turns root and password
+    # logins back on and, read through the stock Include, used to win over
+    # the role's own settings.
+    - name: "Ensure /etc/ssh/sshd_config.d exists"
+      ansible.builtin.file:
+        path: "/etc/ssh/sshd_config.d"
+        state: "directory"
+        mode: "0755"
+
+    - name: "Plant a hoster's sshd fragment"
+      ansible.builtin.copy:
+        dest: "/etc/ssh/sshd_config.d/40-hosting.conf"
+        content: |
+          PermitRootLogin yes
+          PasswordAuthentication yes
+        mode: "0644"
+
+    # A per-user exception in sshd_config itself, which the role must leave
+    # as it is while it comments the global settings out.
+    - name: "Add a Match block with its own PasswordAuthentication"
+      ansible.builtin.blockinfile:
+        path: "/etc/ssh/sshd_config"
+        marker: "# {mark} molecule match block"
+        block: |
+          Match User molecule-pw
+              PasswordAuthentication yes

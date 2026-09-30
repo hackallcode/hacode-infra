@@ -32,17 +32,46 @@
       failed_when: >-
         'molecule@test' not in (user_keys.content | b64decode | string)
 
-    - name: "Sshd disallows root login"
-      ansible.builtin.command: "grep -E '^PermitRootLogin' /etc/ssh/sshd_config"
-      register: "sshd_root"
+    # What sshd actually applies, over the hoster's fragment planted in
+    # prepare, not what one file says.
+    - name: "Sshd effectively disallows root and password logins"
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          /usr/sbin/sshd -T -C user={{ item.user }},host=molecule,addr=127.0.0.1
+          | grep -E '^(permitrootlogin|passwordauthentication|maxsessions) '
+        executable: "/bin/bash"
+      register: "sshd_hardening"
       changed_when: false
-      failed_when: "'no' not in sshd_root.stdout"
+      failed_when: "sshd_hardening.stdout_lines | sort != item.expect"
+      loop:
+        - user: "molecule"
+          expect: ["maxsessions 50", "passwordauthentication no", "permitrootlogin no"]
+        # The Match block in sshd_config still applies to its user.
+        - user: "molecule-pw"
+          expect: ["maxsessions 50", "passwordauthentication yes", "permitrootlogin no"]
+      loop_control:
+        label: "{{ item.user }}"
 
-    - name: "Sshd disallows password auth"
-      ansible.builtin.command: "grep -E '^PasswordAuthentication' /etc/ssh/sshd_config"
-      register: "sshd_pw"
+    - name: "Sshd_config keeps no active copy of the role's settings outside Match"
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          sed '/^[[:space:]]*Match[[:space:]]/,$d' /etc/ssh/sshd_config
+          | grep -Eic '^[[:space:]]*({{ _owned | join("|") }})[[:space:]=]'
+          || true
+        executable: "/bin/bash"
+      vars:
+        _owned:
+          - "PermitRootLogin"
+          - "PasswordAuthentication"
+          - "ClientAliveInterval"
+          - "ClientAliveCountMax"
+          - "MaxSessions"
+          - "MaxStartups"
+      register: "sshd_main_active"
       changed_when: false
-      failed_when: "'no' not in sshd_pw.stdout"
+      failed_when: "sshd_main_active.stdout | trim != '0'"
 
     - name: "Forwarding-only user got the requested login shell"
       ansible.builtin.command: "getent passwd molecule-tunnel"

@@ -215,6 +215,16 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: root and password SSH logins really are off. The
+  settings went into `sshd_config` below its `Include`, and sshd keeps
+  the first value it reads, so a fragment the image ships - a hoster's
+  `40-hosting.conf` with `PermitRootLogin yes` / `PasswordAuthentication
+  yes`, cloud-init's `50-cloud-init.conf` - silently won. They now live in
+  `sshd_config.d/00-hacode.conf`, commented out of `sshd_config` outside
+  `Match` blocks, and the role adds the `Include` where the distro ships
+  none (EL8, older Debian/Ubuntu), so `machine_ssh_dropins` works there
+  too instead of failing the run.
+
 - `machine` role: a fresh host bootstraps again. Since repos moved first
   (#64), their facts gathering was the play's first contact and ran as
   `ansible_user` before the fallback to `setup_user_name` in `users.yml`,
