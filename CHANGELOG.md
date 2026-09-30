@@ -229,6 +229,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   so an edited `env_file` took effect only on a later `up`; it now applies
   the config first, then restarts the whole stack as before.
 
+- `prometheus` role: installs no longer fail on a partial fact cache. The
+  facts `prometheus.prometheus` reads were gathered only when
+  `architecture` was missing, and a cache filled by another role's `min`
+  gathering has it but lacks `processor_count`, which the Prometheus unit
+  template needs. Each install now gathers when any fact it needs is
+  missing.
+
 - `machine` role: root and password SSH logins really are off. The
   settings went into `sshd_config` below its `Include`, and sshd keeps
   the first value it reads, so a fragment the image ships — a hoster's

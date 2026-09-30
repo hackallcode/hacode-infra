@@ -1,10 +1,26 @@
-- name: "Gather Facts"
+# The prometheus.prometheus role below reads these facts and never gathers
+# them. Keyed on every one of them, not just `architecture`: a fact cache
+# filled by another role's `min` gathering has that one and lacks, say,
+# `processor_count`, which then failed the unit template. `min` (always
+# collected) covers the rest.
+- name: "Gather the facts prometheus.prometheus reads"
   tags: ["install"]
-  ansible.builtin.setup:
-    gather_subset:
+  vars:
+    _prom_needed_facts:
       - "architecture"
+      - "distribution"
+      - "fqdn"
+      - "os_family"
+      - "pkg_mgr"
       - "processor_count"
-  when: "ansible_architecture is not defined"
+      - "processor_vcpus"
+      - "python_version"
+      - "selinux"
+      - "service_mgr"
+      - "system"
+  ansible.builtin.setup:
+    gather_subset: ["hardware"]
+  when: "_prom_needed_facts | reject('in', ansible_facts) | list | length > 0"
 
 - name: "List managed rule files"
   tags: ["install"]
