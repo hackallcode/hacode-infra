@@ -48,7 +48,6 @@
       changed_when: false
       failed_when: "webroot_log.rc != 0"
 
-# Back /etc/letsencrypt up, wipe it, restore: every file comes back as it was.
 - name: "Verify: certbot backup round trip"
   hosts: "all"
   become: true

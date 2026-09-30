@@ -33,10 +33,8 @@
   run_once: true
   become: false
 
-# The managed-by label is what makes the removal below safe: it marks the
-# issuers this role created, so an issuer some other tool put on the
-# cluster is never a candidate. `apply` so that dropping a field from a
-# spec (a solver, say) actually removes it instead of merging.
+# The label scopes the prune below to issuers this role created; `apply`
+# removes fields dropped from a spec.
 - name: "Apply cert-manager ClusterIssuers"
   tags: ["cert-manager-install"]
   kubernetes.core.k8s:
@@ -71,9 +69,6 @@
   run_once: true
   become: false
 
-# Dropping an entry from the dict has to mean the issuer goes. Otherwise it
-# keeps signing: a `Certificate` still pointing at it renews happily, and
-# the inventory no longer says where those certs come from.
 - name: "Remove ClusterIssuers no longer listed"
   tags: ["cert-manager-install"]
   kubernetes.core.k8s:

@@ -1,6 +1,4 @@
-# Server and client keys are the only state `server-configure` can't
-# regenerate without re-provisioning every peer; wg0.conf is rebuilt from
-# them and `wg_clients`.
+# The keys are the one state `server-configure` can't regenerate.
 - name: "Back up WireGuard keys"
   tags: ["backup"]
   ansible.builtin.include_role:

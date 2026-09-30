@@ -1,12 +1,7 @@
 - ansible.builtin.import_tasks: "_validate.yml"
 
-# `restart` keeps a container's config, environment included, so a changed
-# `.env` or compose file reached the service only on a later `up`. Apply the
-# config first: compose recreates what changed (env_file values count). The
-# restart below still runs for the whole stack either way - files the upload
-# changed under a bind mount aren't part of the config, and a service whose
-# config didn't change would otherwise keep serving the old ones whenever
-# another service in the same stack was recreated.
+# `compose restart` keeps each container's env; apply picks up a changed
+# env_file. The full restart still follows, for bind-mounted files.
 - name: "Apply docker compose config changes"
   tags: ["restart"]
   community.docker.docker_compose_v2:

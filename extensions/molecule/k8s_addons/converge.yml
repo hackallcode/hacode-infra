@@ -206,8 +206,7 @@
           molecule: "rewrite name exact molecule.example.com kubernetes.default.svc.cluster.local"
         k8s_addons_cert_manager_enabled: true
         k8s_addons_cert_manager_chart_timeout: "15m0s"
-        # selfSigned needs no ACME endpoint, so the issuer reaches Ready
-        # inside the container and verify can assert on its status.
+        # selfSigned needs no ACME endpoint, so it reaches Ready in a container.
         k8s_addons_cert_manager_cluster_issuers:
           molecule-selfsigned:
             selfSigned: {}
@@ -221,20 +220,9 @@
         k8s_addons_kube_state_metrics_chart_timeout: "15m0s"
         k8s_addons_envoy_gateway_chart_timeout: "15m0s"
 
-# Both the coredns ConfigMap and the ClusterIssuer set are reconciled both
-# ways, which a single converge cannot show: the role has to meet state a
-# previous run left behind. So give it one - an extra override the role
-# writes and the next run no longer lists, an issuer carrying the role's
-# managed-by label that the dict does not name, and one without the label
-# standing in for an issuer some other tool owns. The last run must drop
-# the first two and leave the third alone. (No `idempotence` step in this
-# scenario, so staging runs here costs nothing.)
-#
-# The override has to be written *by the role*: the ConfigMap is
-# server-side applied, and apply only reclaims the keys its own field
-# manager wrote. A key planted with a plain patch belongs to whoever
-# patched it and would survive on purpose, which would make this a test of
-# the wrong thing.
+# State a previous run left: an override the role wrote and no longer lists,
+# a labelled issuer the dict doesn't name, and an unlabelled foreign one.
+# The override must come from the role: apply only reclaims its own keys.
 - name: "Converge: leave state behind for the reconcilers to clean up"
   hosts: "localhost"
   connection: "local"

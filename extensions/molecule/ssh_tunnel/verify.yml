@@ -68,9 +68,6 @@
       failed_when: "enabled_check.stdout.strip() != 'enabled'"
       loop: "{{ expected_units }}"
 
-# Plant a key for root and for the non-root tunnel user, back up, lose both
-# ~/.ssh dirs, restore: the keys come back owned by their users, and
-# authorized_keys (inbound access, not the tunnel's) stays out of it.
 - name: "Verify: ssh_tunnel key backup round trip"
   hosts: "all"
   become: true

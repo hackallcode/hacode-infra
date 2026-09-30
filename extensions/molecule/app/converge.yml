@@ -6,8 +6,7 @@
   roles:
     - role: "hacode.infra.app"
 
-# `app_data_paths` are excluded from the upload, but only at the content
-# dir's root: `src/data` in the sources is code, not the app's data.
+# `src/data` in the sources is code, not the app's data path.
 - name: "Converge: upload with a data path named like a nested source dir"
   hosts: "all"
   become: true
@@ -22,11 +21,7 @@
         name: "hacode.infra.app"
         tasks_from: "upload.yml"
 
-# The backup archive's contents are the whole point of `app_exclude_paths`
-# and `app_global_exclude`, and nothing exercised them: `exclude_path` alone
-# silently matched nothing, so every archive carried caches, `.git` and the
-# app's own backups. Plant a data dir that holds one of each, back it up,
-# and let verify read the archive.
+# One of each case the backup's exclude lists must drop, plus keepers.
 - name: "Converge: back up a data dir that carries junk"
   hosts: "all"
   become: true
@@ -66,10 +61,8 @@
         # dropped by app_exclude_paths, a multi-segment path
         - "data/config/backups/old.tar.gz"
 
-    # Two files under ids no account on these images has, so the restore
-    # has to tell them apart by the recorded owner and not by whether a
-    # user exists: 55555 stands in for container data (mysql's 999 and the
-    # like), 55556 for the app's owner on the host the archive came from.
+    # 55555 stands in for container data, 55556 for the source host's app
+    # owner; no account has either id.
     - name: "Add files under foreign numeric ids"
       ansible.builtin.copy:
         dest: "/opt/molecule-static/{{ item.path }}"

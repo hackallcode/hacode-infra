@@ -63,9 +63,7 @@
           exit 0
       when: "ansible_os_family == 'Debian'"
 
-    # What a hosting image ships: a fragment that turns root and password
-    # logins back on and, read through the stock Include, used to win over
-    # the role's own settings.
+    # A hoster's fragment turning root and password logins back on.
     - name: "Ensure /etc/ssh/sshd_config.d exists"
       ansible.builtin.file:
         path: "/etc/ssh/sshd_config.d"
@@ -80,10 +78,7 @@
           PasswordAuthentication yes
         mode: "0644"
 
-    # EL8 and older Debian/Ubuntu ship sshd_config without the Include, and
-    # every image in this matrix has it. Take it out on the RHEL platforms so
-    # the role's insertion — and the order it happens in — runs somewhere;
-    # the Debian ones keep the stock line.
+    # EL8 ships no Include; drop it on RHEL so the role's insertion runs.
     - name: "Remove the stock Include on RHEL, as EL8 ships without one"
       ansible.builtin.lineinfile:
         path: "/etc/ssh/sshd_config"
@@ -91,8 +86,7 @@
         state: "absent"
       when: "ansible_os_family == 'RedHat'"
 
-    # A per-user exception in sshd_config itself, which the role must leave
-    # as it is while it comments the global settings out.
+    # A per-user exception the role must leave in place.
     - name: "Add a Match block with its own PasswordAuthentication"
       ansible.builtin.blockinfile:
         path: "/etc/ssh/sshd_config"

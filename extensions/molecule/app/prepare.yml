@@ -15,8 +15,7 @@
         content: "molecule\n"
         mode: "0644"
 
-    # A source dir named like a data path, below the root: upload must keep
-    # it, only the top-level data path is the app's own.
+    # Named like a data path, below the root: upload must keep it.
     - name: "Ensure a nested dir sharing the data path's name exists"
       ansible.builtin.file:
         path: "/tmp/molecule-source/src/data"

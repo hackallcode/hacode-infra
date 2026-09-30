@@ -46,8 +46,7 @@
         - "/etc/letsencrypt/accounts/acme-v02.api.letsencrypt.org/directory/molecule"
         - "/etc/letsencrypt/accounts/acme-staging-v02.api.letsencrypt.org/directory/molecule"
 
-    # The backup round trip in verify pulls archives with rsync and
-    # unpacks them with tar.
+    # For the backup round trip in verify.
     - name: "Install rsync, tar and gzip"
       ansible.builtin.package:
         name: ["rsync", "tar", "gzip"]
