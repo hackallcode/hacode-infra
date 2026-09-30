@@ -155,10 +155,12 @@
 
 # 00-hacode.conf wins only because its name sorts first, and a name is all
 # that decides it: a fragment an image ships as `00-a…` would override the
-# role again, silently - the failure this drop-in exists to end. So check
+# role again, silently — the failure this drop-in exists to end. So check
 # what sshd applies outside any Match block (`-T` without `-C`) instead of
 # trusting the order. A `machine_ssh_dropins` entry named to sort earlier is
-# the deliberate way to override the role, and turns the check off.
+# the deliberate way to override the role, and turns the check off. Whole
+# file names are compared, as sshd sorts them: `00-hacode-x.conf` comes
+# before `00-hacode.conf` though `00-hacode-x` comes after `00-hacode`.
 - name: "Check sshd applies the role's root and password login settings"
   tags: ["ssh"]
   ansible.builtin.command:
@@ -172,9 +174,10 @@
   when:
     - "not ansible_check_mode"
     - >-
-      machine_ssh_dropins | selectattr('name', 'lt', '00-hacode')
-      | map(attribute='state', default='present') | select('eq', 'present')
-      | list | length == 0
+      (machine_ssh_dropins | selectattr('state', 'undefined') | list
+       + machine_ssh_dropins | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | list)
+      | map(attribute='name') | map('regex_replace', '$', '.conf')
+      | select('lt', '00-hacode.conf') | list | length == 0
 
 - name: "Restart SSH daemon"
   tags: ["ssh"]

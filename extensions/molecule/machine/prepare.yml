@@ -82,7 +82,7 @@
 
     # EL8 and older Debian/Ubuntu ship sshd_config without the Include, and
     # every image in this matrix has it. Take it out on the RHEL platforms so
-    # the role's insertion - and the order it happens in - runs somewhere;
+    # the role's insertion — and the order it happens in — runs somewhere;
     # the Debian ones keep the stock line.
     - name: "Remove the stock Include on RHEL, as EL8 ships without one"
       ansible.builtin.lineinfile:
