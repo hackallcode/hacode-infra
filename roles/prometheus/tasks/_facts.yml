@@ -1,0 +1,13 @@
+# The prometheus.prometheus role an install includes reads facts it never
+# gathers. Keyed on every one it reads, not just `architecture`: a fact
+# cache filled by another role's `min` gathering has that one and lacks,
+# say, `processor_count`, which then failed the unit template. `min` is
+# always collected on top of `_prom_facts_subset` and covers the rest.
+#
+# Inputs: `_prom_needed_facts` (fact names without `ansible_`) and
+# `_prom_facts_subset` (the extra `gather_subset` that yields them).
+- name: "Gather the facts prometheus.prometheus reads"
+  tags: ["install"]
+  ansible.builtin.setup:
+    gather_subset: "{{ _prom_facts_subset }}"
+  when: "_prom_needed_facts | reject('in', ansible_facts) | list | length > 0"

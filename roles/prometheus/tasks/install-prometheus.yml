@@ -1,10 +1,18 @@
-- name: "Gather Facts"
-  tags: ["install"]
-  ansible.builtin.setup:
-    gather_subset:
+- ansible.builtin.import_tasks: "_facts.yml"
+  vars:
+    _prom_facts_subset: ["hardware"]
+    _prom_needed_facts:
       - "architecture"
+      - "distribution"
+      - "fqdn"
+      - "os_family"
+      - "pkg_mgr"
       - "processor_count"
-  when: "ansible_architecture is not defined"
+      - "processor_vcpus"
+      - "python_version"
+      - "selinux"
+      - "service_mgr"
+      - "system"
 
 - name: "List managed rule files"
   tags: ["install"]

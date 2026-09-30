@@ -1,9 +1,16 @@
-- name: "Gather Facts"
-  tags: ["install"]
-  ansible.builtin.setup:
-    gather_subset:
+- ansible.builtin.import_tasks: "_facts.yml"
+  vars:
+    _prom_facts_subset: ["network"]
+    _prom_needed_facts:
       - "architecture"
-  when: "ansible_architecture is not defined"
+      - "default_ipv4"
+      - "distribution"
+      - "os_family"
+      - "pkg_mgr"
+      - "python_version"
+      - "selinux"
+      - "service_mgr"
+      - "system"
 
 # Resolved here: inside the included role `role_path` is that role's.
 - name: "Resolve Alertmanager template files"

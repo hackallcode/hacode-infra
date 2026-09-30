@@ -1,7 +1,15 @@
 - name: "Converge: prometheus role"
   hosts: "all"
   become: true
-  gather_facts: true
+  # Only `min`, as a fact cache another role filled would hold: it has
+  # `architecture` but not `processor_count`, so each install has to notice
+  # what its prometheus.prometheus role still needs and gather it.
+  gather_facts: false
+
+  pre_tasks:
+    - name: "Gather the min subset only, like a cache another role filled"
+      ansible.builtin.setup:
+        gather_subset: ["min"]
 
   roles:
     - role: "hacode.infra.prometheus"
