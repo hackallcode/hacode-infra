@@ -4,8 +4,7 @@
   gather_facts: false
 
   vars:
-    # Byte-for-byte what molecule.yml feeds machine_ssh_dropins, so the
-    # check proves the fragment is written verbatim rather than reformatted.
+    # Exactly what molecule.yml feeds machine_ssh_dropins.
     expected_ssh_dropin: |
       Match User molecule-tunnel
           AllowTcpForwarding remote
@@ -32,8 +31,6 @@
       failed_when: >-
         'molecule@test' not in (user_keys.content | b64decode | string)
 
-    # What sshd actually applies, over the hoster's fragment planted in
-    # prepare, not what one file says.
     - name: "Sshd effectively disallows root and password logins"
       ansible.builtin.shell:
         cmd: >-
@@ -73,8 +70,7 @@
       changed_when: false
       failed_when: "sshd_main_active.stdout | trim != '0'"
 
-    # On RHEL prepare took the stock Include out, as EL8 ships without one,
-    # so this is the role's insertion; on Debian it is the stock line.
+    # On RHEL prepare removed it, so this is the role's insertion.
     - name: "The Include is sshd_config's first directive"
       ansible.builtin.command:
         argv: ["awk", "NF && !/^[[:space:]]*#/ {print; exit}", "/etc/ssh/sshd_config"]
@@ -82,9 +78,6 @@
       changed_when: false
       failed_when: "sshd_first_directive.stdout != 'Include /etc/ssh/sshd_config.d/*.conf'"
 
-    # A fragment named to sort ahead of 00-hacode.conf would win, the same
-    # silent override the drop-in exists to end, so the role checks what sshd
-    # applies and stops instead.
     - name: "A fragment sorting before 00-hacode stops the run instead of winning"
       block:
         - name: "Plant an image fragment that sorts ahead of the role's"
@@ -276,8 +269,7 @@
         - "ansible_os_family == 'RedHat'"
         - "ansible_distribution_major_version | int >= 10"
 
-    # Keyed on the OS family, not on the file being there: a repo file that
-    # was never rendered must fail this rather than skip it (grep exits 2).
+    # Keyed on the OS family, so an unrendered file fails rather than skips.
     - name: "The machine_yum_repos file carries its gpgkey (RHEL)"
       ansible.builtin.command:
         argv:

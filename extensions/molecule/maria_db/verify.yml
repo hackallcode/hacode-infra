@@ -61,8 +61,6 @@
       register: "user_check"
       failed_when: "user_check.changed"
 
-# Put a row in, back up, drop the table, restore: the row comes back. Dump
-# and import both run inside the container.
 - name: "Verify: maria_db backup round trip"
   hosts: "all"
   become: true

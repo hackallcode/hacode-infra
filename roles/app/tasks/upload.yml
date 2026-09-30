@@ -18,20 +18,14 @@
   delegate_to: "localhost"
   become: false
 
-# `set_fact` outlives the include: without the reset, a second app deployed
-# in the same play would inherit the first one's excludes, data paths
-# included, and drop its own source dirs that happen to share their names.
+# `set_fact` outlives the include: don't inherit a previous app's excludes.
 - name: "Reset rsync exclude args"
   tags: ["upload"]
   ansible.builtin.set_fact:
     _app_rsync_excludes: []
 
-# Data paths and rendered templates name one spot under the content dir, so
-# they are anchored to its root: a bare `--exclude=db` also drops every
-# nested `db` (a source package, say) at any depth. The global and
-# per-app exclude lists are names or globs meant to match anywhere. Which
-# list an entry came from decides it, not its name, so a name in both keeps
-# each meaning.
+# Data paths and templates are anchored to the content dir's root; the
+# exclude lists match anywhere.
 - name: "Build rsync exclude args"
   tags: ["upload"]
   ansible.builtin.set_fact:

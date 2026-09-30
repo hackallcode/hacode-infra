@@ -7,9 +7,7 @@
 #     forward: "10.0.1.10"       # upstream(s); string or list of IPs
 #     cache: 30                  # optional, default 30
 
-# `set_fact` outlives the include, so without this the second invocation in
-# a play would build on the first one's keys: the dict would only ever grow,
-# and the apply below could never drop an entry the vars stopped listing.
+# `set_fact` outlives the include: start empty so dropped entries go.
 - name: "Reset coredns-custom ConfigMap data"
   tags: ["coredns-custom-install"]
   ansible.builtin.set_fact:
@@ -54,12 +52,7 @@
   run_once: true
   become: false
 
-# `apply` rather than a plain patch: a patch only ever merges keys, so a
-# server dropped from `_servers`, or an override from `_overrides`, would
-# keep its key - and CoreDNS auto-imports the map, so a rewrite the
-# inventory no longer lists would go on answering for that name. Server-side
-# apply reclaims the keys this role wrote; a key some other tool put in the
-# map is owned by that tool and is left alone.
+# `apply`, not a patch: a patch never removes a key.
 - name: "Apply coredns-custom ConfigMap"
   tags: ["coredns-custom-install"]
   kubernetes.core.k8s:

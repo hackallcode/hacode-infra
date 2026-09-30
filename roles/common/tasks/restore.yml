@@ -6,11 +6,8 @@
 # Sets `hacode_restore_res` (the unarchive result) and
 # `hacode_restore_dest` for callers that fix ownership afterwards.
 
-# Archives are named by `hacode_backup_stamp`; ones taken before it carry
-# only the date. Any stamped archive is newer than every date-only one - the
-# code that writes stamps replaced the code that wrote dates - so the older
-# form is only a fallback. The two are not sorted together: `T` sorts below
-# `_`, so a same-day date-only archive would win over a stamped one.
+# Stamped archives first; older date-only ones only as a fallback, since
+# `T` sorts below `_`.
 - name: "Pick the latest '{{ hacode_backup_name }}' archive"
   ansible.builtin.set_fact:
     hacode_restore_archive: >-
@@ -31,10 +28,7 @@
       (or an older <YYYYMMDD>_ one) to restore from.
     quiet: true
 
-# Mirrors community.general.archive's own archive root: the common prefix
-# of the paths' parent directories, cut back to a whole directory. The
-# rstrip keeps a top-level path (`/data`, parent `/`) from doubling the
-# slash, which `os.path.join(parent, '')` in the module never does.
+# The root community.general.archive stores entries under (`common_path`).
 - name: "Resolve the directory the archive unpacks into"
   ansible.builtin.set_fact:
     hacode_restore_dest: >-
@@ -61,8 +55,7 @@
     mode: "0755"
   when: "not hacode_restore_dest_stat.stat.exists"
 
-# Numeric ids: container-owned data keeps its uid (e.g. mysql's 999) even
-# where that name maps to another id on the target, or does not exist.
+# Numeric ids, so container data keeps its uid (e.g. mysql's 999).
 - name: "Unpack '{{ hacode_restore_archive | basename }}' into '{{ hacode_restore_dest }}'"
   ansible.builtin.unarchive:
     src: "{{ hacode_restore_archive }}"

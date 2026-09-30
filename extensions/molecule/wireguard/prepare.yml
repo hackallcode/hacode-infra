@@ -29,8 +29,7 @@
         cache_valid_time: 600
       when: "ansible_os_family == 'Debian'"
 
-    # The backup round trip in verify pulls archives with rsync and
-    # unpacks them with tar.
+    # For the backup round trip in verify.
     - name: "Install rsync, tar and gzip"
       ansible.builtin.package:
         name: ["rsync", "tar", "gzip"]

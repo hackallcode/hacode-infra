@@ -1,8 +1,5 @@
-# Connect as the setup user while `ansible_user` doesn't exist yet (a
-# fresh cloud image). Runs before anything else touches the host, facts
-# gathering included: an unreachable first task drops the host from the
-# play before any later fallback could run. users.yml reverts the switch
-# once the real accounts exist.
+# Fall back to the setup user while `ansible_user` doesn't exist yet. Must be
+# the first remote contact; users.yml reverts the switch.
 
 - name: "Probe '{{ ansible_user | default('') }}' user remote access"
   tags: ["always"]

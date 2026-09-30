@@ -2,9 +2,7 @@
 # lands in `hacode_pull_dest_dir` under the same basename, then the remote
 # copy is deleted.
 #
-# Not `fetch`: under become it reads the file through `slurp`, which holds
-# it whole, base64-encoded, in the remote's memory and dies with MemoryError
-# on a small host. rsync streams it.
+# Not `fetch`: under become it slurps the whole file into remote memory.
 
 - name: "Ensure '{{ hacode_pull_dest_dir }}' exists"
   ansible.builtin.file:
@@ -14,11 +12,7 @@
   delegate_to: "localhost"
   become: false
 
-# One host at a time. `synchronize` always passes rsync `--delay-updates`,
-# which stages files in a `.~tmp~` dir inside the destination and removes
-# it when done - so parallel pulls from several hosts into one controller
-# dir share that staging dir, and one finishing takes the others' files
-# with it: a failed rename, or an archive that silently never lands.
+# One host at a time: parallel rsyncs share `synchronize`'s `.~tmp~` dir.
 - name: "Pull '{{ hacode_pull_src | basename }}' to the controller"
   throttle: 1
   ansible.posix.synchronize:

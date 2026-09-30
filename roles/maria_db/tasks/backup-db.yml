@@ -3,10 +3,8 @@
   ansible.builtin.set_fact:
     backup_name: "{{ hacode_backup_stamp }}_{{ inventory_hostname }}_{{ db_name }}.sql.gz"
 
-# Dumped inside the container: the host's client (mysql-8 `mysqldump` on
-# EL8/9, which community.mysql refuses for a MariaDB server, or none at
-# all) doesn't have to match the server. The password never leaves the
-# container's secret file.
+# Dumped in the container: the host's client may not match the server.
+# The password stays in the container's secret file.
 - name: "Dump database {{ db_name }}"
   tags: ["backup"]
   ansible.builtin.shell:

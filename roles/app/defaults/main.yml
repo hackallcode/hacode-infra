@@ -168,15 +168,9 @@ app_global_exclude: >-
 app_backup_local_dir: "{{ hacode_backups_dir }}/app"
 app_backup_remote_dir: "{{ hacode_backups_remote_dir }}/app"
 
-# What the backup archive leaves out. `exclude_path` can only drop a whole
-# entry of the module's `path` list, so anything *inside* an archived data dir
-# needs `exclusion_patterns`: fnmatch globs tested against each member's path
-# as it appears in the archive (`*` crosses `/` there). For every excluded
-# name both the name itself and its subtree are emitted, anchored at the
-# archive root and at any depth below it -- so basenames like `log` or `.git`
-# are dropped wherever they sit, and a path like `config/backups` is dropped
-# as a whole subtree. Override `app_backup_exclusion_patterns` to hand the
-# module a different set.
+# fnmatch globs the backup archive leaves out, matched against each member's
+# path inside it. Built from `app_backup_exclude`: each name goes with its
+# subtree, at the archive root and at any depth.
 app_backup_exclude: "{{ app_global_exclude + app_exclude_paths }}"
 app_backup_exclusion_patterns: >-
   {{ app_backup_exclude

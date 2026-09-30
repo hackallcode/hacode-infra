@@ -1,9 +1,8 @@
 - name: "Converge: prometheus role"
   hosts: "all"
   become: true
-  # Only `min`, as a fact cache another role filled would hold: it has
-  # `architecture` but not `processor_count`, so each install has to notice
-  # what its prometheus.prometheus role still needs and gather it.
+  # `min` only, like a cache another role filled: the installs must gather
+  # the rest themselves.
   gather_facts: false
 
   pre_tasks:

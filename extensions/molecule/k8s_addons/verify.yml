@@ -173,15 +173,10 @@
         namespace: "kube-system"
         name: "coredns-custom"
       register: "_coredns_custom"
-      # Exactly the rule: a stray escape glued to it would change the rewrite
-      # target, and the name would resolve nowhere.
       failed_when: >-
         (_coredns_custom.resources[0].data['molecule.override'] | default(''))
         != 'rewrite name exact molecule.example.com kubernetes.default.svc.cluster.local'
 
-    # An earlier converge run wrote this key through the role; the last one
-    # no longer lists it. The ConfigMap is applied, not patched, so it must
-    # be gone - a rewrite the inventory stopped listing cannot keep answering.
     - name: "Override dropped between runs is gone from the ConfigMap"
       ansible.builtin.assert:
         that: "'stale.override' not in _coredns_custom.resources[0].data"
@@ -211,8 +206,6 @@
       register: "_cm_orphan"
       failed_when: "_cm_orphan.resources | length != 0"
 
-    # The other half of the same claim: pruning is scoped by the managed-by
-    # label, so an issuer the role did not create survives.
     - name: "ClusterIssuer without the managed-by label was left alone"
       kubernetes.core.k8s_info:
         kubeconfig: "{{ _kubeconfig }}"

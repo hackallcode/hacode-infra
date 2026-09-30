@@ -19,12 +19,8 @@
     group: "root"
     mode: "0755"
 
-# Every setting the role owns lives in one drop-in that sorts before all
-# others. sshd keeps the first value it reads for a keyword, and the stock
-# `Include` sits at the top of sshd_config, so a fragment an image ships —
-# a hoster's `40-hosting.conf` with `PermitRootLogin yes` and
-# `PasswordAuthentication yes`, cloud-init's `50-cloud-init.conf` — used to
-# override what the role wrote into sshd_config itself.
+# The role's settings live in a drop-in sorting first: sshd keeps the first
+# value it reads, and image fragments would win otherwise.
 - name: "Harden sshd through 00-hacode.conf"
   tags: ["ssh"]
   vars:
@@ -61,10 +57,8 @@
         validate: "/usr/sbin/sshd -t -f %s"
       register: "ssh_config_role"
 
-    # EL8 and older Debian/Ubuntu ship no Include line; without it neither
-    # 00-hacode.conf nor `machine_ssh_dropins` would be read at all. It goes in
-    # before the settings are commented out of sshd_config, so a run that
-    # stops in between never leaves them unread.
+    # EL8 and older Debian/Ubuntu ship no Include. Added before the settings are
+    # commented out, so an interrupted run never leaves them unread.
     - name: "SSH config: include sshd_config.d ahead of everything else"
       ansible.builtin.lineinfile:
         path: "/etc/ssh/sshd_config"
@@ -79,8 +73,7 @@
         src: "/etc/ssh/sshd_config"
       register: "ssh_config_main_src"
 
-    # Commented rather than rewritten, so a later look at sshd_config shows
-    # the setting is managed elsewhere instead of a value that isn't used.
+    # Commented out, not deleted: shows the setting is managed elsewhere.
     - name: "SSH config: comment the same settings out of sshd_config"
       vars:
         _text: "{{ ssh_config_main_src.content | b64decode }}"
@@ -153,14 +146,9 @@
     ssh_config_dropins is changed or
     ssh_config_dropins_absent is changed
 
-# 00-hacode.conf wins only because its name sorts first, and a name is all
-# that decides it: a fragment an image ships as `00-a…` would override the
-# role again, silently — the failure this drop-in exists to end. So check
-# what sshd applies outside any Match block (`-T` without `-C`) instead of
-# trusting the order. A `machine_ssh_dropins` entry named to sort earlier is
-# the deliberate way to override the role, and turns the check off. Whole
-# file names are compared, as sshd sorts them: `00-hacode-x.conf` comes
-# before `00-hacode.conf` though `00-hacode-x` comes after `00-hacode`.
+# Sorting first is only a name (an image may ship `00-a…`), so check what
+# sshd applies. A managed drop-in sorting earlier — by file name, as sshd
+# sorts — is the deliberate override and skips this.
 - name: "Check sshd applies the role's root and password login settings"
   tags: ["ssh"]
   ansible.builtin.command:

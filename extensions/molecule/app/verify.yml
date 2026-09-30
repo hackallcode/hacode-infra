@@ -22,11 +22,7 @@
       register: "index_html"
       failed_when: "not index_html.stat.exists"
 
-    # The archive is fetched to the controller and the remote copy deleted,
-    # so the assertions below run there. Every platform fetches into the
-    # same directory and the archive name carries the host, so match on
-    # that rather than on `*.tar.gz`. Listing beats stat-ing: the bug this
-    # guards against did not fail, it silently packed more.
+    # Every platform fetches into one dir; match this host's archive.
     - name: "Locate the fetched backup archive on the controller"
       ansible.builtin.find:
         paths: "/tmp/molecule-app-backups"
@@ -47,8 +43,7 @@
     - name: "Excluded names are absent and the wanted data is present"
       ansible.builtin.assert:
         that:
-          # present - an exclude list that swallowed everything would
-          # otherwise satisfy the checks below
+          # present: guards against an exclude list that drops everything
           - "'data/important.db' in _members"
           - "'data/uploads/photo.bin' in _members"
           # app_global_exclude, at the archive root
@@ -63,8 +58,6 @@
       vars:
         _members: "{{ app_backup_members.stdout_lines | map('regex_replace', '/$', '') | list }}"
 
-# Lose the data dir the converge backed up, restore it, and the kept files
-# come back.
 - name: "Verify: app restore"
   hosts: "all"
   become: true
@@ -85,10 +78,7 @@
       become: false
       failed_when: "app_owner_files.files | length != 1"
 
-    # Same host, same ids, so a straight round trip would never exercise the
-    # remap. Pretend the archive came from a host where the app's owner was
-    # 55556: its file must move to this host's owner, while 55555 - the
-    # stand-in for container data, equally without a user here - must not.
+    # A same-host round trip never remaps: pretend the source owner was 55556.
     - name: "Pretend the archive came from a host where the owner was 55556"
       ansible.builtin.copy:
         dest: "{{ app_owner_files.files[0].path }}"
@@ -136,10 +126,7 @@
           {{ dict(restored_ids.results | map(attribute='item')
                   | zip(restored_ids.results | map(attribute='stat'))) }}
 
-# The two ways a restore skips the ownership fix-up. Both once failed the
-# whole host: the fix-up's loop label read the recorded ids, and Ansible
-# renders a label even for an item it skips, so a missing record meant a
-# failed file lookup on a task that was never going to run.
+# Restores that skip the ownership fix-up: no recorded ids, no data paths.
 - name: "Verify: app restore without recorded ids"
   hosts: "all"
   become: true
@@ -151,7 +138,6 @@
     app_backup_local_dir: "/tmp/molecule-app-backups"
 
   tasks:
-    # An archive taken before `backup` recorded the owner's ids.
     - name: "Drop the recorded ids, as an older archive has none"
       ansible.builtin.file:
         path: "{{ item }}"
@@ -175,8 +161,6 @@
         path: "/opt/molecule-static/data/from-source-owner.txt"
       register: "unmapped_owner"
 
-    # Nothing to map by, so it keeps the id it was archived with rather than
-    # being guessed onto this host's owner.
     - name: "Its archived id is kept as it is"
       ansible.builtin.assert:
         that:

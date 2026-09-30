@@ -1,9 +1,5 @@
-# Per database, the newest dump `backup` wrote for this host (stamped
-# `hacode_backup_stamp`, then the host - several hosts share the directory;
-# date-only dumps from before carry no host), falling back to an undated
-# `<db>.sql[.gz|.bz2]` dropped in by hand. A database with none of these is
-# left as it is. Each form is a fallback for the one before, never sorted
-# with it: `T` sorts below `_`, so a same-day date-only dump would win.
+# Per database: this host's newest stamped dump, else a date-only one,
+# else an undated `<db>.sql[.gz|.bz2]` dropped in by hand.
 - name: "Restore DB"
   tags: ["restore"]
   vars:

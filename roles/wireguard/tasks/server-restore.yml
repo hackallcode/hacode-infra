@@ -1,5 +1,4 @@
-# The archive holds the keys, not their directory, so create it with the
-# mode `server-configure` expects before unpacking into it.
+# The archive holds the keys, not their dir: create it 0700 first.
 - name: "Create a directory for WireGuard keys"
   tags: ["restore"]
   ansible.builtin.file:

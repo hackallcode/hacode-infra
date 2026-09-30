@@ -26,8 +26,6 @@
       ansible.builtin.command: "grep -q 'server config begin' /etc/wireguard/wg0.conf"
       changed_when: false
 
-# Back the keys up, lose them, restore: the same server key comes back in a
-# directory only root can read.
 - name: "Verify: wireguard key backup round trip"
   hosts: "all"
   become: true
