@@ -232,7 +232,7 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 - `maria_db` role: `backup` / `restore` run `mariadb-dump` / `mariadb`
   inside the container, with `--single-transaction`, and dumps are
-  `<YYYYMMDDTHHMMSSZ>_<db>.sql.gz` under `maria_db_backup_local_dir`. `restore`
+  `<YYYYMMDDTHHMMSSZ>_<host>_<db>.sql.gz` under `maria_db_backup_local_dir`. `restore`
   now finds what `backup` wrote (it only looked for undated
   `<db>.sql[.bz2]`) and takes the newest dump per database.
   **Migration**: dumps used to land in `{{ playbook_dir }}/../../backups/maria-db`;
