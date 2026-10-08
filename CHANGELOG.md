@@ -250,6 +250,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: importing the AlmaLinux GPG key no longer fails with
+  `'ansible_distribution_major_version' is undefined`. The repo-setup
+  fact gathering kept only `ansible_os_family` and `ansible_distribution`,
+  while the default `machine_alma_gpg_key_url` is built from the major
+  version, so every already-provisioned AlmaLinux host failed `machine`
+  there. The major version is now gathered too, also when the family
+  facts are already present.
+
 - `app` role: `upload` no longer drops source dirs that share a name
   with a data path or template. They went to rsync as bare
   `--exclude=<name>`, which matches at any depth, so `app_data_paths:
