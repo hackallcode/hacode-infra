@@ -33,6 +33,7 @@
 - ansible.builtin.import_tasks: "reboot.yml"
   when:
     - "machine_bootstrap_reboot_enabled | bool"
+    - "machine_packages_enabled | bool"
     - "_machine_bootstrap | default(false) | bool"
 
 - ansible.builtin.import_tasks: "zsh.yml"

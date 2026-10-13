@@ -33,7 +33,7 @@ off by default.
 | `machine_cron_enabled`        | `true`  | manage crontab entries listed in `machine_cron_jobs` (no-op when empty)    |
 | `machine_systemd_dropins_enabled` | `true` | drop `/etc/systemd/system/<unit>.d/<name>.conf` overrides listed in `machine_systemd_dropins` (no-op when empty) |
 | `machine_reboot_enabled`      | `true`  | reboot at the end if required                                              |
-| `machine_bootstrap_reboot_enabled` | `true` | on first setup (`ansible_user` not reachable yet), reboot right after the package upgrade if required, ignoring `machine_reboot_enabled` |
+| `machine_bootstrap_reboot_enabled` | `true` | on first setup (`ansible_user` not reachable yet), reboot right after the package upgrade if required, ignoring `machine_reboot_enabled` (needs `machine_packages_enabled`) |
 
 ## Key variables
 
