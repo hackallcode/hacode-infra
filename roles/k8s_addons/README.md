@@ -223,9 +223,10 @@ which report runtime resource usage.
 
 The role also creates a scoped ServiceAccount for an external Prometheus.
 Its token can be used for Kubernetes service discovery and API-server
-proxy scraping: kubelet/cAdvisor via `nodes/proxy`, and
-kube-state-metrics via `services/proxy`. This avoids exposing pod-network
-addresses or kubelet ports to a Prometheus running outside the cluster.
+proxy scraping: kubelet/cAdvisor via `nodes/proxy`, application pods
+(`role: pod` discovery) via `pods/proxy`, and kube-state-metrics via
+`services/proxy`. This avoids exposing pod-network addresses or kubelet
+ports to a Prometheus running outside the cluster.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -285,6 +286,41 @@ API-server proxy:
       replacement: "10.0.1.11:6443"
     - target_label: "__metrics_path__"
       replacement: "/api/v1/namespaces/kube-system/services/http:kube-state-metrics:8080/proxy/metrics"
+
+- job_name: "kubernetes-pods"
+  scheme: "https"
+  bearer_token_file: "/etc/prometheus/kubernetes-token"
+  tls_config:
+    ca_file: "/etc/prometheus/kubernetes-ca.crt"
+  kubernetes_sd_configs:
+    - api_server: "https://10.0.1.11:6443"
+      role: "pod"
+      bearer_token_file: "/etc/prometheus/kubernetes-token"
+      tls_config:
+        ca_file: "/etc/prometheus/kubernetes-ca.crt"
+  relabel_configs:
+    - action: "keep"
+      source_labels:
+        - "__meta_kubernetes_pod_annotation_prometheus_io_scrape"
+        - "__meta_kubernetes_pod_annotation_prometheus_io_port"
+      regex: "true;.+"
+    - source_labels: ["__meta_kubernetes_namespace"]
+      target_label: "namespace"
+    - source_labels: ["__meta_kubernetes_pod_name"]
+      target_label: "pod"
+    - source_labels: ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+      regex: "(.+)"
+      target_label: "__metrics_path__"
+    - source_labels:
+        - "__meta_kubernetes_namespace"
+        - "__meta_kubernetes_pod_name"
+        - "__meta_kubernetes_pod_annotation_prometheus_io_port"
+        - "__metrics_path__"
+      regex: "(.+);(.+);(.+);(.+)"
+      target_label: "__metrics_path__"
+      replacement: "/api/v1/namespaces/${1}/pods/${2}:${3}/proxy${4}"
+    - target_label: "__address__"
+      replacement: "10.0.1.11:6443"
 ```
 
 ### Envoy Gateway

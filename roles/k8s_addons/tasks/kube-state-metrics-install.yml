@@ -59,6 +59,7 @@
         - apiGroups: [""]
           resources:
             - "nodes/proxy"
+            - "pods/proxy"
             - "services/proxy"
           verbs: ["get"]
         - nonResourceURLs:
