@@ -103,6 +103,27 @@
         (_ksm_crb_info.resources | length) == 0
         or _ksm_crb_info.resources[0].roleRef.name != 'kube-state-metrics-prometheus-scrape'
 
+    - name: "Find a running kube-state-metrics pod"
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: "v1"
+        kind: "Pod"
+        namespace: "kube-system"
+        label_selectors: ["app.kubernetes.io/name=kube-state-metrics"]
+        field_selectors: ["status.phase=Running"]
+      register: "_ksm_pods"
+      failed_when: "(_ksm_pods.resources | length) == 0"
+
+    - name: "External Prometheus token scrapes the pod through `pods/proxy`"
+      vars:
+        _pod: "{{ _ksm_pods.resources[0].metadata.name }}"
+        _token_file: "/tmp/molecule-k3s-kubeconfig/almalinux10-prometheus-token.txt"
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:6443/api/v1/namespaces/kube-system/pods/{{ _pod }}:8080/proxy/metrics"
+        headers:
+          Authorization: "Bearer {{ lookup('ansible.builtin.file', _token_file) }}"
+        ca_path: "/tmp/molecule-k3s-kubeconfig/almalinux10-prometheus-ca.crt"
+
     - name: "GatewayClass `envoy-gateway` is Accepted"
       kubernetes.core.k8s_info:
         kubeconfig: "{{ _kubeconfig }}"

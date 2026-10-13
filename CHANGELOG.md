@@ -46,6 +46,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   the dict no longer names is deleted rather than left signing renewals;
   issuers created by anything else are untouched.
 
+- `k8s_addons` role: the external Prometheus ServiceAccount can scrape
+  pods through the API-server proxy (`pods/proxy`), so a Prometheus
+  outside the cluster can scrape the pods it discovers with `role: pod`
+  without routing the pod network.
+
 - `prometheus` role: `alertmanager_extra_template_files` ships a
   project's own Alertmanager templates, and
   `alertmanager_bundled_templates_enabled: false` leaves out the bundled
