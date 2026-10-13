@@ -8,8 +8,11 @@
   register: "access_check"
   changed_when: false
 
+# `_machine_bootstrap` outlives both the revert and a later probe that already
+# succeeds as the new user (`host` then the full role in one play).
 - name: "Fall back to setup user '{{ setup_user_name }}' while bootstrapping"
   tags: ["always"]
   ansible.builtin.set_fact:
     ansible_user: "{{ setup_user_name }}"
+    _machine_bootstrap: true
   when: "(access_check.unreachable | default(false)) | bool"

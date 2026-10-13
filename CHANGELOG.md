@@ -255,6 +255,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: a freshly bootstrapped host reboots into the kernel the
+  package upgrade just installed, before Docker is set up, even with
+  `machine_reboot_enabled: false`. The image kernel's
+  `kernel-modules-extra` is often gone from the repos by then, which left
+  Docker's `br_netfilter` / `xt_*` / `iptable_*` modules unloadable on
+  first setup. Opt out with `machine_bootstrap_reboot_enabled: false`.
+
 - `machine` role: on AlmaLinux, a play with `gather_facts` off (as the
   README now recommends) no longer fails at the GPG key import with
   `'ansible_distribution_major_version' is undefined`. The repo-setup

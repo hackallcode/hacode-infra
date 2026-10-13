@@ -26,6 +26,16 @@
 - ansible.builtin.import_tasks: "packages.yml"
   when: "machine_packages_enabled | bool"
 
+# A fresh host still runs the image kernel, whose `kernel-modules-extra` may
+# have aged out of the repos, so Docker's br_netfilter & co. can't load.
+# Reboot into the just-upgraded kernel now, regardless of
+# `machine_reboot_enabled`: nothing is serving on the host yet.
+- ansible.builtin.import_tasks: "reboot.yml"
+  when:
+    - "machine_bootstrap_reboot_enabled | bool"
+    - "machine_packages_enabled | bool"
+    - "_machine_bootstrap | default(false) | bool"
+
 - ansible.builtin.import_tasks: "zsh.yml"
   when: "machine_zsh_enabled | bool"
 
