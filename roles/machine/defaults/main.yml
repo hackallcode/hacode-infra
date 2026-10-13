@@ -26,6 +26,7 @@ machine_scripts_enabled: true
 machine_cron_enabled: true # no-op when machine_cron_jobs is empty
 machine_systemd_dropins_enabled: true # no-op when machine_systemd_dropins is empty
 machine_reboot_enabled: true
+machine_bootstrap_reboot_enabled: true
 
 # ===== Users =====
 # Bootstrap (cloud-image) user used for the very first connection. Removed at
