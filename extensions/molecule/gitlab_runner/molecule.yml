@@ -1,7 +1,10 @@
-# gitlab_runner scenario: exercises the install entrypoint only. The role's
+# gitlab_runner scenario: converges the install entrypoint only. The role's
 # main.yml also runs `register.yml`, which calls `gitlab-runner register -n
 # --url ... --registration-token ...` against a real GitLab instance — that
-# can't run in CI without a token.
+# can't run in CI without a token. Verify still drives the register /
+# unregister guards: against a runner planted in config.toml and an
+# unreachable URL, a guard that lets the command through fails it instead
+# of skipping it.
 
 driver:
   name: "docker"

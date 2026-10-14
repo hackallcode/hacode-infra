@@ -458,8 +458,8 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   writes its inventory to stderr (not stdout); the "already-registered"
   check only looked at stdout and treated every host as unregistered,
   registering the runner again on each play (duplicate entries in
-  GitLab). Match against `stdout ~ stderr` so the check keys off
-  whichever stream carries the name.
+  GitLab). `register` and `unregister` now match the runner name on
+  both streams, so `unregister` also finds the runner it has to remove.
 
 - `docker` role (RHEL family): `kernel-modules-extra` is now installed for
   **every** installed kernel (via `rpm -q kernel-core`), not only the

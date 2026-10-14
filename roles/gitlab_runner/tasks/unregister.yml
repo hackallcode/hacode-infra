@@ -17,5 +17,5 @@
   throttle: 1
   notify: "Restart gitlab runner"
   when: >-
-    (runner_list_res.stdout | default('')
+    (((runner_list_res.stdout | default('')) ~ '\n' ~ (runner_list_res.stderr | default('')))
       | regex_search('(?m)^' ~ (runner_name | regex_escape) ~ '(\\s|$)')) is not none
