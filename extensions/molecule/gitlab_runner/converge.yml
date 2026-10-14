@@ -8,3 +8,14 @@
       ansible.builtin.include_role:
         name: "hacode.infra.gitlab_runner"
         tasks_from: "install"
+
+    - name: "Plant a registration for `gitlab-runner list` to report"
+      ansible.builtin.blockinfile:
+        path: "/etc/gitlab-runner/config.toml"
+        marker: "# {mark} molecule runner"
+        block: |
+          [[runners]]
+            name = "molecule-present"
+            url = "http://127.0.0.1:9"
+            token = "glrt-molecule"
+            executor = "shell"

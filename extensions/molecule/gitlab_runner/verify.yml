@@ -23,3 +23,61 @@
       register: "gr_concurrent"
       changed_when: false
       failed_when: "'= 4' not in gr_concurrent.stdout"
+
+    - name: "Register a runner `list` already reports"
+      ansible.builtin.include_role:
+        name: "hacode.infra.gitlab_runner"
+        tasks_from: "register"
+      vars:
+        runner_name: "molecule-present"
+
+    - name: "Register skipped the registered runner"
+      ansible.builtin.assert:
+        that: "runner_register_res is skipped"
+
+    - name: "Register a runner `list` doesn't report"
+      block:
+        - name: "Run register for molecule-absent"
+          ansible.builtin.include_role:
+            name: "hacode.infra.gitlab_runner"
+            tasks_from: "register"
+          vars:
+            runner_name: "molecule-absent"
+            runner_api_url: "http://127.0.0.1:9"
+            runner_registration_token: "molecule"
+      rescue:
+        - name: "Only the register call itself failed"
+          ansible.builtin.assert:
+            that: "ansible_failed_task.name == 'Register gitlab runner'"
+
+    - name: "Register tried the unregistered runner"
+      ansible.builtin.assert:
+        that: "runner_register_res is not skipped"
+
+    - name: "Unregister a runner `list` doesn't report"
+      ansible.builtin.include_role:
+        name: "hacode.infra.gitlab_runner"
+        tasks_from: "unregister"
+      vars:
+        runner_name: "molecule-absent"
+
+    - name: "Unregister skipped the unregistered runner"
+      ansible.builtin.assert:
+        that: "runner_unregister_res is skipped"
+
+    - name: "Unregister a runner `list` reports"
+      block:
+        - name: "Run unregister for molecule-present"
+          ansible.builtin.include_role:
+            name: "hacode.infra.gitlab_runner"
+            tasks_from: "unregister"
+          vars:
+            runner_name: "molecule-present"
+      rescue:
+        - name: "Only the unregister call itself failed"
+          ansible.builtin.assert:
+            that: "ansible_failed_task.name == 'Unregister gitlab runner'"
+
+    - name: "Unregister tried the registered runner"
+      ansible.builtin.assert:
+        that: "runner_unregister_res is not skipped"
