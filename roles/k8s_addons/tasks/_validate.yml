@@ -62,7 +62,7 @@
 - name: "Probe controller for the Python `kubernetes` package"
   tags: ["always"]
   ansible.builtin.command:
-    argv: ["{{ ansible_python_interpreter | default('python3') }}", "-c", "import kubernetes"]
+    argv: ["{{ ansible_playbook_python }}", "-c", "import kubernetes"]
   register: "_k8s_addons_kubernetes_probe"
   changed_when: false
   failed_when: false
