@@ -59,6 +59,9 @@
   run_once: true
   become: false
 
+# `ansible_playbook_python`, not `ansible_python_interpreter`: task args
+# template with the delegating host's vars even under delegate_to, so the
+# latter is the managed host's interpreter, not the one the modules use.
 - name: "Probe controller for the Python `kubernetes` package"
   tags: ["always"]
   ansible.builtin.command:
@@ -76,9 +79,9 @@
     that: "_k8s_addons_kubernetes_probe.rc | default(1) == 0"
     fail_msg: >-
       Python `kubernetes` package not importable from the controller's
-      Ansible interpreter. `kubernetes.core.k8s` / `helm_info` need it.
-      Install via `pip install kubernetes` into the same env Ansible
-      uses.
+      Ansible interpreter (`{{ ansible_playbook_python }}`).
+      `kubernetes.core.k8s` / `helm_info` need it. Install it with
+      `{{ ansible_playbook_python }} -m pip install kubernetes`.
   delegate_to: "localhost"
   run_once: true
   become: false
