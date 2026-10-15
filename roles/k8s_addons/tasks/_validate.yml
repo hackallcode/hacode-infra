@@ -59,9 +59,6 @@
   run_once: true
   become: false
 
-# `ansible_playbook_python`, not `ansible_python_interpreter`: task args
-# template with the delegating host's vars even under delegate_to, so the
-# latter is the managed host's interpreter, not the one the modules use.
 - name: "Probe controller for the Python `kubernetes` package"
   tags: ["always"]
   ansible.builtin.command:
