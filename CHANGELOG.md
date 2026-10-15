@@ -255,6 +255,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `k8s_addons` role: the preflight check for the Python `kubernetes`
+  package runs the controller's Ansible Python, the one the modules use.
+  It ran the managed host's `ansible_python_interpreter` instead (e.g.
+  `/usr/bin/python3` from `group_vars/all`), so it failed when the
+  package lived only in Ansible's venv and passed when only the system
+  Python had it.
+
 - `machine` role: a freshly bootstrapped host reboots into the kernel the
   package upgrade just installed, before Docker is set up, even with
   `machine_reboot_enabled: false`. The image kernel's
