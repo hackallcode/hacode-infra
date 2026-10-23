@@ -1,10 +1,11 @@
 # Exercise the real interface tasks with stateful CLI fixtures on every OS.
 # Kernel firewall rules and NetworkManager's D-Bus integration remain outside
 # this container scenario; firewalld itself owns that integration.
-- name: "Create firewall fixture directory"
+- name: "Create firewall fixture directory outside the noexec /tmp tmpfs"
   ansible.builtin.tempfile:
     state: "directory"
     prefix: "molecule-firewall-"
+    path: "/var/tmp"
   register: firewall_fixture
 
 - name: "Verify firewall interface convergence"
