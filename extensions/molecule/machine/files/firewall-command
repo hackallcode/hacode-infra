@@ -1,0 +1,35 @@
+#!/usr/bin/python3
+"""Stateful CLI fixture; no kernel firewall or NetworkManager is required."""
+import json
+import os
+from pathlib import Path
+import sys
+
+state_path = Path(os.environ["MOLECULE_FIREWALL_STATE"])
+state = json.loads(state_path.read_text())
+args = sys.argv[1:]
+if Path(sys.argv[0]).name == "ip":
+    assert args == ["-j", "route", "show", "default"], args
+    print(json.dumps(state["routes"]))
+    sys.exit(0)
+if state.get("error"):
+    print("fixture: firewall daemon unavailable", file=sys.stderr)
+    sys.exit(state["error"])
+plane = "permanent" if "--permanent" in args else "runtime"
+args = [arg for arg in args if arg != "--permanent"]
+if len(args) == 1 and args[0].startswith("--get-zone-of-interface="):
+    interface = args[0].split("=", 1)[1]
+    zone = state[plane].get(interface, "")
+    if zone:
+        print(zone)
+        sys.exit(0)
+    print("no zone", file=sys.stderr)
+    sys.exit(2)
+assert len(args) == 2 and args[0].startswith("--zone="), args
+assert args[1].startswith("--change-interface="), args
+zone = args[0].split("=", 1)[1]
+interface = args[1].split("=", 1)[1]
+state[plane][interface] = zone
+state.setdefault("changes", []).append([interface, plane])
+state_path.write_text(json.dumps(state))
+print("success")

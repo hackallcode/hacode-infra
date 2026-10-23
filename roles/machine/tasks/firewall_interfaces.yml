@@ -1,0 +1,53 @@
+# Bootstrap may disable fact gathering, so read the route rather than relying
+# on ansible_default_ipv4; `ip -j` also yields `dev` when the route has no
+# gateway. iproute2 lists default routes in preference order, so the first is
+# the primary one.
+- name: "Find interfaces carrying a default route"
+  tags: ["firewall"]
+  ansible.builtin.command: "ip -j route show default"
+  register: _firewall_default_route
+  changed_when: false
+  check_mode: false
+
+# The permanent firewall-cmd interface operations consult NetworkManager's
+# connection profile when it owns the interface. The Ansible module only
+# sees firewalld's zone XML, which is not the persistent source in that case.
+- name: "Configure interface zones"
+  tags: ["firewall"]
+  vars:
+    _firewall_default_devs: >-
+      {{ _firewall_default_route.stdout | from_json | map(attribute='dev') | list }}
+    _firewall_bind_interfaces: >-
+      {{ firewall_zone_interfaces | unique | list
+         if firewall_zone_interfaces | length > 0
+         else _firewall_default_devs[:1] }}
+  block:
+    - name: "Read permanent and runtime interface zones"
+      ansible.builtin.command:
+        argv: >-
+          {{ ['firewall-cmd'] + (['--permanent'] if item.1 else [])
+             + ['--get-zone-of-interface=' ~ item.0] }}
+      register: _firewall_interface_zones
+      changed_when: false
+      # --get-zone-of-interface reports an unbound interface as "no zone"
+      # with rc=2. The same rc can also mean an actual command error.
+      failed_when: >-
+        _firewall_interface_zones.rc != 0 and not
+        (_firewall_interface_zones.rc == 2 and
+         _firewall_interface_zones.stderr | trim == 'no zone')
+      check_mode: false
+      loop: "{{ _firewall_bind_interfaces | product([true, false]) | list }}"
+      loop_control:
+        label: "{{ item.0 }} ({{ 'permanent' if item.1 else 'runtime' }})"
+
+    - name: "Set permanent and runtime interface zones"
+      ansible.builtin.command:
+        argv: >-
+          {{ ['firewall-cmd'] + (['--permanent'] if item.item.1 else [])
+             + ['--zone=' ~ firewall_default_zone, '--change-interface=' ~ item.item.0] }}
+      register: _firewall_interface_bindings
+      changed_when: true
+      loop: "{{ _firewall_interface_zones.results }}"
+      loop_control:
+        label: "{{ item.item.0 }} ({{ 'permanent' if item.item.1 else 'runtime' }})"
+      when: "item.stdout != firewall_default_zone"

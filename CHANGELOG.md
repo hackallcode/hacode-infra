@@ -265,11 +265,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   carrying the primary default route — in both runtime and permanent
   configuration. Previously the variable only selected the zone for
   forwarding and masquerade, leaving ingress in the host's existing zone.
-  Binding every default-route interface dragged a multi-homed host's
-  deliberately zoned NICs into the default zone and, because the effective
-  zone of a NetworkManager-controlled interface cannot be read back,
-  reported a change and reloaded firewalld on every run. Interfaces already
-  in the zone are now left alone.
+  Secondary NICs keep their existing zones. For NetworkManager-managed
+  interfaces, persist the zone in the connection profile; otherwise use
+  firewalld's permanent configuration. Runtime and persistent zones are
+  reconciled independently, so a matching runtime zone does not hide drift.
 
 - `k8s_addons` role: the preflight check for the Python `kubernetes`
   package runs the controller's Ansible Python, the one the modules use.

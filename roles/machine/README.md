@@ -327,6 +327,10 @@ bootstrap without the rest of the role. Like the default entrypoint, it first pr
 - ZSH files (`hacode.zsh-theme`, `hacode.zsh`, `zshrc`, `aliases`, `exports`) are shipped in `files/zsh/` as a sample.
   Override or extend via `machine_zsh_files`. By default `machine_zsh_users` is `[root] + machine_users[*].name`
   `+ machine_extra_users[*].name`; the zsh step also `chsh`es every listed user, so leave nologin accounts out.
+- Firewall interface bindings reconcile runtime and persistent zones independently. For interfaces managed
+  by NetworkManager, the persistent zone belongs to the connection profile; other bindings use firewalld's
+  permanent configuration. Secondary default-route interfaces keep their own zones unless explicitly
+  included in `firewall_zone_interfaces`.
 - The NVIDIA task currently supports RHEL 9/10 only. Debian/Ubuntu paths need a separate implementation.
 - DKMS driver streams (including the default `latest-dkms`) build modules for the running kernel after
   installation, then load `nvidia`, `nvidia_uvm` and `nvidia_modeset` for GPU containers. Non-DKMS streams

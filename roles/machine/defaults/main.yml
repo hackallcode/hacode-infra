@@ -383,7 +383,7 @@ firewall_default_zone: "public"
 # multi-homed host's other NICs in the zones they were put in deliberately —
 # a jump box's internal NIC in `trusted` for masqueraded DNAT, WireGuard in
 # its own zone. List names to bind more than the primary one. Interfaces
-# already in the zone are left alone.
+# already in the zone in both runtime and persistent configuration are unchanged.
 firewall_zone_interfaces: []
 # Per-host port-forwards via firewalld. Each entry:
 #   - from_port  ingress port or "<start>-<end>" range (required)
