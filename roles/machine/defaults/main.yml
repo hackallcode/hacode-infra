@@ -374,6 +374,9 @@ firewall_dns_rate_limit: "600/minute"
 firewall_dns_rate_burst: 60
 disabled_firewall_services: ["cockpit"]
 disabled_firewall_ports: []
+# Applies to services, ports, forwards and masquerade, and binds default-route
+# interfaces to this zone even if they already have an explicit zone.
+# `public` keeps firewalld's restrictive default; `trusted` accepts all ingress.
 firewall_default_zone: "public"
 # Per-host port-forwards via firewalld. Each entry:
 #   - from_port  ingress port or "<start>-<end>" range (required)
