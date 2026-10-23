@@ -5,9 +5,49 @@
     state: "started"
     enabled: true
 
+- name: "Read firewalld default zone"
+  tags: ["firewall"]
+  ansible.builtin.command: "firewall-cmd --get-default-zone"
+  register: _firewall_default_zone
+  changed_when: false
+  check_mode: false
+
+# --set-default-zone updates both runtime and permanent configuration;
+# firewalld rejects combining this standalone option with --permanent.
+- name: "Set firewalld default zone"
+  tags: ["firewall"]
+  ansible.builtin.command:
+    argv: ["firewall-cmd", "--set-default-zone={{ firewall_default_zone }}"]
+  changed_when: true
+  when: "_firewall_default_zone.stdout != firewall_default_zone"
+
+# Bootstrap may disable fact gathering. Read the route rather than relying
+# on ansible_default_ipv4, and find `dev` even when the route has no gateway.
+- name: "Find interface carrying the default route"
+  tags: ["firewall"]
+  ansible.builtin.command: "ip -j route show default"
+  register: _firewall_default_route
+  changed_when: false
+  check_mode: false
+
+- name: "Bind default-route interface to the default zone"
+  tags: ["firewall"]
+  vars:
+    _firewall_default_interfaces: >-
+      {{ _firewall_default_route.stdout | from_json | map(attribute='dev') | unique | list }}
+  ansible.posix.firewalld:
+    zone: "{{ firewall_default_zone }}"
+    interface: "{{ item }}"
+    state: "enabled"
+    permanent: true
+    immediate: true
+  loop: "{{ _firewall_default_interfaces }}"
+  notify: "Reload firewalld"
+
 - name: "Enable services in firewall"
   tags: ["firewall"]
   ansible.posix.firewalld:
+    zone: "{{ firewall_default_zone }}"
     service: "{{ item }}"
     permanent: true
     state: "enabled"
@@ -17,6 +57,7 @@
 - name: "Enable ports in firewall"
   tags: ["firewall"]
   ansible.posix.firewalld:
+    zone: "{{ firewall_default_zone }}"
     port: "{{ item }}"
     permanent: true
     state: "enabled"
@@ -26,6 +67,7 @@
 - name: "Disable services in firewall"
   tags: ["firewall"]
   ansible.posix.firewalld:
+    zone: "{{ firewall_default_zone }}"
     service: "{{ item }}"
     permanent: true
     state: "disabled"
@@ -35,6 +77,7 @@
 - name: "Disable ports in firewall"
   tags: ["firewall"]
   ansible.posix.firewalld:
+    zone: "{{ firewall_default_zone }}"
     port: "{{ item }}"
     permanent: true
     state: "disabled"

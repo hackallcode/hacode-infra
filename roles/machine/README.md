@@ -15,7 +15,7 @@ off by default.
 | `machine_disks_enabled`       | `true`  | mount extra block devices listed in `machine_disks` via fstab (no-op when `machine_disks` is empty) |
 | `machine_packages_enabled`    | `true`  | upgrade + install curated package set                                      |
 | `machine_zsh_enabled`         | `false` | install oh-my-zsh and (optionally) copy theme/aliases                      |
-| `machine_firewall_enabled`    | `true`  | firewalld services/ports + port forwarding + masquerade                    |
+| `machine_firewall_enabled`    | `true`  | firewalld default zone + services/ports + port forwarding + masquerade     |
 | `machine_selinux_enabled`     | `true`  | set SELinux mode (default: permissive)                                     |
 | `machine_raspberry_enabled`   | `true`  | Raspberry-only knobs; auto-skipped on non-RPi                              |
 | `machine_journald_enabled`    | `true`  | persistent journald with size cap                                          |
@@ -83,7 +83,7 @@ firewall_services: ["ssh", "dhcpv6-client"]
 firewall_ports: []                 # ["80/tcp", "443/tcp"]
 firewall_routes: []                # [{from_port, to_port, proto?: "tcp"|"udp", to_ip?, state?}]
 firewall_masquerade: false
-firewall_default_zone: "public"
+firewall_default_zone: "public"    # applied via --set-default-zone; the default-route interface is bound to it
 firewall_dns_rate_limit: "600/minute"  # per-source-IP cap (hashlimit) when machine_dns_public
 firewall_dns_rate_burst: 60            # short-burst tolerance per source IP
 

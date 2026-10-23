@@ -260,6 +260,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   A fresh install could leave DKMS in the `added` state, which a reboot
   alone cannot repair. A stale loaded driver still requests a reboot.
 
+- `machine` role: apply `firewall_default_zone` to firewalld and bind
+  default-route interfaces in both runtime and permanent configuration.
+  Previously the variable only selected the zone for forwarding and
+  masquerade, leaving ingress in the host's existing zone.
+
 - `k8s_addons` role: the preflight check for the Python `kubernetes`
   package runs the controller's Ansible Python, the one the modules use.
   It ran the managed host's `ansible_python_interpreter` instead (e.g.
