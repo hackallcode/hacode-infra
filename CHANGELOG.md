@@ -255,6 +255,20 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: the NVIDIA driver's kernel module is built and loaded in
+  the same run as the install. On a fresh host dnf lands
+  `kmod-nvidia-latest-dkms`, `dkms` and `kernel-devel` in one transaction;
+  the kmod's `%post` gets as far as `dkms add`, and the kernel-install hook
+  that would build the module fires only when the kernel itself is
+  (re)installed in that same transaction. The host was left with
+  `dkms status: added`, no `nvidia.ko`, and GPU containers failing with
+  `nvidia-container-cli: initialization error: nvml error: driver not
+  loaded` — while the role's self-heal requested a reboot, the one remedy
+  that cannot help a module never built. For `*-dkms` driver streams the
+  role now runs `dkms autoinstall` for the running kernel right after the
+  install and loads `nvidia`, `nvidia_uvm` and `nvidia_modeset`; the reboot
+  check only fires on a genuinely stale loaded module.
+
 - `k8s_addons` role: the preflight check for the Python `kubernetes`
   package runs the controller's Ansible Python, the one the modules use.
   It ran the managed host's `ansible_python_interpreter` instead (e.g.

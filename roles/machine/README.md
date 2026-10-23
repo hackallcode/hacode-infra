@@ -327,6 +327,11 @@ bootstrap without the rest of the role. Like the default entrypoint, it first pr
   Override or extend via `machine_zsh_files`. By default `machine_zsh_users` is `[root] + machine_users[*].name`
   `+ machine_extra_users[*].name`; the zsh step also `chsh`es every listed user, so leave nologin accounts out.
 - The NVIDIA task currently supports RHEL 9/10 only. Debian/Ubuntu paths need a separate implementation.
+- With the default `nvidia_driver_module_stream: latest-dkms`, the role runs `dkms autoinstall` for the running
+  kernel right after the driver install, then loads `nvidia`, `nvidia_uvm` and `nvidia_modeset`: a fresh host's dnf
+  transaction can land the kmod, `dkms` and `kernel-devel` together, where the kmod's `%post` stops at `dkms add`
+  and the kernel-install hook that would build the module never fires. Prebuilt streams (`560`, `latest-open`, ...)
+  skip the build step.
 - The role detects Raspberry Pi OS automatically by the presence of `/etc/apt/sources.list.d/raspi.list`
   (pre-Bookworm one-line format) or `/etc/apt/sources.list.d/raspi.sources` (Bookworm+ DEB822 format).
 - `tmux` is built from source pinned to `tmux_version`; the distro's package is skipped because it lags by years.

@@ -102,18 +102,59 @@
   notify: "Reboot after driver install"
   when: "not ansible_check_mode"
 
+# On a fresh host dnf lands the kmod, `dkms` and `kernel-devel` in one
+# transaction, and the kmod's %post only gets as far as `dkms add`: the
+# build is driven by kernel-install's 40-dkms hook, which fires only when
+# the kernel itself is (re)installed in that same transaction. Left to
+# itself the module stays `added`, no `nvidia.ko` exists for the running
+# kernel, and no reboot can fix what was never built. The stream gate keeps
+# prebuilt streams (`560`, `latest-open`, ...) out — they ship no dkms tree
+# and their hosts often lack the binary.
+- name: "Build NVIDIA DKMS module for the running kernel"
+  tags: ["nvidia"]
+  ansible.builtin.shell:
+    # `$(uname -r)` needs a shell — `command` passes it literally and dkms
+    # rejects it with `Error! Unknown option: -r)`.
+    cmd: "dkms autoinstall -k $(uname -r)"
+  register: _nvidia_dkms_build
+  # On a kernel whose module is already built, autoinstall exits 0 with
+  # empty stdout — any output means it built something.
+  changed_when: "_nvidia_dkms_build.stdout | length > 0"
+  when:
+    - "not ansible_check_mode"
+    - "nvidia_driver_module_stream is search('dkms')"
+
+# `nvidia-container-cli` probes the *loaded* driver — a module that is
+# built but not in still fails GPU passthrough with `nvml error: driver not
+# loaded`. Of the three, only `nvidia` carries a PCI modalias the kernel
+# autoloads on; `nvidia_uvm` (CUDA's allocator) and `nvidia_modeset` need
+# this explicit load.
+- name: "Load NVIDIA kernel modules"
+  tags: ["nvidia"]
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: "present"
+  loop:
+    - "nvidia"
+    - "nvidia_uvm"
+    - "nvidia_modeset"
+  when: "not ansible_check_mode"
+
 # Self-heal a host left running a stale in-kernel `nvidia` module when the
 # installed package version has moved past it — out-of-band upgrade,
 # interrupted converge, or the kernel outran the prebuilt kmod after an
-# OS bump. Compares the loaded module version against the installed
-# `nvidia-kmod-common` and re-notifies the reboot handler on mismatch.
+# OS bump. The build + load above fix a module that is missing entirely;
+# what is left for a reboot is a module already loaded from an older
+# driver, which cannot be unloaded in place. Compares the loaded module
+# version against the installed `nvidia-kmod-common` and re-notifies the
+# reboot handler on mismatch.
 - name: "Request reboot if loaded nvidia driver does not match installed package"
   tags: ["nvidia"]
   ansible.builtin.shell:
     # Prints "reboot ..." (drives `changed_when` below, which fires the reboot
     # handler) when the loaded `nvidia` module version differs from the
-    # installed `nvidia-kmod-common` — covers both "installed but never
-    # loaded" and "loaded an older module". Otherwise prints "ok ...".
+    # installed `nvidia-kmod-common` — an older module in use that only a
+    # reboot replaces. Otherwise prints "ok ...".
     cmd: >-
       set -o pipefail;
       loaded="$(cat /sys/module/nvidia/version 2>/dev/null || true)";
