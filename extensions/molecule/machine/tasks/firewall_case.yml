@@ -1,0 +1,53 @@
+- name: "Seed interface zone fixture"
+  ansible.builtin.copy:
+    dest: "{{ firewall_fixture.path }}/state.json"
+    content: "{{ firewall_case.initial | to_json }}"
+    mode: "0600"
+
+- name: "Check mode leaves interface zones unchanged"
+  ansible.builtin.include_tasks: "../../../../roles/machine/tasks/firewall_interfaces.yml"
+  args:
+    apply:
+      check_mode: true
+  when: "not firewall_case.expect_failure | default(false)"
+
+- name: "Read fixture after check mode"
+  ansible.builtin.slurp:
+    src: "{{ firewall_fixture.path }}/state.json"
+  register: firewall_check_state
+  failed_when: "firewall_check_state.content | b64decode | from_json != firewall_case.initial"
+
+- name: "Reset failure observation"
+  ansible.builtin.set_fact:
+    firewall_fixture_failed: false
+
+- name: "Converge interface zones"
+  block:
+    - ansible.builtin.include_tasks: "../../../../roles/machine/tasks/firewall_interfaces.yml"
+  rescue:
+    - name: "Record interface query failure"
+      ansible.builtin.set_fact:
+        firewall_fixture_failed: true
+
+- name: "Read converged fixture"
+  ansible.builtin.slurp:
+    src: "{{ firewall_fixture.path }}/state.json"
+  register: firewall_converged_state
+
+- name: "Verify selected interfaces and both zone states"
+  vars:
+    _firewall_state: "{{ firewall_converged_state.content | b64decode | from_json }}"
+  ansible.builtin.assert:
+    that:
+      - "firewall_fixture_failed == (firewall_case.expect_failure | default(false))"
+      - "_firewall_state.runtime == firewall_case.expected.runtime"
+      - "_firewall_state.permanent == firewall_case.expected.permanent"
+      - "(_firewall_state.changes | default([])) == firewall_case.expected.changes"
+
+- name: "Converged interface zones are idempotent"
+  when: "not firewall_case.expect_failure | default(false)"
+  block:
+    - ansible.builtin.include_tasks: "../../../../roles/machine/tasks/firewall_interfaces.yml"
+    - name: "No interface binding changes on repeat converge"
+      ansible.builtin.assert:
+        that: "not _firewall_interface_bindings.changed"

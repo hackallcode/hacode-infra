@@ -1,0 +1,116 @@
+# Exercise the real interface tasks with stateful CLI fixtures on every OS.
+# Kernel firewall rules and NetworkManager's D-Bus integration remain outside
+# this container scenario; firewalld itself owns that integration.
+- name: "Create firewall fixture directory outside the noexec /tmp tmpfs"
+  ansible.builtin.tempfile:
+    state: "directory"
+    prefix: "molecule-firewall-"
+    path: "/var/tmp"
+  register: firewall_fixture
+
+- name: "Verify firewall interface convergence"
+  block:
+    - name: "Install fixture commands"
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/files/firewall-command"
+        dest: "{{ firewall_fixture.path }}/{{ item }}"
+        mode: "0755"
+      loop: ["ip", "firewall-cmd"]
+
+    - name: "Exercise interface zone cases"
+      ansible.builtin.include_tasks: "firewall_case.yml"
+      args:
+        apply:
+          environment:
+            PATH: "{{ firewall_fixture.path }}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            MOLECULE_FIREWALL_STATE: "{{ firewall_fixture.path }}/state.json"
+      vars:
+        firewall_default_zone: "trusted"
+        firewall_zone_interfaces: "{{ firewall_case.interfaces | default([]) }}"
+      loop:
+        - name: "Only the primary default-route interface is rebound"
+          initial:
+            routes: [{dev: "eth0", metric: 100}, {dev: "eth1", metric: 200}]
+            runtime: {eth0: "public", eth1: "internal"}
+            permanent: {eth0: "public", eth1: "internal"}
+          expected:
+            runtime: {eth0: "trusted", eth1: "internal"}
+            permanent: {eth0: "trusted", eth1: "internal"}
+            changes: [["eth0", "permanent"], ["eth0", "runtime"]]
+        - name: "A matching runtime zone does not hide persistent drift"
+          initial:
+            routes: [{dev: "eth0"}]
+            runtime: {eth0: "trusted"}
+            permanent: {eth0: "public"}
+          expected:
+            runtime: {eth0: "trusted"}
+            permanent: {eth0: "trusted"}
+            changes: [["eth0", "permanent"]]
+        - name: "A matching persistent zone does not hide runtime drift"
+          initial:
+            routes: [{dev: "eth0"}]
+            runtime: {eth0: "public"}
+            permanent: {eth0: "trusted"}
+          expected:
+            runtime: {eth0: "trusted"}
+            permanent: {eth0: "trusted"}
+            changes: [["eth0", "runtime"]]
+        - name: "Explicit names override discovery and are deduplicated"
+          interfaces: ["eth1", "eth1"]
+          initial:
+            routes: [{dev: "eth0"}]
+            runtime: {eth0: "public", eth1: "public"}
+            permanent: {eth0: "public", eth1: "public"}
+          expected:
+            runtime: {eth0: "public", eth1: "trusted"}
+            permanent: {eth0: "public", eth1: "trusted"}
+            changes: [["eth1", "permanent"], ["eth1", "runtime"]]
+        - name: "Interfaces without explicit zones are bound"
+          interfaces: ["eth1"]
+          initial:
+            routes: []
+            runtime: {}
+            permanent: {}
+          expected:
+            runtime: {eth1: "trusted"}
+            permanent: {eth1: "trusted"}
+            changes: [["eth1", "permanent"], ["eth1", "runtime"]]
+        - name: "No default route is a no-op"
+          initial:
+            routes: []
+            runtime: {}
+            permanent: {}
+          expected:
+            runtime: {}
+            permanent: {}
+            changes: []
+        - name: "Daemon errors fail instead of being treated as an unbound interface"
+          expect_failure: true
+          initial:
+            routes: [{dev: "eth0"}]
+            runtime: {}
+            permanent: {}
+            error: 252
+          expected:
+            runtime: {}
+            permanent: {}
+            changes: []
+        - name: "An unrelated rc=2 error is not mistaken for an unbound interface"
+          expect_failure: true
+          initial:
+            routes: [{dev: "eth0"}]
+            runtime: {}
+            permanent: {}
+            error: 2
+          expected:
+            runtime: {}
+            permanent: {}
+            changes: []
+      loop_control:
+        loop_var: "firewall_case"
+        label: "{{ firewall_case.name }}"
+  always:
+    - name: "Remove firewall fixture directory"
+      ansible.builtin.file:
+        path: "{{ firewall_fixture.path }}"
+        state: "absent"

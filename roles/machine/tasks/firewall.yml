@@ -21,28 +21,8 @@
   changed_when: true
   when: "_firewall_default_zone.stdout != firewall_default_zone"
 
-# Bootstrap may disable fact gathering. Read the route rather than relying
-# on ansible_default_ipv4, and find `dev` even when the route has no gateway.
-- name: "Find interface carrying the default route"
+- ansible.builtin.import_tasks: "firewall_interfaces.yml"
   tags: ["firewall"]
-  ansible.builtin.command: "ip -j route show default"
-  register: _firewall_default_route
-  changed_when: false
-  check_mode: false
-
-- name: "Bind default-route interface to the default zone"
-  tags: ["firewall"]
-  vars:
-    _firewall_default_interfaces: >-
-      {{ _firewall_default_route.stdout | from_json | map(attribute='dev') | unique | list }}
-  ansible.posix.firewalld:
-    zone: "{{ firewall_default_zone }}"
-    interface: "{{ item }}"
-    state: "enabled"
-    permanent: true
-    immediate: true
-  loop: "{{ _firewall_default_interfaces }}"
-  notify: "Reload firewalld"
 
 - name: "Enable services in firewall"
   tags: ["firewall"]
