@@ -255,16 +255,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
-- `machine` role: `firewall_default_zone` is now actually applied. It was
-  only ever read as the `zone:` argument of the port-forward and masquerade
-  tasks — nothing set firewalld's default zone or bound an interface to it,
-  so a freshly provisioned host came up in the stock `public` zone even
-  where the inventory declared e.g. `trusted` fleet-wide: explicitly allowed
-  ports worked, everything else hit firewalld's reject rule and failed with
-  EHOSTUNREACH (`no route to host`) that reads like a routing problem and
-  isn't one. The role now converges the default zone onto the variable and
-  binds the default-route interface to it, as a no-op when the zone already
-  matches.
+- `machine` role: apply `firewall_default_zone` to firewalld and bind
+  default-route interfaces in both runtime and permanent configuration.
+  Previously the variable only selected the zone for forwarding and
+  masquerade, leaving ingress in the host's existing zone.
 
 - `k8s_addons` role: the preflight check for the Python `kubernetes`
   package runs the controller's Ansible Python, the one the modules use.
