@@ -374,6 +374,10 @@ firewall_dns_rate_limit: "600/minute"
 firewall_dns_rate_burst: 60
 disabled_firewall_services: ["cockpit"]
 disabled_firewall_ports: []
+# firewalld's default zone. The role converges it: sets the default zone
+# and binds the default-route interface to it, so e.g. "trusted" evaluates
+# all ingress on the management NIC in that zone instead of only choosing
+# where port-forwards and masquerade land.
 firewall_default_zone: "public"
 # Per-host port-forwards via firewalld. Each entry:
 #   - from_port  ingress port or "<start>-<end>" range (required)

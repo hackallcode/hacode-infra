@@ -5,6 +5,42 @@
     state: "started"
     enabled: true
 
+- name: "Read firewalld default zone"
+  tags: ["firewall"]
+  ansible.builtin.command: "firewall-cmd --get-default-zone"
+  register: "fw_default_zone"
+  changed_when: false
+
+- name: "Converge firewalld default zone"
+  tags: ["firewall"]
+  when: "fw_default_zone.stdout != firewall_default_zone"
+  block:
+    # --set-default-zone is a stand-alone option: firewalld refuses it
+    # combined with --permanent ("Can't use stand-alone options with other
+    # options."), and it writes firewalld.conf — i.e. persists — by itself.
+    - name: "Set firewalld default zone"
+      ansible.builtin.command: "firewall-cmd --set-default-zone={{ firewall_default_zone }}"
+      changed_when: true
+      notify: "Reload firewalld"
+
+    # The role commonly runs with gather_facts: false, so ask the kernel
+    # for the default-route interface instead of ansible_default_ipv4.
+    - name: "Find interface carrying the default route"
+      ansible.builtin.shell:
+        cmd: "set -o pipefail; ip -o -4 route show to default | awk '{print $5; exit}'"
+        executable: "/bin/bash"
+      register: "fw_default_iface"
+      changed_when: false
+
+    - name: "Bind default-route interface to the default zone"
+      ansible.builtin.command: >-
+        firewall-cmd --permanent
+        --zone={{ firewall_default_zone }}
+        --change-interface={{ fw_default_iface.stdout }}
+      when: "fw_default_iface.stdout | length > 0"
+      changed_when: true
+      notify: "Reload firewalld"
+
 - name: "Enable services in firewall"
   tags: ["firewall"]
   ansible.posix.firewalld:
