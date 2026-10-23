@@ -255,6 +255,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `machine` role: build the NVIDIA DKMS module for the running kernel
+  after driver installation and load the modules needed by GPU containers.
+  A fresh install could leave DKMS in the `added` state, which a reboot
+  alone cannot repair. A stale loaded driver still requests a reboot.
+
 - `machine` role: apply `firewall_default_zone` to firewalld and bind
   default-route interfaces in both runtime and permanent configuration.
   Previously the variable only selected the zone for forwarding and
