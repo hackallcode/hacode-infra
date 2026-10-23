@@ -45,8 +45,10 @@ jobs:
             ansible-lint yamllint
 
       - name: "Install collection dependencies"
+        # --no-cache: a transient Galaxy error leaves a half-written response-cache
+        # entry that stable ansible-core turns into a fatal KeyError: 'results'.
         run: |
-          ansible-galaxy collection install \
+          ansible-galaxy collection install --no-cache \
             ansible.posix community.general community.docker \
             community.mysql community.crypto kubernetes.core \
             prometheus.prometheus
@@ -122,7 +124,7 @@ jobs:
 
       - name: "Install collection dependencies"
         working-directory: "ansible_collections/hacode/infra"
-        run: "ansible-galaxy collection install -r requirements.yml"
+        run: "ansible-galaxy collection install --no-cache -r requirements.yml"
 
       - name: "Run molecule"
         # Run from the collection root so Ansible auto-discovers the
