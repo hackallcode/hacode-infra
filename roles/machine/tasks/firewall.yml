@@ -21,27 +21,48 @@
   changed_when: true
   when: "_firewall_default_zone.stdout != firewall_default_zone"
 
-# Bootstrap may disable fact gathering. Read the route rather than relying
-# on ansible_default_ipv4, and find `dev` even when the route has no gateway.
-- name: "Find interface carrying the default route"
+# Bootstrap may disable fact gathering, so read the route rather than relying
+# on ansible_default_ipv4; `ip -j` also yields `dev` when the route has no
+# gateway. iproute2 lists default routes in preference order, so the first is
+# the primary one.
+- name: "Find interfaces carrying a default route"
   tags: ["firewall"]
   ansible.builtin.command: "ip -j route show default"
   register: _firewall_default_route
   changed_when: false
   check_mode: false
 
-- name: "Bind default-route interface to the default zone"
+- name: "Read the zone each interface to bind is already in"
   tags: ["firewall"]
   vars:
-    _firewall_default_interfaces: >-
-      {{ _firewall_default_route.stdout | from_json | map(attribute='dev') | unique | list }}
+    _firewall_default_devs: >-
+      {{ _firewall_default_route.stdout | from_json | map(attribute='dev') | list }}
+    _firewall_bind_interfaces: >-
+      {{ firewall_zone_interfaces | list
+         if firewall_zone_interfaces | length > 0
+         else _firewall_default_devs[:1] }}
+  ansible.builtin.command: "firewall-cmd --get-zone-of-interface={{ item }}"
+  register: _firewall_interface_zones
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  loop: "{{ _firewall_bind_interfaces }}"
+
+# `ansible.posix.firewalld` cannot read back the zone of a NetworkManager-
+# controlled interface and so reports a change on every run; the probe above
+# is what makes this task idempotent.
+- name: "Bind interfaces to the default zone"
+  tags: ["firewall"]
   ansible.posix.firewalld:
     zone: "{{ firewall_default_zone }}"
-    interface: "{{ item }}"
+    interface: "{{ item.item }}"
     state: "enabled"
     permanent: true
     immediate: true
-  loop: "{{ _firewall_default_interfaces }}"
+  loop: "{{ _firewall_interface_zones.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: "item.stdout | default('') != firewall_default_zone"
   notify: "Reload firewalld"
 
 - name: "Enable services in firewall"

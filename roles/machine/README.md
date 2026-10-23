@@ -83,7 +83,8 @@ firewall_services: ["ssh", "dhcpv6-client"]
 firewall_ports: []                 # ["80/tcp", "443/tcp"]
 firewall_routes: []                # [{from_port, to_port, proto?: "tcp"|"udp", to_ip?, state?}]
 firewall_masquerade: false
-firewall_default_zone: "public"    # applied via --set-default-zone; the default-route interface is bound to it
+firewall_default_zone: "public"    # applied via --set-default-zone; `firewall_zone_interfaces` are bound to it
+firewall_zone_interfaces: []       # interface NAMES to bind; empty = only the primary default-route interface
 firewall_dns_rate_limit: "600/minute"  # per-source-IP cap (hashlimit) when machine_dns_public
 firewall_dns_rate_burst: 60            # short-burst tolerance per source IP
 
