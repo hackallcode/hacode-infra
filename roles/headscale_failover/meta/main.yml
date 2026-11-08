@@ -1,0 +1,19 @@
+galaxy_info:
+  role_name: "headscale_failover"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: "Run one headscale for a set of candidates, elected through etcd, with the database carried in etcd."
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+  galaxy_tags:
+    - "networking"
+    - "vpn"
+    - "tailscale"
+    - "headscale"
+
+dependencies: []

@@ -1,0 +1,38 @@
+- name: "Stat compose file"
+  ansible.builtin.stat:
+    path: "{{ derper_dir }}/compose.yml"
+  register: "_derper_compose"
+
+- name: "Down derper"
+  community.docker.docker_compose_v2:
+    project_src: "{{ derper_dir }}"
+    project_name: "derper"
+    state: "absent"
+    remove_images: "local"
+  when: "_derper_compose.stat.exists"
+
+- name: "Remove the tailscaled drop-in"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/tailscaled.service.d/derper.conf"
+    state: "absent"
+  notify: "Reload systemd"
+
+- name: "Detect firewalld"
+  ansible.builtin.systemd:
+    name: "firewalld"
+  register: "_derper_firewalld"
+  failed_when: false
+  changed_when: false
+
+- name: "Close STUN port"
+  ansible.posix.firewalld:
+    port: "{{ derper_stun_port }}/udp"
+    state: "disabled"
+    permanent: true
+    immediate: true
+  when: "_derper_firewalld.status.ActiveState | default('inactive') == 'active'"
+
+- name: "Remove derper dir"
+  ansible.builtin.file:
+    path: "{{ derper_dir }}"
+    state: "absent"

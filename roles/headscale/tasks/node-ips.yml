@@ -1,0 +1,62 @@
+- name: "Read node addresses"
+  ansible.builtin.script:
+    cmd: "node-ips.py {{ (headscale_dir ~ '/data/db.sqlite') | quote }}"
+    executable: "python3"
+  register: "_headscale_node_ips"
+  changed_when: false
+  check_mode: false
+
+- name: "Change node addresses"
+  vars:
+    _current: "{{ _headscale_node_ips.stdout | from_json }}"
+    _pending: >-
+      {% set pending = {} %}{% for name, ips in headscale_node_ips.items()
+      if name in _current and _current[name] != ips %}{% set _ = pending.update({name: ips}) %}{% endfor %}{{ pending }}
+  when: "_pending | length > 0"
+  block:
+    - name: "Hold the failover agent"
+      ansible.builtin.file:
+        path: "{{ headscale_hold_file }}"
+        state: "touch"
+        mode: "0600"
+      when: "headscale_hold_file | length > 0"
+
+    - name: "Let the agent see the hold"
+      ansible.builtin.wait_for:
+        timeout: 3
+      when:
+        - "headscale_hold_file | length > 0"
+        - "not ansible_check_mode"
+
+    - name: "Stop headscale"
+      community.docker.docker_compose_v2:
+        project_src: "{{ headscale_dir }}"
+        project_name: "headscale"
+        state: "stopped"
+
+    - name: "Write node addresses"
+      ansible.builtin.script:
+        cmd: "node-ips.py {{ (headscale_dir ~ '/data/db.sqlite') | quote }} {{ _pending | to_json | quote }}"
+        executable: "python3"
+
+    - name: "Start headscale"
+      community.docker.docker_compose_v2:
+        project_src: "{{ headscale_dir }}"
+        project_name: "headscale"
+        state: "present"
+      when: "not ansible_check_mode"
+
+    - name: "Wait for headscale health"
+      ansible.builtin.uri:
+        url: "http://{{ headscale_listen_addr }}/health"
+      register: "_headscale_health"
+      until: "_headscale_health.status == 200"
+      retries: 30
+      delay: 2
+      when: "not ansible_check_mode"
+  always:
+    - name: "Release the failover agent"
+      ansible.builtin.file:
+        path: "{{ headscale_hold_file }}"
+        state: "absent"
+      when: "headscale_hold_file | length > 0"

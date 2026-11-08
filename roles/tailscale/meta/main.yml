@@ -1,0 +1,20 @@
+galaxy_info:
+  role_name: "tailscale"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: "Install tailscale from pkgs.tailscale.com and join a (headscale) tailnet with a one-off key."
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+    - name: "Debian"
+      versions: ["bookworm", "trixie"]
+  galaxy_tags:
+    - "networking"
+    - "vpn"
+    - "tailscale"
+
+dependencies: []

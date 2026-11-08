@@ -1,0 +1,118 @@
+- name: "Add tailscale repository (RHEL)"
+  ansible.builtin.yum_repository:
+    name: "tailscale-stable"
+    description: "Tailscale stable"
+    baseurl: "https://pkgs.tailscale.com/stable/rhel/{{ ansible_distribution_major_version }}/$basearch"
+    gpgkey: "https://pkgs.tailscale.com/stable/rhel/{{ ansible_distribution_major_version }}/repo.gpg"
+    gpgcheck: false
+    repo_gpgcheck: true
+  register: "_tailscale_repo_rhel"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Add tailscale repository (Debian)"
+  when: "ansible_os_family == 'Debian'"
+  block:
+    - name: "Download tailscale keyring"
+      ansible.builtin.get_url:
+        url: "{{ _tailscale_apt_base }}/{{ ansible_distribution_release }}.noarmor.gpg"
+        dest: "/usr/share/keyrings/tailscale-archive-keyring.gpg"
+        mode: "0644"
+
+    - name: "Add tailscale apt source"
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
+          {{ _tailscale_apt_base }} {{ ansible_distribution_release }} main
+        filename: "tailscale"
+        state: "present"
+      register: "_tailscale_repo_debian"
+
+- name: "Install tailscale"
+  ansible.builtin.package:
+    name: >-
+      {{ 'tailscale-' ~ tailscale_version if ansible_os_family == 'RedHat'
+         else 'tailscale=' ~ tailscale_version }}
+    state: "present"
+    allow_downgrade: true
+  # Under --check a just-added repository isn't there to install from.
+  when: "not (ansible_check_mode and (_tailscale_repo_rhel is changed or _tailscale_repo_debian is changed))"
+  notify: "Restart tailscaled"
+
+- name: "Set tailscaled port"
+  ansible.builtin.lineinfile:
+    path: "/etc/default/tailscaled"
+    regexp: "^PORT="
+    line: 'PORT="{{ tailscale_port }}"'
+    create: true
+    mode: "0644"
+  notify: "Restart tailscaled"
+
+- name: "Set tailscale0 MTU"
+  ansible.builtin.lineinfile:
+    path: "/etc/default/tailscaled"
+    regexp: "^TS_DEBUG_MTU="
+    line: 'TS_DEBUG_MTU="{{ tailscale_mtu }}"'
+    state: "{{ 'present' if tailscale_mtu | int > 0 else 'absent' }}"
+    create: true
+    mode: "0644"
+  notify: "Restart tailscaled"
+
+- name: "Set IP forwarding"
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_file: "/etc/sysctl.d/99-tailscale.conf"
+  loop:
+    - "net.ipv4.ip_forward"
+    - "net.ipv6.conf.all.forwarding"
+  when: "tailscale_ip_forward | bool"
+
+- name: "Start tailscaled"
+  ansible.builtin.systemd:
+    name: "tailscaled"
+    state: "started"
+    enabled: true
+  when: "not ansible_check_mode"
+
+- name: "Apply pending tailscaled restart"
+  ansible.builtin.meta: "flush_handlers"
+
+- name: "Detect firewalld"
+  ansible.builtin.systemd:
+    name: "firewalld"
+  register: "_tailscale_firewalld"
+  failed_when: false
+  changed_when: false
+
+- name: "Configure firewalld for tailscale"
+  when: "_tailscale_firewalld.status.ActiveState | default('inactive') == 'active'"
+  block:
+    - name: "Open tailscale UDP port"
+      ansible.posix.firewalld:
+        port: "{{ tailscale_port }}/udp"
+        state: "enabled"
+        permanent: true
+        immediate: true
+
+    - name: "Put tailscale0 into its zone"
+      ansible.posix.firewalld:
+        zone: "{{ tailscale_firewalld_zone }}"
+        interface: "tailscale0"
+        state: "enabled"
+        permanent: true
+        immediate: true
+
+- name: "Read tailscale state"
+  tags: ["always"]
+  ansible.builtin.command: "tailscale status --json --peers=false"
+  register: "_tailscale_status"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: "Expose tailscale state"
+  tags: ["always"]
+  ansible.builtin.set_fact:
+    tailscale_backend_state: >-
+      {{ (_tailscale_status.stdout | from_json).BackendState
+         if _tailscale_status.stdout is match('\s*\{') else 'NoState' }}

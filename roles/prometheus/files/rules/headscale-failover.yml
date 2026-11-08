@@ -1,0 +1,47 @@
+groups:
+  - name: "headscale_failover"
+    rules:
+      - alert: "HeadscaleNoLeader"
+        expr: "headscale_failover_etcd_ok == 1 and headscale_failover_has_leader == 0"
+        for: "1m"
+        labels:
+          severity: "critical"
+        annotations:
+          summary: "etcd has no headscale leader, as {{ $labels.instance_name }} sees it: no candidate is queued."
+
+      - alert: "HeadscaleLeaseLost"
+        expr: "headscale_failover_lease_ok == 0"
+        for: "1m"
+        labels:
+          severity: "critical"
+        annotations:
+          summary: "{{ $labels.instance_name }} cannot hold its etcd lease: it is out of the quorum and stopped headscale."
+
+      - alert: "HeadscaleLeaderChanged"
+        expr: "changes(headscale_failover_leader[15m]) > 0"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: "headscale leadership changed on {{ $labels.instance_name }} in the last 15 minutes."
+
+      - alert: "HeadscaleFailoverError"
+        expr: "headscale_failover_error > 0"
+        for: "5m"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: "The headscale failover agent on {{ $labels.instance_name }} keeps failing; see its journal."
+
+      - alert: "HeadscaleSnapshotLarge"
+        expr: "headscale_failover_snapshot_bytes > 400000"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: "The headscale database snapshot in etcd nears its limit; plan another replication channel."
+
+      - alert: "HeadscaleFailoverStale"
+        expr: "time() - headscale_failover_last_tick_timestamp_seconds > 120"
+        labels:
+          severity: "warning"
+        annotations:
+          summary: "The headscale failover agent on {{ $labels.instance_name }} has not run for 2 minutes."

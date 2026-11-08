@@ -1,0 +1,25 @@
+services:
+  derper:
+    build:
+      context: "."
+      args:
+        GO_VERSION: "{{ derper_go_version }}"
+        DERPER_VERSION: "{{ derper_version }}"
+    image: "derper:{{ derper_version }}"
+    container_name: "derper"
+    command:
+      - "-a=:{{ derper_port }}"
+      - "-http-port=-1"
+      - "-stun-port={{ derper_stun_port }}"
+      - "-hostname={{ derper_hostname }}"
+      - "-verify-clients={{ derper_verify_clients | bool | lower }}"
+{% for arg in derper_extra_args %}
+      - {{ arg | to_json }}
+{% endfor %}
+    network_mode: "host"
+    volumes:
+      - "./data/:/var/lib/derper/"
+{% if derper_verify_clients | bool %}
+      - "/var/run/tailscale/:/var/run/tailscale/"
+{% endif %}
+    restart: "unless-stopped"

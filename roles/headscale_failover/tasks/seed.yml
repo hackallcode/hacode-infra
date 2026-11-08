@@ -1,0 +1,9 @@
+# Migration onto an empty cluster: the server that serves now puts its database into etcd once.
+- name: "Seed etcd with this server's database"
+  ansible.builtin.command:
+    argv: ["/usr/local/bin/headscale-failover", "seed", "{{ headscale_failover_dir }}/config.json"]
+  register: "_headscale_failover_seed"
+  changed_when: "'seeded' in _headscale_failover_seed.stdout"
+  failed_when:
+    - "_headscale_failover_seed.rc != 0"
+    - "'already holds' not in _headscale_failover_seed.stderr"

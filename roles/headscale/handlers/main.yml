@@ -1,0 +1,8 @@
+- name: "Restart headscale"
+  community.docker.docker_compose_v2:
+    project_src: "{{ headscale_dir }}"
+    project_name: "headscale"
+    state: "restarted"
+  when:
+    - "not ansible_check_mode"
+    - "_headscale_active | default(true)"

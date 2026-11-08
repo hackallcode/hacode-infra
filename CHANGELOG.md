@@ -32,6 +32,44 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `certbot_credentials_file` (0600) on install, so `dns-*` plugins get their
   credentials from a vaulted variable.
 
+- `headscale` role: self-hosted Tailscale control server with its embedded
+  DERP and STUN, in docker compose with host networking: config deep-merged
+  from `headscale_config_extra`, policy (from a variable or seeded into its
+  database) and extra DERP regions, OIDC login, users, fixed node addresses
+  (`headscale_node_ips`, by given name or reported hostname), `preauth-key`
+  for one-off login keys (tagged or per user) that are never stored, and
+  `api-key` for a working API key on another host. A DNS guard
+  (`headscale_guard_addresses`) runs headscale only where the server name
+  points.
+
+- `headscale_failover` role: one headscale for a set of candidates, elected
+  through etcd. An agent on each candidate holds a lease and queues in the
+  election; the leader restores the newest database snapshot from etcd,
+  points the server name's Cloudflare A record at itself and starts
+  headscale, then writes the database back after each meaningful change
+  under a check that it still leads; without the lease it stops headscale. A
+  manual switch is a request the leader hands over on, a hold file pauses
+  the leader while a deploy edits the database, `hand-over` switches it from
+  a playbook. HTTP API for a panel, textfile metrics, and `prometheus` alert
+  rules for a missing leader, a lost lease, leader changes, a large snapshot
+  and a stalled agent.
+
+- `etcd` role: an etcd member from the upstream release with TLS and client
+  certificates for clients and peers, signed on the controller by a CA from
+  variables; defrag and snapshot timers; `peer-url` moves a member to a new
+  address.
+
+- `derper` role: standalone DERP relay with STUN, built from
+  `tailscale.com/cmd/derper` at a pinned release (there is no upstream
+  binary), plain HTTP behind a TLS proxy, `--verify-clients` on.
+
+- `tailscale` role: pinned tailscale from pkgs.tailscale.com, firewalld port
+  and zone for `tailscale0`, opt-in IP forwarding, `tailscale0` MTU
+  (`tailscale_mtu`, 1200 by default) for paths that drop large UDP packets,
+  and `up` to join a tailnet with a one-off key (`--force-reauth` when the
+  control server changed); reports `tailscale_backend_state` so a play logs
+  in only nodes that aren't `Running`.
+
 - `machine` role: `machine_yum_repos` entries take an optional `gpgkey`,
   so a repo overridden in place (`file:`) can keep `gpgcheck: 1` — e.g.
   EPEL pinned to the host's minor release where an image's own

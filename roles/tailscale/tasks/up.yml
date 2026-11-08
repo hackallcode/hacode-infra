@@ -1,0 +1,28 @@
+- name: "Validate login settings"
+  ansible.builtin.assert:
+    that:
+      - "tailscale_login_server is match('^https?://')"
+      - "tailscale_authkey | length > 0"
+    fail_msg: "tailscale up needs tailscale_login_server and a one-off tailscale_authkey"
+    quiet: true
+
+- name: "Read the current control server"
+  ansible.builtin.command: "tailscale debug prefs"
+  register: "_tailscale_prefs"
+  changed_when: false
+
+# --accept-risk: unattended, a login over an ssh session that runs through the tailnet would abort.
+- name: "Log in to the tailnet"
+  ansible.builtin.command:
+    argv: >-
+      {{ ['tailscale', 'up', '--reset',
+          '--login-server=' ~ tailscale_login_server,
+          '--authkey=' ~ tailscale_authkey,
+          '--hostname=' ~ tailscale_hostname,
+          '--timeout=60s', '--accept-risk=lose-ssh']
+         + (['--advertise-exit-node'] if tailscale_exit_node | bool else [])
+         + (['--force-reauth'] if (_tailscale_prefs.stdout | from_json).ControlURL not in ['', tailscale_login_server]
+            else [])
+         + tailscale_up_args }}
+  changed_when: true
+  no_log: true

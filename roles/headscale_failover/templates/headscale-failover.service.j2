@@ -1,0 +1,14 @@
+[Unit]
+Description=headscale failover agent {{ headscale_failover_name }}
+After=network-online.target docker.service etcd.service tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/local/bin/headscale-failover run {{ headscale_failover_dir }}/config.json
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

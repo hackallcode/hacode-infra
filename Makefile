@@ -8,8 +8,8 @@ SHELL := /bin/bash
 COLLECTION_ROOT := $(CURDIR)/.collection-root
 COLLECTION_LINK := $(COLLECTION_ROOT)/ansible_collections/hacode/infra
 
-SCENARIOS := app certbot certificate docker gitlab_runner gost k3s \
-             machine maria_db nginx node_js php prometheus ssh_tunnel \
+SCENARIOS := app certbot certificate docker derper gitlab_runner gost headscale headscale_failover k3s \
+             machine maria_db nginx node_js php prometheus ssh_tunnel tailscale \
              wireguard
 
 # Note: do NOT add `test/molecule/<scenario>` here. Listing those in

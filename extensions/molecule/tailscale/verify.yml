@@ -1,0 +1,51 @@
+- name: "Verify: tailscale role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Pinned version is installed"
+      ansible.builtin.command: "tailscale version"
+      register: "version"
+      changed_when: false
+      failed_when: "version.stdout_lines[0] != '1.104.5'"
+
+    - name: "Tailscaled is active"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-active tailscaled"
+      changed_when: false
+
+    - name: "Interface tailscale0 has the default MTU"
+      ansible.builtin.command: "cat /sys/class/net/tailscale0/mtu"
+      register: "mtu"
+      changed_when: false
+      failed_when: "mtu.stdout != '1200'"
+
+    - name: "Role reports the node as not logged in"
+      ansible.builtin.include_role:
+        name: "hacode.infra.tailscale"
+
+    - name: "Backend state is NeedsLogin"
+      ansible.builtin.assert:
+        that: "tailscale_backend_state == 'NeedsLogin'"
+        quiet: true
+
+    - name: "Read prefs"
+      ansible.builtin.command: "tailscale debug prefs"
+      register: "prefs"
+      changed_when: false
+
+    - name: "Prefs carry the control server"
+      ansible.builtin.assert:
+        that: "'ControlURL' in (prefs.stdout | from_json)"
+        quiet: true
+
+    - name: "Forwarding is on"
+      ansible.builtin.command: "sysctl -n net.ipv4.ip_forward"
+      register: "forward"
+      changed_when: false
+      failed_when: "forward.stdout != '1'"
+
+    - name: "Interface tailscale0 is in the trusted zone"
+      ansible.builtin.command: "firewall-cmd --zone=trusted --query-interface=tailscale0"
+      changed_when: false
+      when: "ansible_os_family == 'RedHat'"

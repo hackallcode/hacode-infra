@@ -1,0 +1,25 @@
+- name: "Converge: an etcd member and the failover agent"
+  hosts: "all"
+  become: true
+  gather_facts: true
+  vars:
+    ca_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/etcd-ca"
+
+  tasks:
+    - name: "Run one etcd member"
+      ansible.builtin.import_role:
+        name: "hacode.infra.etcd"
+      vars:
+        etcd_name: "molecule"
+        etcd_address: "127.0.0.1"
+        etcd_members: [{name: "molecule", address: "127.0.0.1"}]
+        etcd_ca_key: "{{ lookup('ansible.builtin.file', ca_dir ~ '/ca.key') }}"
+        etcd_ca_cert: "{{ lookup('ansible.builtin.file', ca_dir ~ '/ca.crt') }}"
+
+    - name: "Install the agent script"
+      vars:
+        agent_src: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}/roles/headscale_failover/files"
+      ansible.builtin.copy:
+        src: "{{ agent_src }}/headscale-failover.py"
+        dest: "/usr/local/bin/headscale-failover"
+        mode: "0755"

@@ -1,0 +1,17 @@
+- name: "Read the members"
+  ansible.builtin.command:
+    argv: ["/usr/local/sbin/etcdctl-local", "member", "list", "-w", "json", "--hex"]
+  register: "_etcd_member_list"
+  changed_when: false
+  check_mode: false
+
+- name: "Point the member at its new address"
+  vars:
+    _member: >-
+      {{ (_etcd_member_list.stdout | from_json).members
+      | selectattr('name', 'equalto', etcd_move_name) | first }}
+    _url: "https://{{ etcd_move_address }}:{{ etcd_peer_port }}"
+  ansible.builtin.command:
+    argv: ["/usr/local/sbin/etcdctl-local", "member", "update", "{{ _member.ID }}", "--peer-urls={{ _url }}"]
+  changed_when: true
+  when: "_member.peerURLs != [_url]"

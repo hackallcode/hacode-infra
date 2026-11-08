@@ -1,0 +1,24 @@
+- name: "Read this member's status"
+  ansible.builtin.command:
+    argv: ["/usr/local/sbin/etcdctl-local", "endpoint", "status", "-w", "json"]
+  register: "_etcd_status"
+  changed_when: false
+  check_mode: false
+
+- name: "Read the members"
+  ansible.builtin.command:
+    argv: ["/usr/local/sbin/etcdctl-local", "member", "list", "-w", "json"]
+  register: "_etcd_step_down_members"
+  changed_when: false
+  check_mode: false
+
+- name: "Hand the Raft lead to another member"
+  vars:
+    _status: "{{ (_etcd_status.stdout | from_json | first).Status }}"
+    _other: >-
+      {{ (_etcd_step_down_members.stdout | from_json).members
+      | rejectattr('ID', 'equalto', _status.header.member_id) | first }}
+  ansible.builtin.command:
+    argv: ["/usr/local/sbin/etcdctl-local", "move-leader", "{{ '%x' | format(_other.ID) }}"]
+  changed_when: true
+  when: "_status.leader == _status.header.member_id"

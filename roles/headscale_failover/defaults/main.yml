@@ -1,0 +1,41 @@
+# present: run the agent on a candidate; absent: remove it.
+headscale_failover_state: "present"
+# The name this server queues under in the election and shows in the panel.
+headscale_failover_name: "{{ inventory_hostname }}"
+# Public address the server name is pointed at while this server leads.
+headscale_failover_self_ip: ""
+headscale_failover_candidate: true
+
+# Name clients reach headscale at, its zone, and a Cloudflare API token with DNS edit on the zone.
+headscale_failover_server_name: ""
+headscale_failover_zone: ""
+headscale_failover_cloudflare_token: ""
+
+# etcd the agents elect through; the client certificate is the etcd member's own.
+headscale_failover_etcd_endpoints: []
+headscale_failover_etcd_ca: "/etc/etcd/pki/ca.crt"
+headscale_failover_etcd_cert: "/etc/etcd/pki/member.crt"
+headscale_failover_etcd_key: "/etc/etcd/pki/member.key"
+headscale_failover_prefix: "/headscale"
+
+# A leader that cannot renew its lease stops headscale at 70% of the TTL; another takes over after the full TTL.
+headscale_failover_lease_ttl: 10
+headscale_failover_tick: 1
+# The database goes to etcd this many seconds after its last meaningful change, compressed, up to the limit.
+headscale_failover_snapshot_debounce: 10
+headscale_failover_snapshot_limit: 524288
+# A manual switch: the request stays valid this long; the leader that hands over waits this long before queueing again.
+headscale_failover_desired_fresh: 120
+headscale_failover_desired_wait: 15
+
+# `hand-over`: inventory name of the server that takes headscale.
+headscale_failover_to: ""
+
+headscale_failover_headscale_dir: "/opt/headscale"
+headscale_failover_dir: "/etc/headscale-failover"
+headscale_failover_state_dir: "/var/lib/headscale-failover"
+headscale_failover_textfile_dir: "/var/lib/node_exporter"
+
+# "<address>:<port>" for the HTTP API (this server's state, manual switch requests); "" - off.
+headscale_failover_api_listen: ""
+headscale_failover_api_token: ""

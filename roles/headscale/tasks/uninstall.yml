@@ -1,0 +1,31 @@
+- name: "Stat compose file"
+  ansible.builtin.stat:
+    path: "{{ headscale_dir }}/compose.yml"
+  register: "_headscale_compose"
+
+- name: "Down headscale"
+  community.docker.docker_compose_v2:
+    project_src: "{{ headscale_dir }}"
+    project_name: "headscale"
+    state: "absent"
+  when: "_headscale_compose.stat.exists"
+
+- name: "Detect firewalld"
+  ansible.builtin.systemd:
+    name: "firewalld"
+  register: "_headscale_firewalld"
+  failed_when: false
+  changed_when: false
+
+- name: "Close DERP STUN port"
+  ansible.posix.firewalld:
+    port: "{{ headscale_derp_stun_port }}/udp"
+    state: "disabled"
+    permanent: true
+    immediate: true
+  when: "_headscale_firewalld.status.ActiveState | default('inactive') == 'active'"
+
+- name: "Remove headscale dir"
+  ansible.builtin.file:
+    path: "{{ headscale_dir }}"
+    state: "absent"

@@ -1,0 +1,9 @@
+- name: "Converge: tailscale role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: "hacode.infra.tailscale"
+      vars:
+        tailscale_exit_node: true

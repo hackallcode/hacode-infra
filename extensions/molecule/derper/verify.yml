@@ -1,0 +1,20 @@
+- name: "Verify: derper role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "DERP probe answers"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8445/derp/probe"
+        status_code: 200
+
+    - name: "Port 80 is left to the web server"
+      ansible.builtin.wait_for:
+        port: 80
+        state: "stopped"
+        timeout: 1
+
+    - name: "STUN listens on UDP 3478"
+      ansible.builtin.command: "grep -qi ':0D96 ' /proc/net/udp /proc/net/udp6"
+      changed_when: false
