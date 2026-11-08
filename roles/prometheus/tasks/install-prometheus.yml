@@ -84,3 +84,4 @@
     name: "prometheus.prometheus.prometheus"
     apply:
       tags: ["install"]
+      diff: false

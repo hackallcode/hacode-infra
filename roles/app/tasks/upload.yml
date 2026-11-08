@@ -99,6 +99,7 @@
 
 - name: "Render project templates"
   tags: ["upload"]
+  diff: false
   ansible.builtin.template:
     src: "{{ app_templates_src_dir }}/{{ (item if item is string else item.path) }}.j2"
     dest: "{{ app_content_dir }}/{{ (item if item is string else item.path) }}"

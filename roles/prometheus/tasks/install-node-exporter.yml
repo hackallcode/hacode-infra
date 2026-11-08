@@ -21,6 +21,7 @@
     name: "prometheus.prometheus.node_exporter"
     apply:
       tags: ["install"]
+      diff: false
 
 - name: "Manage Node Exporter port on RHEL family"
   when: "ansible_os_family == 'RedHat'"

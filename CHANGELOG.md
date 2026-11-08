@@ -255,6 +255,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `app`, `prometheus` roles: `--diff` stops printing rendered secrets:
+  project templates (`.env` and other app configs) and the upstream
+  alertmanager, prometheus and node_exporter roles run with diff off.
+
 - `machine` role: build the NVIDIA DKMS module for the running kernel
   after driver installation and load the modules needed by GPU containers.
   A fresh install could leave DKMS in the `added` state, which a reboot
