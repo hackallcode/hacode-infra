@@ -55,6 +55,8 @@ provisioner:
         k3s_kubeconfig_local_file: "{{ inventory_hostname }}.yaml"
         k3s_server_args:
           - "--snapshotter=native"
+          # Its standard Gateway API CRDs block Envoy Gateway's experimental ones.
+          - "--disable=gateway-api-crd"
         # Containers lack `kmod` + can't load modules; skip role's
         # module-load preflight in tests. br_netfilter sysctls likewise.
         k3s_kernel_modules: []
