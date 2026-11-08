@@ -1,0 +1,41 @@
+- name: "Validate failover settings"
+  ansible.builtin.assert:
+    that:
+      - "headscale_failover_state in ['present', 'absent']"
+      - >-
+        headscale_failover_state == 'absent' or ([headscale_failover_self_ip, headscale_failover_server_name,
+        headscale_failover_zone, headscale_failover_cloudflare_token] | select | list | length == 4
+        and headscale_failover_etcd_endpoints | length > 0)
+      - "not headscale_failover_api_listen or headscale_failover_api_token | length > 0"
+    fail_msg: >-
+      the agent needs headscale_failover_self_ip, _server_name, _zone, _cloudflare_token and _etcd_endpoints;
+      headscale_failover_api_listen needs headscale_failover_api_token
+    quiet: true
+
+- name: "Set up the agent"
+  ansible.builtin.import_tasks: "agent.yml"
+  when: "headscale_failover_state == 'present'"
+
+- name: "Remove the agent"
+  when: "headscale_failover_state == 'absent'"
+  block:
+    - name: "Stop the agent"
+      ansible.builtin.systemd:
+        name: "headscale-failover.service"
+        state: "stopped"
+        enabled: false
+      register: "_headscale_failover_stop"
+      failed_when:
+        - "_headscale_failover_stop is failed"
+        - "'Could not find' not in _headscale_failover_stop.msg | default('')"
+
+    - name: "Remove agent files"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: "absent"
+      loop:
+        - "/etc/systemd/system/headscale-failover.service"
+        - "/usr/local/bin/headscale-failover"
+        - "{{ headscale_failover_dir }}"
+        - "{{ headscale_failover_state_dir }}"
+        - "{{ headscale_failover_textfile_dir }}/headscale_failover.prom"

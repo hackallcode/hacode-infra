@@ -1,0 +1,182 @@
+- name: "Verify: headscale role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+  vars_files: ["vars/role.yml"]
+
+  tasks:
+    - name: "Health endpoint passes"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8090/health"
+        return_content: true
+      register: "health"
+      failed_when: "health.json.status != 'pass'"
+
+    - name: "User exists"
+      ansible.builtin.command: "docker exec headscale headscale users list -o json"
+      register: "users"
+      changed_when: false
+      failed_when: "'molecule' not in (users.stdout | from_json | map(attribute='name') | list)"
+
+    - name: "Policy is loaded"
+      ansible.builtin.command: "docker exec headscale headscale policy get"
+      register: "policy"
+      changed_when: false
+      failed_when: "'tag:server' not in policy.stdout"
+
+    - name: "Change the policy over the API"
+      ansible.builtin.command:
+        argv: ["docker", "exec", "-i", "headscale", "headscale", "policy", "set", "-f", "/dev/stdin"]
+        stdin: >-
+          {"tagOwners": {"tag:server": ["molecule@"], "tag:edited": ["molecule@"]},
+          "acls": [{"action": "accept", "src": ["*"], "dst": ["*:*"]}]}
+      changed_when: true
+
+    - name: "Deploy again"
+      ansible.builtin.include_role:
+        name: "hacode.infra.headscale"
+
+    - name: "The database policy outlives the deploy"
+      ansible.builtin.command: "docker exec headscale headscale policy get"
+      register: "policy_after"
+      changed_when: false
+      failed_when: "'tag:edited' not in policy_after.stdout"
+
+    - name: "Embedded DERP answers"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8090/derp/probe"
+        status_code: 200
+
+    - name: "Create a tagged preauth key"
+      ansible.builtin.include_role:
+        name: "hacode.infra.headscale"
+        tasks_from: "preauth-key"
+      vars:
+        headscale_preauth_tags: ["tag:server"]
+
+    - name: "Preauth key is returned"
+      ansible.builtin.assert:
+        that: "headscale_preauth_key is match('^hskey-auth-')"
+        quiet: true
+
+    - name: "Create a user preauth key"
+      ansible.builtin.include_role:
+        name: "hacode.infra.headscale"
+        tasks_from: "preauth-key"
+      vars:
+        headscale_preauth_user: "molecule"
+
+    - name: "User key belongs to the user"
+      ansible.builtin.command: "docker exec headscale headscale preauthkeys list -o json"
+      register: "keys"
+      changed_when: false
+      failed_when: >-
+        (keys.stdout | from_json | selectattr('user', 'defined')
+         | selectattr('user.name', 'equalto', 'molecule') | list | length) != 1
+
+    - name: "Keep an API key"
+      ansible.builtin.include_role:
+        name: "hacode.infra.headscale"
+        tasks_from: "api-key"
+      vars:
+        headscale_api_key_file: "/root/headscale-api-key"
+        headscale_api_key_control_host: "{{ inventory_hostname }}"
+
+    - name: "A missing key was created"
+      ansible.builtin.assert:
+        that: "headscale_api_key_changed | bool"
+
+    - name: "Keep the API key again"
+      ansible.builtin.include_role:
+        name: "hacode.infra.headscale"
+        tasks_from: "api-key"
+      vars:
+        headscale_api_key_file: "/root/headscale-api-key"
+        headscale_api_key_control_host: "{{ inventory_hostname }}"
+
+    - name: "A working key is kept"
+      ansible.builtin.assert:
+        that: "not headscale_api_key_changed | bool"
+
+    - name: "Break the API key"
+      ansible.builtin.copy:
+        content: "hskey-api-broken-key"
+        dest: "/root/headscale-api-key"
+        mode: "0600"
+
+    - name: "Keep the API key after it broke"
+      ansible.builtin.include_role:
+        name: "hacode.infra.headscale"
+        tasks_from: "api-key"
+      vars:
+        headscale_api_key_file: "/root/headscale-api-key"
+        headscale_api_key_control_host: "{{ inventory_hostname }}"
+
+    - name: "A rejected key was replaced"
+      ansible.builtin.assert:
+        that: "headscale_api_key_changed | bool"
+
+    - name: "Register a node"
+      vars:
+        _auth_id: >-
+          hskey-authreq-{{ lookup('ansible.builtin.password', '/dev/null', chars=['0123456789abcdef'], length=24) }}
+      ansible.builtin.shell: >-
+        docker exec headscale headscale debug create-node --name pinned --user molecule --key {{ _auth_id }} &&
+        docker exec headscale headscale auth register --user molecule --auth-id {{ _auth_id }}
+      changed_when: true
+
+    - name: "Pin the node address"
+      ansible.builtin.include_role:
+        name: "hacode.infra.headscale"
+        tasks_from: "node-ips"
+      vars:
+        headscale_node_ips: &pins
+          pinned: ["100.64.0.200", "fd7a:115c:a1e0::200"]
+
+    - name: "Node has the pinned address"
+      ansible.builtin.command: "docker exec headscale headscale nodes list -o json"
+      register: "nodes"
+      changed_when: false
+      failed_when: >-
+        (nodes.stdout | from_json | selectattr('given_name', 'equalto', 'pinned') | first).ip_addresses
+        != ['100.64.0.200', 'fd7a:115c:a1e0::200']
+
+    - name: "Read headscale start time"
+      ansible.builtin.command: "docker inspect -f '{{ '{{' }} .State.StartedAt {{ '}}' }}' headscale"
+      register: "started_before"
+      changed_when: false
+
+    - name: "Pin the same address again"
+      ansible.builtin.include_role:
+        name: "hacode.infra.headscale"
+        tasks_from: "node-ips"
+      vars:
+        headscale_node_ips: *pins
+
+    - name: "Headscale was not restarted"
+      ansible.builtin.command: "docker inspect -f '{{ '{{' }} .State.StartedAt {{ '}}' }}' headscale"
+      register: "started_after"
+      changed_when: false
+      failed_when: "started_after.stdout != started_before.stdout"
+
+    - name: "Guard: server URL resolves elsewhere"
+      ansible.builtin.include_role:
+        name: "hacode.infra.headscale"
+      vars:
+        headscale_guard_addresses: ["192.0.2.1"]
+
+    - name: "Headscale is stopped"
+      ansible.builtin.command: "docker inspect -f '{{ '{{' }} .State.Running {{ '}}' }}' headscale"
+      register: "guard_stopped"
+      changed_when: false
+      failed_when: "guard_stopped.stdout != 'false'"
+
+    - name: "Guard: server URL resolves here"
+      ansible.builtin.include_role:
+        name: "hacode.infra.headscale"
+      vars:
+        headscale_guard_addresses: ["127.0.0.1"]
+
+    - name: "Headscale runs again"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8090/health"

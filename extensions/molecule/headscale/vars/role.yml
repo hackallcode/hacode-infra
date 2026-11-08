@@ -1,0 +1,27 @@
+headscale_server_url: "http://127.0.0.1:8090"
+headscale_noise_private_key: "{{ '0' * 63 ~ '1' }}"
+headscale_base_domain: "ts.example.com"
+headscale_derp_region_id: 900
+headscale_derp_region_code: "test"
+headscale_derp_region_name: "Test"
+headscale_derp_regions:
+  901:
+    regionid: 901
+    regioncode: "extra"
+    regionname: "Extra"
+    nodes:
+      - name: "901a"
+        regionid: 901
+        hostname: "derp.example.com"
+        stunport: 3478
+headscale_users: ["molecule"]
+headscale_initial_policy:
+  tagOwners:
+    "tag:server": ["molecule@"]
+  acls:
+    - {action: "accept", src: ["*"], dst: ["*:*"]}
+# Nothing listens there: headscale has to start without its provider.
+headscale_oidc:
+  issuer: "http://127.0.0.1:9/oidc"
+  client_id: "headscale"
+  client_secret: "molecule"

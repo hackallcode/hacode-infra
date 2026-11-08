@@ -1,0 +1,14 @@
+- name: "Resolve the server URL host"
+  ansible.builtin.command:
+    argv: ["getent", "ahosts", "{{ headscale_server_url | urlsplit('hostname') }}"]
+  register: "_headscale_resolved"
+  changed_when: false
+  check_mode: false
+  when: "headscale_guard_addresses | length > 0"
+
+- name: "Decide whether headscale runs here"
+  ansible.builtin.set_fact:
+    _headscale_active: >-
+      {{ headscale_guard_addresses | length == 0
+         or _headscale_resolved.stdout_lines | map('split') | map('first')
+            | intersect(headscale_guard_addresses) | length > 0 }}

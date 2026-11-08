@@ -1,0 +1,59 @@
+- name: "Log out of the tailnet"
+  ansible.builtin.command: "tailscale logout"
+  register: "_tailscale_logout"
+  changed_when: "_tailscale_logout.rc == 0"
+  failed_when: false
+
+- name: "Remove tailscale"
+  ansible.builtin.package:
+    name: "tailscale"
+    state: "absent"
+
+- name: "Remove tailscale repository (RHEL)"
+  ansible.builtin.yum_repository:
+    name: "tailscale-stable"
+    state: "absent"
+  when: "ansible_os_family == 'RedHat'"
+
+- name: "Remove tailscale apt source and keyring (Debian)"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "absent"
+  loop:
+    - "/etc/apt/sources.list.d/tailscale.list"
+    - "/usr/share/keyrings/tailscale-archive-keyring.gpg"
+  when: "ansible_os_family == 'Debian'"
+
+- name: "Detect firewalld"
+  ansible.builtin.systemd:
+    name: "firewalld"
+  register: "_tailscale_firewalld"
+  failed_when: false
+  changed_when: false
+
+- name: "Close firewalld for tailscale"
+  when: "_tailscale_firewalld.status.ActiveState | default('inactive') == 'active'"
+  block:
+    - name: "Close tailscale UDP port"
+      ansible.posix.firewalld:
+        port: "{{ tailscale_port }}/udp"
+        state: "disabled"
+        permanent: true
+        immediate: true
+
+    - name: "Take tailscale0 out of its zone"
+      ansible.posix.firewalld:
+        zone: "{{ tailscale_firewalld_zone }}"
+        interface: "tailscale0"
+        state: "disabled"
+        permanent: true
+        immediate: true
+
+- name: "Remove tailscale files"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "absent"
+  loop:
+    - "/etc/default/tailscaled"
+    - "/etc/sysctl.d/99-tailscale.conf"
+    - "/var/lib/tailscale"

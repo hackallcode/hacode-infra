@@ -1,0 +1,12 @@
+- name: "Recreate derper"
+  community.docker.docker_compose_v2:
+    project_src: "{{ derper_dir }}"
+    project_name: "derper"
+    state: "present"
+    build: "always"
+    recreate: "always"
+  when: "not ansible_check_mode"
+
+- name: "Reload systemd"
+  ansible.builtin.systemd:
+    daemon_reload: true

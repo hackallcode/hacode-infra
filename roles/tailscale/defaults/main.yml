@@ -1,0 +1,21 @@
+tailscale_version: "1.104.5"
+tailscale_port: 41641
+# Below tailscale's 1280: some paths drop the larger UDP packets that 1280 makes. 0 keeps 1280.
+tailscale_mtu: 1200
+
+# tailscale0 lands in this firewalld zone; the tailnet ACL is the filter.
+tailscale_firewalld_zone: "trusted"
+
+# Adds --advertise-exit-node and turns on forwarding; approval is up to the
+# control server (headscale autoApprovers or a manual approve).
+tailscale_exit_node: false
+# Needed for --advertise-routes too.
+tailscale_ip_forward: "{{ tailscale_exit_node }}"
+
+# ===== up =====
+tailscale_login_server: ""
+# One-off preauth key; never stored. A tagged key tags the node (headscale
+# rejects --advertise-tags with a preauth key).
+tailscale_authkey: ""
+tailscale_hostname: "{{ inventory_hostname }}"
+tailscale_up_args: []

@@ -1,0 +1,100 @@
+- name: "Validate derper settings"
+  ansible.builtin.assert:
+    that: "derper_hostname | length > 0"
+    fail_msg: "derper_hostname is required"
+    quiet: true
+
+- name: "Check the local tailscaled socket"
+  ansible.builtin.stat:
+    path: "/var/run/tailscale/tailscaled.sock"
+  register: "_derper_tailscaled"
+  failed_when: "not _derper_tailscaled.stat.exists"
+  when: "derper_verify_clients | bool"
+
+# systemd recreates RuntimeDirectory on every tailscaled restart, which would
+# leave derper's bind mount on the deleted directory.
+- name: "Ensure the tailscaled drop-in dir exists"
+  ansible.builtin.file:
+    path: "/etc/systemd/system/tailscaled.service.d"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  when: "derper_verify_clients | bool"
+
+- name: "Keep the tailscaled socket dir across restarts"
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/tailscaled.service.d/derper.conf"
+    content: |
+      [Service]
+      RuntimeDirectoryPreserve=yes
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: "Reload systemd"
+  when: "derper_verify_clients | bool"
+
+- name: "Ensure derper dirs exist"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0750"
+  loop:
+    - "{{ derper_dir }}"
+    - "{{ derper_dir }}/data"
+
+- name: "Copy Dockerfile"
+  ansible.builtin.copy:
+    src: "Dockerfile"
+    dest: "{{ derper_dir }}/Dockerfile"
+    owner: "root"
+    group: "root"
+    mode: "0640"
+  notify: "Recreate derper"
+
+- name: "Render compose file"
+  ansible.builtin.template:
+    src: "compose.yml.j2"
+    dest: "{{ derper_dir }}/compose.yml"
+    owner: "root"
+    group: "root"
+    mode: "0640"
+  notify: "Recreate derper"
+
+- name: "Up derper"
+  community.docker.docker_compose_v2:
+    project_src: "{{ derper_dir }}"
+    project_name: "derper"
+    state: "present"
+    build: "policy"
+    remove_orphans: true
+  when: "not ansible_check_mode"
+
+- name: "Apply pending derper recreate"
+  ansible.builtin.meta: "flush_handlers"
+
+- name: "Wait for derper"
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ derper_port }}/derp/probe"
+  register: "_derper_probe"
+  until: "_derper_probe.status == 200"
+  retries: 30
+  delay: 2
+  when: "not ansible_check_mode"
+
+- name: "Detect firewalld"
+  ansible.builtin.systemd:
+    name: "firewalld"
+  register: "_derper_firewalld"
+  failed_when: false
+  changed_when: false
+
+- name: "Open STUN port"
+  ansible.posix.firewalld:
+    port: "{{ derper_stun_port }}/udp"
+    state: "enabled"
+    permanent: true
+    immediate: true
+  when: "_derper_firewalld.status.ActiveState | default('inactive') == 'active'"

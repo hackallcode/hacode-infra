@@ -1,0 +1,55 @@
+- name: "Validate api-key settings"
+  ansible.builtin.assert:
+    that:
+      - "headscale_api_key_file | length > 0"
+      - "headscale_api_key_control_host | length > 0"
+    fail_msg: "api-key needs headscale_api_key_file and headscale_api_key_control_host"
+    quiet: true
+
+- name: "Read the API key"
+  ansible.builtin.slurp:
+    src: "{{ headscale_api_key_file }}"
+  register: "_headscale_api_key_current"
+  failed_when: false
+  no_log: true
+
+- name: "Check the API key against headscale"
+  ansible.builtin.uri:
+    url: "{{ headscale_server_url }}/api/v1/apikey"
+    headers:
+      Authorization: "Bearer {{ _headscale_api_key_current.content | b64decode | trim }}"
+    status_code: [200, 401]
+  register: "_headscale_api_key_check"
+  no_log: true
+  when: "_headscale_api_key_current.content is defined"
+
+- name: "Replace the API key"
+  when:
+    - "_headscale_api_key_check.status | default(401) != 200"
+    - "not ansible_check_mode"
+  block:
+    - name: "Create an API key on the control server"
+      ansible.builtin.command: "{{ _headscale_exec }} apikeys create --expiration {{ headscale_api_key_expiration }}"
+      delegate_to: "{{ headscale_api_key_control_host }}"
+      register: "_headscale_api_key_new"
+      changed_when: true
+      no_log: true
+
+    - name: "Ensure the API key directory exists"
+      ansible.builtin.file:
+        path: "{{ headscale_api_key_file | dirname }}"
+        state: "directory"
+        mode: "0755"
+
+    - name: "Write the API key"
+      ansible.builtin.copy:
+        content: "{{ _headscale_api_key_new.stdout | trim }}"
+        dest: "{{ headscale_api_key_file }}"
+        owner: "root"
+        group: "root"
+        mode: "0600"
+      no_log: true
+
+- name: "Report whether the API key changed"
+  ansible.builtin.set_fact:
+    headscale_api_key_changed: "{{ _headscale_api_key_check.status | default(401) != 200 }}"

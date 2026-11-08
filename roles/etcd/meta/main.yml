@@ -1,0 +1,17 @@
+galaxy_info:
+  role_name: "etcd"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: "Run an etcd cluster member from the upstream release with TLS for clients and peers."
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Debian"
+      versions: ["bookworm", "trixie"]
+  galaxy_tags:
+    - "etcd"
+    - "consensus"
+
+dependencies: []

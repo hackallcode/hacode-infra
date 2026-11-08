@@ -1,0 +1,16 @@
+# derper ships with tailscale; keep it on the clients' minor.
+derper_version: "1.104.5"
+# Must satisfy the `go` directive of tailscale's go.mod at derper_version.
+derper_go_version: "1.27"
+derper_dir: "/opt/derper"
+
+derper_hostname: ""
+# Plain HTTP (TLS is terminated in front). derper binds STUN to the same IP,
+# so it listens on all interfaces: keep this port closed in the firewall.
+derper_port: 8445
+derper_stun_port: 3478
+
+# Admit only nodes of our tailnet; needs tailscaled running on this host.
+derper_verify_clients: true
+
+derper_extra_args: []

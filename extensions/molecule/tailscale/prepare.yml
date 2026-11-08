@@ -1,0 +1,24 @@
+- name: "Prepare: firewalld on RHEL (the role configures it)"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Install firewalld, sysctl and gnupg"
+      ansible.builtin.package:
+        name: "{{ ['firewalld', 'procps-ng'] if ansible_os_family == 'RedHat' else ['gnupg'] }}"
+        state: "present"
+        update_cache: true
+
+    - name: "Start firewalld on RHEL family"
+      ansible.builtin.systemd:
+        name: "firewalld"
+        state: "started"
+        enabled: true
+      when: "ansible_os_family == 'RedHat'"
+
+    - name: "Ensure /etc/sysctl.d exists"
+      ansible.builtin.file:
+        path: "/etc/sysctl.d"
+        state: "directory"
+        mode: "0755"

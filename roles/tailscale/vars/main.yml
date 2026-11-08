@@ -1,0 +1,1 @@
+_tailscale_apt_base: "https://pkgs.tailscale.com/stable/{{ ansible_distribution | lower }}"

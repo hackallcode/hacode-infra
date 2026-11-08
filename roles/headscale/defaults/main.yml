@@ -1,0 +1,65 @@
+headscale_version: "0.29.7"
+headscale_image: "headscale/headscale:v{{ headscale_version }}"
+headscale_dir: "/opt/headscale"
+
+# Public URL clients and nginx reach; TLS is terminated in front of headscale.
+headscale_server_url: ""
+headscale_listen_addr: "127.0.0.1:8090"
+headscale_metrics_listen_addr: "127.0.0.1:9098"
+
+# 64 hex chars. Empty: headscale generates one in the data dir. Set it to keep
+# one control-plane identity across standby hosts.
+headscale_noise_private_key: ""
+
+headscale_base_domain: ""
+
+# ===== derp =====
+headscale_derp_server_enabled: true
+headscale_derp_region_id: 999
+headscale_derp_region_code: "headscale"
+headscale_derp_region_name: "Headscale Embedded DERP"
+headscale_derp_stun_port: 3478
+# Public IPv4 announced in the DERP map; empty: clients resolve server_url.
+headscale_derp_ipv4: ""
+# Extra regions (tailscale DERPMap `Regions` shape, keyed by region id), e.g. a standalone derper.
+headscale_derp_regions: {}
+# Tailscale's public DERP map is off: [] keeps relays to the ones above.
+headscale_derp_urls: []
+
+# Policy as a dict, written as JSON. {}: allow all.
+headscale_policy: {}
+# Set instead of headscale_policy: headscale keeps the policy in its database, editable over the API.
+headscale_initial_policy: {}
+
+# OIDC login for users' devices: {issuer, client_id, client_secret} plus any other `oidc` config keys; {} turns it off.
+# headscale starts without the provider, so a standby still comes up while the provider is down.
+headscale_oidc: {}
+
+headscale_users: []
+
+# Fixed addresses by given name or reported hostname, {"<name>": ["<ipv4>", "<ipv6>"]}, inside the prefixes.
+# headscale has no API for it, so the database is edited with headscale stopped; nodes not registered yet are skipped.
+headscale_node_ips: {}
+# With headscale_failover: "<state_dir>/hold", so that its agent leaves headscale alone during that edit.
+headscale_hold_file: ""
+
+# Deep-merged over the role's config (`_headscale_config` in vars/main.yml).
+headscale_config_extra: {}
+
+# Public addresses of this host. Non-empty: headscale runs only while the server_url host resolves to one of them
+# and is stopped otherwise, so of several hosts sharing one server_url only the one DNS points at serves.
+headscale_guard_addresses: []
+
+# ===== api-key =====
+# `api-key`: keeps a working API key in this file on the target host, created on the control host when missing or
+# rejected; sets `headscale_api_key_changed`.
+headscale_api_key_file: ""
+headscale_api_key_control_host: ""
+headscale_api_key_expiration: "3650d"
+
+# ===== preauth-key =====
+# A key for a user's own device; tagged keys need no user.
+headscale_preauth_user: ""
+headscale_preauth_tags: []
+headscale_preauth_expiration: "1h"
+headscale_preauth_reusable: false

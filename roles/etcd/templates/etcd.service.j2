@@ -1,0 +1,15 @@
+[Unit]
+Description=etcd member {{ etcd_name }}
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=etcd
+ExecStart=/usr/local/bin/etcd --config-file {{ etcd_config_dir }}/etcd.conf.yml
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

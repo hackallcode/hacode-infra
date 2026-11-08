@@ -1,0 +1,77 @@
+rule_files:
+  - ../headscale-failover.yml
+
+evaluation_interval: 1m
+
+tests:
+  # etcd отвечает, но в очереди никого → HeadscaleNoLeader через минуту
+  - interval: 1m
+    input_series:
+      - series: 'headscale_failover_etcd_ok{job="node",instance_name="testhost"}'
+        values: "1x5"
+      - series: 'headscale_failover_has_leader{job="node",instance_name="testhost"}'
+        values: "1 0 0 0"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: HeadscaleNoLeader
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: HeadscaleNoLeader
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "etcd has no headscale leader, as testhost sees it: no candidate is queued."
+
+  # без lease дольше минуты → HeadscaleLeaseLost
+  - interval: 1m
+    input_series:
+      - series: 'headscale_failover_lease_ok{job="node",instance_name="testhost"}'
+        values: "1 0 0 0"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: HeadscaleLeaseLost
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "testhost cannot hold its etcd lease: it is out of the quorum and stopped headscale."
+
+  # лидерство сменилось → HeadscaleLeaderChanged, через 15 мин без смен - тихо
+  - interval: 1m
+    input_series:
+      - series: 'headscale_failover_leader{job="node",instance_name="testhost"}'
+        values: "0 1x30"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HeadscaleLeaderChanged
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "headscale leadership changed on testhost in the last 15 minutes."
+      - eval_time: 25m
+        alertname: HeadscaleLeaderChanged
+        exp_alerts: []
+
+  # агент перестал писать метрики → HeadscaleFailoverStale
+  - interval: 1m
+    input_series:
+      - series: 'headscale_failover_last_tick_timestamp_seconds{job="node",instance_name="testhost"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HeadscaleFailoverStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: node
+              instance_name: testhost
+            exp_annotations:
+              summary: "The headscale failover agent on testhost has not run for 2 minutes."

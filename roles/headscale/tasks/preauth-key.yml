@@ -1,0 +1,29 @@
+- name: "Resolve preauth key user"
+  when: "headscale_preauth_user | length > 0"
+  block:
+    - name: "List headscale users"
+      ansible.builtin.command: "{{ _headscale_exec }} users list -o json"
+      register: "_headscale_users"
+      changed_when: false
+
+    - name: "Pick the user id"
+      ansible.builtin.set_fact:
+        _headscale_preauth_user_id: >-
+          {{ (_headscale_users.stdout | from_json | default([], true)
+              | selectattr('name', 'equalto', headscale_preauth_user) | first).id }}
+
+- name: "Create preauth key"
+  ansible.builtin.command: >-
+    {{ _headscale_exec }} preauthkeys create -o json
+    -e {{ headscale_preauth_expiration | quote }}
+    {{ ('-u ' ~ _headscale_preauth_user_id) if headscale_preauth_user else '' }}
+    {{ '--reusable' if headscale_preauth_reusable | bool else '' }}
+    {{ ('--tags ' ~ (headscale_preauth_tags | join(',') | quote)) if headscale_preauth_tags else '' }}
+  register: "_headscale_preauth"
+  changed_when: true
+  no_log: true
+
+- name: "Expose preauth key"
+  ansible.builtin.set_fact:
+    headscale_preauth_key: "{{ (_headscale_preauth.stdout | from_json).key }}"
+  no_log: true

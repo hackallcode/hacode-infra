@@ -1,0 +1,30 @@
+- name: "Verify: etcd and the failover agent"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "The member is healthy over TLS"
+      ansible.builtin.command:
+        argv: ["/usr/local/sbin/etcdctl-local", "endpoint", "health"]
+      changed_when: false
+
+    - name: "The member does not answer without a client certificate"
+      ansible.builtin.uri:
+        url: "https://127.0.0.1:2379/health"
+        validate_certs: false
+        status_code: [-1, 400, 401, 403]
+      register: "anonymous"
+      failed_when: "anonymous.status == 200"
+
+    - name: "Copy the agent tests in"
+      ansible.builtin.copy:
+        src: "test_agent.py"
+        dest: "/root/test_agent.py"
+        mode: "0644"
+
+    - name: "The agent passes its tests against etcd"
+      ansible.builtin.command: "python3 /root/test_agent.py /usr/local/bin/headscale-failover"
+      environment:
+        ETCD_BIN: "/usr/local/bin/etcd"
+      changed_when: false

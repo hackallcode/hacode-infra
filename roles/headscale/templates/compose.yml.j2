@@ -1,0 +1,10 @@
+services:
+  headscale:
+    image: "{{ headscale_image }}"
+    container_name: "headscale"
+    command: ["serve"]
+    network_mode: "host"
+    volumes:
+      - "./config/:/etc/headscale/:ro"
+      - "./data/:/var/lib/headscale/"
+    restart: "unless-stopped"

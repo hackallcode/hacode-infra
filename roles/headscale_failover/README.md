@@ -1,0 +1,47 @@
+# hacode.infra.headscale_failover
+
+One headscale for a set of candidate servers, elected through etcd. An agent on each candidate:
+
+- holds an etcd lease and queues in an election; the first live entry leads (its create revision is the term);
+- as the leader, restores the newest database snapshot from etcd, points the server name's A record at itself and
+  starts headscale; then puts the database back into etcd after every meaningful change (a consistent SQLite copy,
+  compressed, written only while its election entry is still the leader's);
+- stops headscale when it cannot renew the lease (out of the quorum) before another candidate can take over;
+- as a standby, keeps headscale stopped;
+- as the leader, while `<state_dir>/hold` exists (younger than 5 minutes), keeps the lease but neither restarts
+  headscale nor writes a snapshot, for a deploy that edits the stopped database.
+
+A manual switch writes a request naming the server that should lead: the leader writes its last snapshot and leaves the
+queue, the requested server takes over, the request is cleared. Columns that change on every reconnect (`last_seen`,
+`endpoints`, `host_info`, `updated_at`, `disco_key`) do not trigger a snapshot.
+
+## Tasks
+
+- `main` (default): install and run the agent with `headscale_failover_state: present`; remove it with `absent`.
+- `seed`: put this server's database into etcd as the first snapshot - once, on the server that serves when the agents
+  are introduced. A leader without a snapshot does not start headscale.
+- `hand-over`: if headscale runs here, switch it to `headscale_failover_to` and wait for that server and DNS.
+
+## Variables
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `headscale_failover_state` | `present` | `present` or `absent` |
+| `headscale_failover_name` | `inventory_hostname` | name in the election and the panel |
+| `headscale_failover_self_ip` | `""` | public address the server name points at while this server leads |
+| `headscale_failover_candidate` | `true` | whether this server may lead |
+| `headscale_failover_server_name` / `_zone` | `""` | name clients reach headscale at, and its Cloudflare zone |
+| `headscale_failover_cloudflare_token` | `""` | Cloudflare API token with DNS edit on the zone |
+| `headscale_failover_etcd_endpoints` | `[]` | etcd client URLs |
+| `headscale_failover_etcd_ca` / `_cert` / `_key` | the etcd member's files under `/etc/etcd/pki` | client TLS |
+| `headscale_failover_prefix` | `/headscale` | etcd key prefix |
+| `headscale_failover_lease_ttl` | `10` | lease TTL in seconds; a leader stops headscale at 70% of it without a renewal |
+| `headscale_failover_snapshot_debounce` | `10` | seconds after the last change before a snapshot |
+| `headscale_failover_snapshot_limit` | `524288` | largest compressed snapshot, bytes |
+| `headscale_failover_desired_fresh` / `_desired_wait` | `120` / `15` | how long a manual request stays valid; how long the leader that handed over stays out of the queue |
+| `headscale_failover_headscale_dir` | `/opt/headscale` | headscale compose project |
+| `headscale_failover_api_listen` / `_api_token` | `""` | HTTP API: `GET /state`, `POST /takeover` (a request to lead), bearer token |
+
+Metrics (node-exporter textfile `headscale_failover.prom`): `leader`, `has_leader`, `serving`, `lease_ok`, `etcd_ok`,
+`error`, `snapshot_timestamp_seconds`, `snapshot_bytes`, `last_tick_timestamp_seconds`; alert rules are in the
+`prometheus` role.

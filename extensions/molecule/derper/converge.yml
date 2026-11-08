@@ -1,0 +1,10 @@
+- name: "Converge: derper role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: "hacode.infra.derper"
+      vars:
+        derper_hostname: "derp.example.com"
+        derper_verify_clients: false

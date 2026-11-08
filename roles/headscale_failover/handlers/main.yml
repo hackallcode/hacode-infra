@@ -1,0 +1,6 @@
+- name: "Restart headscale-failover"
+  ansible.builtin.systemd:
+    name: "headscale-failover.service"
+    state: "restarted"
+    daemon_reload: true
+  when: "not ansible_check_mode"

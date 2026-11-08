@@ -91,6 +91,9 @@ jobs:
           - "machine"
           - "certificate"
           - "gost"
+          - "derper"
+          - "headscale"
+          - "headscale_failover"
           - "nginx"
           - "php"
           - "certbot"
@@ -104,6 +107,7 @@ jobs:
           - "maria_db"
           - "node_js"
           - "singbox"
+          - "tailscale"
           - "ssh_tunnel"
     steps:
       - name: "Check out collection"

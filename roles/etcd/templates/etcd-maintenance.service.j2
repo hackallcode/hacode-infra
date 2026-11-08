@@ -1,0 +1,7 @@
+[Unit]
+Description=etcd {{ job.what }}
+After=etcd.service
+
+[Service]
+Type=oneshot
+ExecStart={{ job.command }}

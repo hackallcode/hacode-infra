@@ -1,0 +1,195 @@
+- name: "Validate headscale settings"
+  ansible.builtin.assert:
+    that:
+      - "headscale_server_url is match('^https?://')"
+      - "headscale_noise_private_key == '' or headscale_noise_private_key is match('^[0-9a-f]{64}$')"
+      - "headscale_node_ips.values() | map('length') | reject('equalto', 2) | list | length == 0"
+      - "not (headscale_policy and headscale_initial_policy)"
+      - "not headscale_oidc or (['issuer', 'client_id', 'client_secret']
+         | difference(headscale_oidc.keys()) | length == 0)"
+    fail_msg: >-
+      headscale_server_url must be an http(s) URL; headscale_noise_private_key 64 hex chars or empty;
+      headscale_node_ips values [ipv4, ipv6];
+      headscale_policy and headscale_initial_policy exclude each other;
+      headscale_oidc needs issuer, client_id, client_secret
+    quiet: true
+
+- name: "Decide whether headscale runs here"
+  ansible.builtin.import_tasks: "active.yml"
+
+- name: "Ensure headscale dirs exist"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0750"
+  loop:
+    - "{{ headscale_dir }}"
+    - "{{ headscale_dir }}/config"
+    - "{{ headscale_dir }}/data"
+
+- name: "Render compose file"
+  ansible.builtin.template:
+    src: "compose.yml.j2"
+    dest: "{{ headscale_dir }}/compose.yml"
+    owner: "root"
+    group: "root"
+    mode: "0640"
+
+- name: "Render headscale config"
+  ansible.builtin.template:
+    src: "config.yml.j2"
+    dest: "{{ headscale_dir }}/config/config.yaml"
+    owner: "root"
+    group: "root"
+    mode: "0640"
+  notify: "Restart headscale"
+
+- name: "Write noise private key"
+  ansible.builtin.copy:
+    content: "privkey:{{ headscale_noise_private_key }}\n"
+    dest: "{{ headscale_dir }}/config/noise_private.key"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+  no_log: true
+  when: "headscale_noise_private_key | length > 0"
+  notify: "Restart headscale"
+
+- name: "Write policy"
+  ansible.builtin.copy:
+    content: "{{ headscale_policy | to_nice_json(indent=2) }}\n"
+    dest: "{{ headscale_dir }}/config/policy.json"
+    owner: "root"
+    group: "root"
+    mode: "0640"
+  when: "headscale_policy | length > 0"
+  notify: "Restart headscale"
+
+- name: "Write OIDC client secret"
+  ansible.builtin.copy:
+    content: "{{ headscale_oidc.client_secret }}"
+    dest: "{{ headscale_dir }}/config/oidc_client_secret"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+  no_log: true
+  when: "headscale_oidc | length > 0"
+  notify: "Restart headscale"
+
+- name: "Render DERP map"
+  ansible.builtin.template:
+    src: "derp.yml.j2"
+    dest: "{{ headscale_dir }}/config/derp.yml"
+    owner: "root"
+    group: "root"
+    mode: "0640"
+  when: "headscale_derp_regions | length > 0"
+  notify: "Restart headscale"
+
+- name: "Remove unused optional config files"
+  ansible.builtin.file:
+    path: "{{ headscale_dir }}/config/{{ item.file }}"
+    state: "absent"
+  loop:
+    - {file: "noise_private.key", used: "{{ headscale_noise_private_key | length > 0 }}"}
+    - {file: "policy.json", used: "{{ headscale_policy | length > 0 }}"}
+    - {file: "oidc_client_secret", used: "{{ headscale_oidc | length > 0 }}"}
+    - {file: "derp.yml", used: "{{ headscale_derp_regions | length > 0 }}"}
+  loop_control:
+    label: "{{ item.file }}"
+  when: "not item.used | bool"
+  notify: "Restart headscale"
+
+- name: "Pull images"
+  community.docker.docker_compose_v2_pull:
+    project_src: "{{ headscale_dir }}"
+    project_name: "headscale"
+    policy: "missing"
+  when: "not ansible_check_mode"
+
+- name: "{{ 'Up' if _headscale_active else 'Stop' }} headscale"
+  community.docker.docker_compose_v2:
+    project_src: "{{ headscale_dir }}"
+    project_name: "headscale"
+    state: "{{ 'present' if _headscale_active else 'stopped' }}"
+    remove_orphans: true
+  when: "not ansible_check_mode"
+
+- name: "Apply pending headscale restart"
+  ansible.builtin.meta: "flush_handlers"
+
+- name: "Wait for headscale health"
+  ansible.builtin.uri:
+    url: "http://{{ headscale_listen_addr }}/health"
+    return_content: true
+  register: "_headscale_health"
+  until: "_headscale_health.status == 200"
+  retries: 30
+  delay: 2
+  when:
+    - "not ansible_check_mode"
+    - "_headscale_active"
+
+- name: "Seed the database policy"
+  when:
+    - "headscale_initial_policy | length > 0"
+    - "not ansible_check_mode"
+    - "_headscale_active"
+  block:
+    - name: "Read the database policy"
+      ansible.builtin.command: "{{ _headscale_exec }} policy get"
+      register: "_headscale_db_policy"
+      changed_when: false
+      failed_when:
+        - "_headscale_db_policy.rc != 0"
+        - "'acl policy not found' not in _headscale_db_policy.stdout ~ _headscale_db_policy.stderr"
+
+    - name: "Write headscale_initial_policy into the empty database"
+      ansible.builtin.command:
+        argv: ["docker", "exec", "-i", "headscale", "headscale", "policy", "set", "-f", "/dev/stdin"]
+        stdin: "{{ headscale_initial_policy | to_json }}"
+      changed_when: true
+      when: "_headscale_db_policy.rc != 0"
+
+- name: "Pin node addresses"
+  ansible.builtin.import_tasks: "node-ips.yml"
+  when:
+    - "headscale_node_ips | length > 0"
+    - "_headscale_active"
+
+- name: "Detect firewalld"
+  ansible.builtin.systemd:
+    name: "firewalld"
+  register: "_headscale_firewalld"
+  failed_when: false
+  changed_when: false
+  when: "headscale_derp_server_enabled | bool"
+
+- name: "Open DERP STUN port"
+  ansible.posix.firewalld:
+    port: "{{ headscale_derp_stun_port }}/udp"
+    state: "enabled"
+    permanent: true
+    immediate: true
+  when:
+    - "headscale_derp_server_enabled | bool"
+    - "_headscale_firewalld.status.ActiveState | default('inactive') == 'active'"
+
+- name: "List headscale users"
+  ansible.builtin.command: "{{ _headscale_exec }} users list -o json"
+  register: "_headscale_users"
+  changed_when: false
+  when:
+    - "not ansible_check_mode"
+    - "_headscale_active"
+
+- name: "Create headscale users"
+  ansible.builtin.command: "{{ _headscale_exec }} users create {{ item | quote }}"
+  loop: "{{ headscale_users }}"
+  changed_when: true
+  when:
+    - "not ansible_check_mode"
+    - "_headscale_active"
+    - "item not in (_headscale_users.stdout | from_json | default([], true) | map(attribute='name') | list)"

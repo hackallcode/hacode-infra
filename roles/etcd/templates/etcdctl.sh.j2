@@ -1,0 +1,4 @@
+#!/bin/sh
+exec /usr/local/bin/etcdctl --endpoints https://127.0.0.1:{{ etcd_client_port }} \
+  --cacert {{ etcd_config_dir }}/pki/ca.crt --cert {{ etcd_config_dir }}/pki/member.crt \
+  --key {{ etcd_config_dir }}/pki/member.key "$@"

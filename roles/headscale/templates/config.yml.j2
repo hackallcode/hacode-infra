@@ -1,0 +1,7 @@
+{% set typed = {'derp': {'server': {'region_id': headscale_derp_region_id | int}}} %}
+{% set ipv4 = {'derp': {'server': {'ipv4': headscale_derp_ipv4}}} if headscale_derp_ipv4 else {} %}
+{% set oidc = {'oidc': {'client_secret_path': '/etc/headscale/oidc_client_secret', 'pkce': {'enabled': true},
+                        'only_start_if_oidc_is_available': false}
+                       | combine(headscale_oidc | dict2items | rejectattr('key', 'eq', 'client_secret') | items2dict)}
+   if headscale_oidc else {} %}
+{{ _headscale_config | combine(typed, ipv4, oidc, headscale_config_extra, recursive=true) | to_nice_yaml(indent=2) }}
