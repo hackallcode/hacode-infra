@@ -10,6 +10,20 @@
       register: "certbot_bin"
       failed_when: "not certbot_bin.stat.exists"
 
+    - name: "Read plugin credentials"
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/cloudflare.ini"
+        get_checksum: true
+        checksum_algorithm: "sha1"
+      register: "certbot_creds"
+
+    - name: "Plugin credentials are written 0600 with the configured content"
+      ansible.builtin.assert:
+        that:
+          - "certbot_creds.stat.exists"
+          - "certbot_creds.stat.mode == '0600'"
+          - "certbot_creds.stat.checksum == ('dns_cloudflare_api_token = molecule-token\n' | hash('sha1'))"
+
     - name: "Renewal cron job is registered"
       ansible.builtin.command: "crontab -l"
       register: "cron_list"

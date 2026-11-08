@@ -36,6 +36,8 @@ certbot_webroot_path: "/var/www/html"
 # Passed via `--<plugin>-credentials`. Required by most `dns-*` plugins
 # (Cloudflare API token, Route53 keys, …).
 certbot_credentials_file: ""
+# Written to `certbot_credentials_file` (0600) by install when both are set.
+certbot_credentials_content: ""
 
 # pre/post run on every issue or renewal; deploy runs only when a cert
 # was actually issued/renewed. Stored per-cert by `certonly`, so the
@@ -50,10 +52,9 @@ certbot_extra_args: []
 
 # Domains for `certificate-get` / `certificate-delete`. The first entry
 # is also `--cert-name` (the certbot lineage id). When `certbot_add_www`
-# is true, each non-wildcard entry is duplicated with a `www.` SAN —
-# turn it off for wildcards or hand-curated SAN lists.
+# is true, each non-wildcard entry is duplicated with a `www.` SAN.
 app_domains: []
-certbot_add_www: true
+certbot_add_www: false
 
 # Where `backup` pulls the /etc/letsencrypt archive and `restore` reads
 # the latest one from. Restoring onto a new host keeps its certs valid

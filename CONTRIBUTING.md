@@ -196,9 +196,12 @@ the changelog.
 
 The `[Unreleased]` block at the top can hold longer entries while
 work is in flight; when a release is cut, those collapse to the
-one-line style. Breaking changes get a `**Migration**:` line under
-their `### Changed` entry, calling out what an existing inventory
-needs to do.
+one-line style.
+
+Breaking changes go under `### Breaking changes`, the first section
+of their version, so it's clear what to check before upgrading. Each
+entry says what changed and what an existing inventory needs to do,
+and keeps that instruction when the release collapses to one line.
 
 **If you're using an LLM to edit the changelog**, watch for
 duplicate `### Changed` (or `### Added`) headings under the same
@@ -285,4 +288,4 @@ Versioning is SemVer. Patches (the `Z` bump) carry a focused fix
 on top of a `X.Y.0`. Minor bumps batch features and any
 behavioural changes that aren't strictly additive. A major bump is
 reserved for `1.0` — until then, breaking changes ship in a minor
-with migration notes in the changelog.
+listed under `### Breaking changes` in the changelog.
