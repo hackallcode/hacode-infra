@@ -255,6 +255,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `app`, `prometheus` roles: `--diff` stops printing rendered secrets:
+  project templates (`.env` and other app configs) and the upstream
+  alertmanager, prometheus and node_exporter roles run with diff off.
+
 - `k8s_addons` role: Envoy Gateway on k3s v1.37 needs `--disable=gateway-api-crd`.
 
 - `machine` role: build the NVIDIA DKMS module for the running kernel

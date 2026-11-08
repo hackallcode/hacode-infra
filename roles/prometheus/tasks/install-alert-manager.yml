@@ -30,3 +30,4 @@
     name: "prometheus.prometheus.alertmanager"
     apply:
       tags: ["install"]
+      diff: false
