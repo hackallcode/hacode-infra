@@ -1,6 +1,6 @@
 - name: "Stat compose file"
   ansible.builtin.stat:
-    path: "{{ derper_dir }}/compose.yml"
+    path: "{{ derper_dir }}/compose.yaml"
   register: "_derper_compose"
 
 - name: "Down derper"

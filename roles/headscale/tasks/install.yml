@@ -31,15 +31,15 @@
 
 - name: "Render compose file"
   ansible.builtin.template:
-    src: "compose.yml.j2"
-    dest: "{{ headscale_dir }}/compose.yml"
+    src: "compose.yaml.j2"
+    dest: "{{ headscale_dir }}/compose.yaml"
     owner: "root"
     group: "root"
     mode: "0640"
 
 - name: "Render headscale config"
   ansible.builtin.template:
-    src: "config.yml.j2"
+    src: "config.yaml.j2"
     dest: "{{ headscale_dir }}/config/config.yaml"
     owner: "root"
     group: "root"
@@ -102,6 +102,8 @@
   when: "not item.used | bool"
   notify: "Restart headscale"
 
+# A standby keeps its image cached: docker_compose_v2 with state "stopped" below never pulls,
+# and a failover leader must be able to start without a registry round trip.
 - name: "Pull images"
   community.docker.docker_compose_v2_pull:
     project_src: "{{ headscale_dir }}"
@@ -123,7 +125,6 @@
 - name: "Wait for headscale health"
   ansible.builtin.uri:
     url: "http://{{ headscale_listen_addr }}/health"
-    return_content: true
   register: "_headscale_health"
   until: "_headscale_health.status == 200"
   retries: 30

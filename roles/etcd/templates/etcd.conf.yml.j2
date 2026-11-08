@@ -1,26 +1,3 @@
-name: "{{ etcd_name }}"
-data-dir: "{{ etcd_data_dir }}"
-listen-client-urls: "https://{{ etcd_address }}:{{ etcd_client_port }},https://127.0.0.1:{{ etcd_client_port }}"
-advertise-client-urls: "https://{{ etcd_address }}:{{ etcd_client_port }}"
-listen-peer-urls: "https://{{ etcd_address }}:{{ etcd_peer_port }}"
-initial-advertise-peer-urls: "https://{{ etcd_address }}:{{ etcd_peer_port }}"
-initial-cluster: "{{ etcd_members | map(attribute='name') | zip(etcd_members | map(attribute='address'))
-                     | map('join', '=https://') | map('regex_replace', '$', ':' ~ etcd_peer_port) | join(',') }}"
-initial-cluster-token: "{{ etcd_cluster_token }}"
-initial-cluster-state: "new"
-heartbeat-interval: {{ etcd_heartbeat_interval }}
-election-timeout: {{ etcd_election_timeout }}
-snapshot-count: {{ etcd_snapshot_count }}
-quota-backend-bytes: {{ etcd_quota_backend_bytes }}
-auto-compaction-mode: "periodic"
-auto-compaction-retention: "{{ etcd_auto_compaction_retention }}"
-client-transport-security:
-  cert-file: "{{ etcd_config_dir }}/pki/member.crt"
-  key-file: "{{ etcd_config_dir }}/pki/member.key"
-  trusted-ca-file: "{{ etcd_config_dir }}/pki/ca.crt"
-  client-cert-auth: true
-peer-transport-security:
-  cert-file: "{{ etcd_config_dir }}/pki/member.crt"
-  key-file: "{{ etcd_config_dir }}/pki/member.key"
-  trusted-ca-file: "{{ etcd_config_dir }}/pki/ca.crt"
-  client-cert-auth: true
+{% set typed = {'heartbeat-interval': etcd_heartbeat_interval | int, 'election-timeout': etcd_election_timeout | int,
+                'snapshot-count': etcd_snapshot_count | int, 'quota-backend-bytes': etcd_quota_backend_bytes | int} %}
+{{ _etcd_config | combine(typed, etcd_config_extra, _etcd_config_locked, recursive=true) | to_nice_yaml(indent=2) }}

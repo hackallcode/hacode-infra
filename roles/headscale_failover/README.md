@@ -36,10 +36,12 @@ queue, the requested server takes over, the request is cleared. Columns that cha
 | `headscale_failover_etcd_ca` / `_cert` / `_key` | the etcd member's files under `/etc/etcd/pki` | client TLS |
 | `headscale_failover_prefix` | `/headscale` | etcd key prefix |
 | `headscale_failover_lease_ttl` | `10` | lease TTL in seconds; a leader stops headscale at 70% of it without a renewal |
+| `headscale_failover_tick` | `1` | seconds between agent loops; keep well under the lease TTL |
 | `headscale_failover_snapshot_debounce` | `10` | seconds after the last change before a snapshot |
 | `headscale_failover_snapshot_limit` | `524288` | largest compressed snapshot, bytes |
 | `headscale_failover_desired_fresh` / `_desired_wait` | `120` / `15` | how long a manual request stays valid; how long the leader that handed over stays out of the queue |
-| `headscale_failover_headscale_dir` | `/opt/headscale` | headscale compose project |
+| `headscale_failover_headscale_dir` | `/opt/headscale` | the headscale role's `headscale_dir`; the agent runs compose in it and reads its database |
+| `headscale_failover_textfile_dir` | `/var/lib/node_exporter` | node_exporter textfile directory the metrics land in |
 | `headscale_failover_api_listen` / `_api_token` | `""` | HTTP API: `GET /state`, `POST /takeover` (a request to lead), bearer token |
 
 Metrics (node-exporter textfile `headscale_failover.prom`): `leader`, `has_leader`, `serving`, `lease_ok`, `etcd_ok`,

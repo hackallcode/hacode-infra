@@ -1,3 +1,5 @@
+# ===== install =====
+# Package version, pinned so a fleet does not drift with the repository.
 tailscale_version: "1.104.5"
 tailscale_port: 41641
 # Below tailscale's 1280: some paths drop the larger UDP packets that 1280 makes. 0 keeps 1280.
@@ -18,4 +20,7 @@ tailscale_login_server: ""
 # rejects --advertise-tags with a preauth key).
 tailscale_authkey: ""
 tailscale_hostname: "{{ inventory_hostname }}"
+# Only flags the role doesn't own: --advertise-exit-node and --advertise-routes belong to
+# tailscale_exit_node / tailscale_ip_forward, which also configure forwarding; --advertise-tags
+# is rejected with a preauth key.
 tailscale_up_args: []

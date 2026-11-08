@@ -56,8 +56,8 @@
 
 - name: "Render compose file"
   ansible.builtin.template:
-    src: "compose.yml.j2"
-    dest: "{{ derper_dir }}/compose.yml"
+    src: "compose.yaml.j2"
+    dest: "{{ derper_dir }}/compose.yaml"
     owner: "root"
     group: "root"
     mode: "0640"

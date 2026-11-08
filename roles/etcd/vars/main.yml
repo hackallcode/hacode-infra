@@ -1,2 +1,30 @@
-_etcd_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_architecture] }}"
+_etcd_arch: >-
+  {{ {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(ansible_architecture | default('x86_64'), 'amd64') }}
 _etcd_release: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}"
+
+_etcd_config:
+  initial-cluster-token: "{{ etcd_cluster_token }}"
+  initial-cluster-state: "new"
+  auto-compaction-retention: "{{ etcd_auto_compaction_retention }}"
+
+# Merged over etcd_config_extra: the keys it must not change.
+_etcd_config_locked:
+  name: "{{ etcd_name }}"
+  data-dir: "{{ etcd_data_dir }}"
+  listen-client-urls: "https://{{ etcd_address }}:{{ etcd_client_port }},https://127.0.0.1:{{ etcd_client_port }}"
+  advertise-client-urls: "https://{{ etcd_address }}:{{ etcd_client_port }}"
+  listen-peer-urls: "https://{{ etcd_address }}:{{ etcd_peer_port }}"
+  initial-advertise-peer-urls: "https://{{ etcd_address }}:{{ etcd_peer_port }}"
+  initial-cluster: >-
+    {{ etcd_members | map(attribute='name') | zip(etcd_members | map(attribute='address'))
+       | map('join', '=https://') | map('regex_replace', '$', ':' ~ etcd_peer_port) | join(',') }}
+  client-transport-security:
+    cert-file: "{{ etcd_config_dir }}/pki/member.crt"
+    key-file: "{{ etcd_config_dir }}/pki/member.key"
+    trusted-ca-file: "{{ etcd_config_dir }}/pki/ca.crt"
+    client-cert-auth: true
+  peer-transport-security:
+    cert-file: "{{ etcd_config_dir }}/pki/member.crt"
+    key-file: "{{ etcd_config_dir }}/pki/member.key"
+    trusted-ca-file: "{{ etcd_config_dir }}/pki/ca.crt"
+    client-cert-auth: true

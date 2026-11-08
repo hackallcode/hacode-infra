@@ -92,6 +92,7 @@ jobs:
           - "certificate"
           - "gost"
           - "derper"
+          - "etcd"
           - "headscale"
           - "headscale_failover"
           - "nginx"

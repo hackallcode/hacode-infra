@@ -1,12 +1,11 @@
 - name: "Check whether headscale runs here"
-  ansible.builtin.command:
-    argv: ["docker", "ps", "-q", "--filter", "name=^headscale$", "--filter", "status=running"]
-  register: "_failover_running"
-  changed_when: false
+  community.docker.docker_container_info:
+    name: "headscale"
+  register: "_failover_container"
   check_mode: false
 
 - name: "Hand over"
-  when: "_failover_running.stdout | length > 0"
+  when: "_failover_container.container.State.Running | default(false)"
   vars:
     _to: "{{ hostvars[headscale_failover_to] }}"
   block:
@@ -20,14 +19,13 @@
       changed_when: true
 
     - name: "Wait for the other server to serve"
-      ansible.builtin.command:
-        argv: ["docker", "ps", "-q", "--filter", "name=^headscale$", "--filter", "status=running"]
+      community.docker.docker_container_info:
+        name: "headscale"
       delegate_to: "{{ headscale_failover_to }}"
       register: "_failover_target"
-      until: "_failover_target.stdout | length > 0"
+      until: "_failover_target.container.State.Running | default(false)"
       retries: 30
       delay: 2
-      changed_when: false
 
     - name: "Wait for the server name to follow"
       ansible.builtin.command:

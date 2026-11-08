@@ -1,8 +1,10 @@
 headscale_version: "0.29.7"
+# Overrides the tag above when set.
 headscale_image: "headscale/headscale:v{{ headscale_version }}"
 headscale_dir: "/opt/headscale"
 
-# Public URL clients and nginx reach; TLS is terminated in front of headscale.
+# Public URL clients and nginx reach; TLS is terminated in front of headscale. With headscale_failover: its hostname
+# must be the headscale_failover_server_name the agent repoints.
 headscale_server_url: ""
 headscale_listen_addr: "127.0.0.1:8090"
 headscale_metrics_listen_addr: "127.0.0.1:9098"
@@ -43,7 +45,8 @@ headscale_node_ips: {}
 # With headscale_failover: "<state_dir>/hold", so that its agent leaves headscale alone during that edit.
 headscale_hold_file: ""
 
-# Deep-merged over the role's config (`_headscale_config` in vars/main.yml).
+# Deep-merged over the role's config (`_headscale_config` in vars/main.yml). Locked: noise.private_key_path,
+# policy.path, derp.paths and database.sqlite.path - the role writes or edits files at exactly these paths.
 headscale_config_extra: {}
 
 # Public addresses of this host. Non-empty: headscale runs only while the server_url host resolves to one of them

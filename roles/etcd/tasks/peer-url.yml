@@ -1,3 +1,11 @@
+- name: "Validate the move"
+  ansible.builtin.assert:
+    that:
+      - "etcd_move_name | length > 0"
+      - "etcd_move_address | length > 0"
+    fail_msg: "peer-url needs etcd_move_name and etcd_move_address"
+    quiet: true
+
 - name: "Read the members"
   ansible.builtin.command:
     argv: ["/usr/local/sbin/etcdctl-local", "member", "list", "-w", "json", "--hex"]

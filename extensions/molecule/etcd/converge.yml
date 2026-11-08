@@ -1,0 +1,12 @@
+- name: "Converge: etcd role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+  vars:
+    ca_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/etcd-ca"
+
+  roles:
+    - role: "hacode.infra.etcd"
+      vars:
+        etcd_ca_key: "{{ lookup('ansible.builtin.file', ca_dir ~ '/ca.key') }}"
+        etcd_ca_cert: "{{ lookup('ansible.builtin.file', ca_dir ~ '/ca.crt') }}"

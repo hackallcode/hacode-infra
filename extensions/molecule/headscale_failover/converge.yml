@@ -1,4 +1,4 @@
-- name: "Converge: an etcd member and the failover agent"
+- name: "Converge: an etcd member and the failover agent role"
   hosts: "all"
   become: true
   gather_facts: true
@@ -16,10 +16,14 @@
         etcd_ca_key: "{{ lookup('ansible.builtin.file', ca_dir ~ '/ca.key') }}"
         etcd_ca_cert: "{{ lookup('ansible.builtin.file', ca_dir ~ '/ca.crt') }}"
 
-    - name: "Install the agent script"
+    # The token and the server name are fakes: the agent leads, finds no snapshot in etcd
+    # and keeps headscale down; its Cloudflare error just loops. test_agent.py covers the rest.
+    - name: "Run the failover agent role"
+      ansible.builtin.import_role:
+        name: "hacode.infra.headscale_failover"
       vars:
-        agent_src: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}/roles/headscale_failover/files"
-      ansible.builtin.copy:
-        src: "{{ agent_src }}/headscale-failover.py"
-        dest: "/usr/local/bin/headscale-failover"
-        mode: "0755"
+        headscale_failover_self_ip: "127.0.0.1"
+        headscale_failover_server_name: "hs.example.com"
+        headscale_failover_zone: "example.com"
+        headscale_failover_cloudflare_token: "molecule-token"
+        headscale_failover_etcd_endpoints: ["https://127.0.0.1:2379"]

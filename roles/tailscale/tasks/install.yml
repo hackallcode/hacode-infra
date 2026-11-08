@@ -62,6 +62,8 @@
     name: "{{ item }}"
     value: "1"
     sysctl_file: "/etc/sysctl.d/99-tailscale.conf"
+    sysctl_set: true
+    reload: true
   loop:
     - "net.ipv4.ip_forward"
     - "net.ipv6.conf.all.forwarding"

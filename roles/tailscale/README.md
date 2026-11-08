@@ -25,7 +25,7 @@ one run by `hacode.infra.headscale` - with a one-off preauth key.
 | `tailscale_login_server` | `""` | `up`: control server URL |
 | `tailscale_authkey` | `""` | `up`: one-off preauth key, never stored; a tagged key tags the node |
 | `tailscale_hostname` | `inventory_hostname` | `up`: node name |
-| `tailscale_up_args` | `[]` | `up`: extra flags, e.g. `--accept-dns=false`; not `--advertise-tags` |
+| `tailscale_up_args` | `[]` | `up`: extra flags, e.g. `--accept-dns=false`; not `--advertise-tags`, and not `--advertise-exit-node`/`--advertise-routes` - `tailscale_exit_node` / `tailscale_ip_forward` own those and the forwarding behind them |
 
 ## Example
 
