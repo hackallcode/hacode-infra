@@ -104,6 +104,31 @@
         permanent: true
         immediate: true
 
+    - name: "List the rich rules its zone carries"
+      ansible.builtin.command:
+        argv: ["firewall-cmd", "--permanent", "--zone={{ tailscale_firewalld_zone }}", "--list-rich-rules"]
+      register: "_tailscale_rich_rules"
+      changed_when: false
+      check_mode: false
+
+    - name: "Remove rich rules no longer wanted from its zone"
+      ansible.posix.firewalld:
+        zone: "{{ tailscale_firewalld_zone }}"
+        rich_rule: "{{ item }}"
+        state: "disabled"
+        permanent: true
+        immediate: true
+      loop: "{{ _tailscale_rich_rules.stdout_lines | difference(tailscale_firewalld_rich_rules) }}"
+
+    - name: "Add rich rules to its zone"
+      ansible.posix.firewalld:
+        zone: "{{ tailscale_firewalld_zone }}"
+        rich_rule: "{{ item }}"
+        state: "enabled"
+        permanent: true
+        immediate: true
+      loop: "{{ tailscale_firewalld_rich_rules }}"
+
 - name: "Read tailscale state"
   tags: ["always"]
   ansible.builtin.command: "tailscale status --json --peers=false"

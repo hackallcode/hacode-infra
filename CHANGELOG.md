@@ -28,6 +28,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   default zone, `wg_firewalld_zone` places `wg0` in a zone, and `wg_endpoint`,
   `wg_client_dns` and `wg_mtu` set what clients get.
 
+- `tailscale` role: `tailscale_firewalld_rich_rules` sets the rich rules of
+  `tailscale_firewalld_zone`, to keep exit node clients off ports of the host's
+  own public address that are closed to the world.
+
 - `certbot` role: `certbot_credentials_content` is written to
   `certbot_credentials_file` (0600) on install, so `dns-*` plugins get their
   credentials from a vaulted variable.

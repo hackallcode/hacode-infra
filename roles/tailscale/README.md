@@ -20,6 +20,7 @@ one run by `hacode.infra.headscale` - with a one-off preauth key.
 | `tailscale_port` | `41641` | tailscaled UDP port, opened in firewalld |
 | `tailscale_mtu` | `1200` | `tailscale0` MTU (`TS_DEBUG_MTU`); `0` keeps tailscale's 1280 |
 | `tailscale_firewalld_zone` | `trusted` | zone for `tailscale0`; the tailnet policy filters traffic |
+| `tailscale_firewalld_rich_rules` | `[]` | all rich rules of that zone, as `firewall-cmd --list-rich-rules` prints them; any other rule there is removed |
 | `tailscale_exit_node` | `false` | `up`: `--advertise-exit-node`, forwarding on |
 | `tailscale_ip_forward` | `tailscale_exit_node` | enable IPv4/IPv6 forwarding (exit node, subnet routes) |
 | `tailscale_login_server` | `""` | `up`: control server URL |

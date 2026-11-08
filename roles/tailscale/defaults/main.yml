@@ -7,6 +7,10 @@ tailscale_mtu: 1200
 
 # tailscale0 lands in this firewalld zone; the tailnet ACL is the filter.
 tailscale_firewalld_zone: "trusted"
+# List of rich rules for that zone, spelled as `firewall-cmd --list-rich-rules` prints them. The role owns the zone's
+# rich rules: any other rule there is removed. Exit node clients reach the host's own public address through
+# tailscale0, which the tailnet ACL does not filter, so ports closed to the world need a rule here.
+tailscale_firewalld_rich_rules: []
 
 # Adds --advertise-exit-node and turns on forwarding; approval is up to the
 # control server (headscale autoApprovers or a manual approve).

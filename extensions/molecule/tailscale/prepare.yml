@@ -10,6 +10,14 @@
         state: "present"
         update_cache: true
 
+    - name: "Seed a rich rule the role must remove"
+      ansible.posix.firewalld:
+        zone: "trusted"
+        rich_rule: 'rule family="ipv4" destination address="192.0.2.2" reject'
+        state: "enabled"
+        permanent: true
+      when: "ansible_os_family == 'RedHat'"
+
     - name: "Start firewalld on RHEL family"
       ansible.builtin.systemd:
         name: "firewalld"
