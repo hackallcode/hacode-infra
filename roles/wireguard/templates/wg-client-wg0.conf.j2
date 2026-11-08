@@ -1,10 +1,13 @@
 [Interface]
 Address = {{ wg_ipv4_prefix }}.{{ wg_client.ip }}/24,{{ wg_ipv6_prefix }}::{{ wg_client.ip }}/64
 PrivateKey = {{ client_private_key }}
-DNS = {{ wg_ipv4_prefix }}.1,{{ wg_ipv6_prefix }}::1
+DNS = {{ wg_client_dns | join(',') if wg_client_dns else wg_ipv4_prefix ~ '.1,' ~ wg_ipv6_prefix ~ '::1' }}
+{% if wg_mtu | int %}
+MTU = {{ wg_mtu }}
+{% endif %}
 
 [Peer]
-Endpoint = {{ ansible_host }}:1194
+Endpoint = {{ wg_endpoint }}:{{ wg_port }}
 PublicKey = {{ server_public_key }}
 AllowedIPs = {{
     wg_ipv4_prefix + '.0/24,' + wg_ipv6_prefix + '::/64'

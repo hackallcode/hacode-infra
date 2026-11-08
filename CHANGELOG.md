@@ -9,6 +9,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `wireguard` role: `wg_firewall_public` keeps `wg_port` closed in the
+  default zone, `wg_firewalld_zone` places `wg0` in a zone, and `wg_endpoint`,
+  `wg_client_dns` and `wg_mtu` set what clients get.
+
 - `machine` role: `machine_yum_repos` entries take an optional `gpgkey`,
   so a repo overridden in place (`file:`) can keep `gpgcheck: 1` — e.g.
   EPEL pinned to the host's minor release where an image's own
@@ -260,6 +264,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   alertmanager, prometheus and node_exporter roles run with diff off.
 
 - `k8s_addons` role: Envoy Gateway on k3s v1.37 needs `--disable=gateway-api-crd`.
+
+- `wireguard` role: a non-default `wg_port` reaches the firewall rule and
+  the client `Endpoint` instead of a hardcoded 1194, and adding a peer no
+  longer fails while `wg0` is down.
 
 - `machine` role: build the NVIDIA DKMS module for the running kernel
   after driver installation and load the modules needed by GPU containers.

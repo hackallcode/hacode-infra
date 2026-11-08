@@ -42,6 +42,8 @@
       Address = {{ wg_ipv4_prefix }}.1/24,{{ wg_ipv6_prefix }}::1/64
       ListenPort = {{ wg_port | default(1194) }}
       PrivateKey = {{ wg_server_private_key }}
+      {{ ('MTU = ' ~ wg_mtu) if wg_mtu | int else '' }}
+      {{ 'Table = off' if 0 < wg_mtu | int < 1280 else '' }}
       {{ wg_post_config | default('') }}
   register: "config_res"
 
