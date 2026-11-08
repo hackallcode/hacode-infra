@@ -41,6 +41,15 @@
         permanent: true
         immediate: true
 
+    - name: "Remove rich rules from its zone"
+      ansible.posix.firewalld:
+        zone: "{{ tailscale_firewalld_zone }}"
+        rich_rule: "{{ item }}"
+        state: "disabled"
+        permanent: true
+        immediate: true
+      loop: "{{ tailscale_firewalld_rich_rules }}"
+
     - name: "Take tailscale0 out of its zone"
       ansible.posix.firewalld:
         zone: "{{ tailscale_firewalld_zone }}"

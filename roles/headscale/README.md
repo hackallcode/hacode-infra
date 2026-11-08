@@ -22,8 +22,9 @@ DERP relay and STUN, in docker compose with host networking. TLS is terminated i
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `headscale_version` | `0.29.7` | image tag (`headscale/headscale:v<version>`) |
+| `headscale_image` | `headscale/headscale:v<version>` | full image reference; overrides the version tag |
 | `headscale_dir` | `/opt/headscale` | compose project; `config/` and `data/` (SQLite, DERP key) under it |
-| `headscale_server_url` | `""` (required) | public URL clients log in to |
+| `headscale_server_url` | `""` (required) | public URL clients log in to; with `headscale_failover` its hostname is the record the agent repoints |
 | `headscale_listen_addr` | `127.0.0.1:8090` | HTTP listener for the TLS proxy |
 | `headscale_metrics_listen_addr` | `127.0.0.1:9098` | Prometheus metrics |
 | `headscale_noise_private_key` | `""` | 64 hex chars; empty - generated in `data/`. Set it to keep the server identity across hosts |
@@ -40,7 +41,7 @@ DERP relay and STUN, in docker compose with host networking. TLS is terminated i
 | `headscale_users` | `[]` | user names to create |
 | `headscale_node_ips` | `{}` | fixed addresses by given name or, failing that, the hostname a node reports (a rename does not touch it), `{"<name>": ["<ipv4>", "<ipv6>"]}`; the database is edited with headscale stopped, nodes not registered yet are skipped |
 | `headscale_hold_file` | `""` | with `headscale_failover`: `<state_dir>/hold`, the agent leaves headscale alone while it exists |
-| `headscale_config_extra` | `{}` | deep-merged over the generated config |
+| `headscale_config_extra` | `{}` | deep-merged over the generated config; `noise.private_key_path`, `policy.path`, `derp.paths` and `database.sqlite.path` are locked to the files the role writes |
 | `headscale_guard_addresses` | `[]` | this host's public addresses; non-empty - run only while `headscale_server_url` resolves to one of them |
 | `headscale_api_key_file` | `""` | `api-key`: key file on the target host (root, `0600`) |
 | `headscale_api_key_control_host` | `""` | `api-key`: inventory host running headscale, where a new key is created |

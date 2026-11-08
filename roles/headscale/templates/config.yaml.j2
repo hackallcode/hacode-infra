@@ -4,4 +4,4 @@
                         'only_start_if_oidc_is_available': false}
                        | combine(headscale_oidc | dict2items | rejectattr('key', 'eq', 'client_secret') | items2dict)}
    if headscale_oidc else {} %}
-{{ _headscale_config | combine(typed, ipv4, oidc, headscale_config_extra, recursive=true) | to_nice_yaml(indent=2) }}
+{{ _headscale_config | combine(typed, ipv4, oidc, headscale_config_extra, _headscale_config_locked, recursive=true) | to_nice_yaml(indent=2) }}

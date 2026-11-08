@@ -2,7 +2,6 @@
   hosts: "all"
   become: true
   gather_facts: true
-  vars_files: ["vars/role.yml"]
 
   roles:
     - role: "hacode.infra.headscale"

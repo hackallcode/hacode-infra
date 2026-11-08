@@ -1,6 +1,6 @@
 - name: "Stat compose file"
   ansible.builtin.stat:
-    path: "{{ headscale_dir }}/compose.yml"
+    path: "{{ headscale_dir }}/compose.yaml"
   register: "_headscale_compose"
 
 - name: "Down headscale"

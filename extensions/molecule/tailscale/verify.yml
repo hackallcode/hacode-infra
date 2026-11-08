@@ -49,3 +49,10 @@
       ansible.builtin.command: "firewall-cmd --zone=trusted --query-interface=tailscale0"
       changed_when: false
       when: "ansible_os_family == 'RedHat'"
+
+    - name: "Trusted zone carries exactly the wanted rich rules"
+      ansible.builtin.command: "firewall-cmd --permanent --zone=trusted --list-rich-rules"
+      register: "rich_rules"
+      changed_when: false
+      failed_when: "rich_rules.stdout_lines != ['rule family=\"ipv4\" destination address=\"192.0.2.1\" reject']"
+      when: "ansible_os_family == 'RedHat'"

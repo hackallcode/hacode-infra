@@ -5,5 +5,3 @@
 
   roles:
     - role: "hacode.infra.tailscale"
-      vars:
-        tailscale_exit_node: true

@@ -28,6 +28,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   default zone, `wg_firewalld_zone` places `wg0` in a zone, and `wg_endpoint`,
   `wg_client_dns` and `wg_mtu` set what clients get.
 
+- `tailscale` role: `tailscale_firewalld_rich_rules` sets the rich rules of
+  `tailscale_firewalld_zone`, to keep exit node clients off ports of the host's
+  own public address that are closed to the world.
+
 - `certbot` role: `certbot_credentials_content` is written to
   `certbot_credentials_file` (0600) on install, so `dns-*` plugins get their
   credentials from a vaulted variable.
@@ -57,7 +61,8 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `etcd` role: an etcd member from the upstream release with TLS and client
   certificates for clients and peers, signed on the controller by a CA from
   variables; defrag and snapshot timers; `peer-url` moves a member to a new
-  address.
+  address. `etcd_config_extra` deep-merges over the rendered config, and a
+  molecule scenario runs a single-member cluster with TLS.
 
 - `derper` role: standalone DERP relay with STUN, built from
   `tailscale.com/cmd/derper` at a pinned release (there is no upstream
@@ -316,6 +321,24 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `wireguard` role: a non-default `wg_port` reaches the firewall rule and
   the client `Endpoint` instead of a hardcoded 1194, and adding a peer no
   longer fails while `wg0` is down.
+
+- `etcd` role: `etcd_backup_dir: ""` really turns the daily snapshot off —
+  the timer is stopped and its units removed instead of rendering a broken
+  command — and the defrag/backup timers no longer report failures under
+  `--check`.
+
+- `headscale`, `derper` roles: the rendered compose file is `compose.yaml`,
+  the collection's one spelling of that artifact (as in `maria_db` and the
+  `docker` role's staged projects).
+
+- `headscale_failover` role: `hand-over` asks the Docker module whether
+  headscale runs instead of parsing `docker ps`, and a host it cannot ask
+  fails the play instead of skipping the switch.
+
+- The `headscale` and `tailscale` molecule scenarios feed the role its
+  variables through `group_vars`, like every other scenario; the
+  `headscale_failover` scenario now converges the role itself (config, unit,
+  service) on top of its etcd member.
 
 - `machine` role: build the NVIDIA DKMS module for the running kernel
   after driver installation and load the modules needed by GPU containers.

@@ -1,3 +1,5 @@
+# ===== install =====
+# Package version, pinned so a fleet does not drift with the repository.
 tailscale_version: "1.104.5"
 tailscale_port: 41641
 # Below tailscale's 1280: some paths drop the larger UDP packets that 1280 makes. 0 keeps 1280.
@@ -5,6 +7,10 @@ tailscale_mtu: 1200
 
 # tailscale0 lands in this firewalld zone; the tailnet ACL is the filter.
 tailscale_firewalld_zone: "trusted"
+# List of rich rules for that zone, spelled as `firewall-cmd --list-rich-rules` prints them. The role owns the zone's
+# rich rules: any other rule there is removed. Exit node clients reach the host's own public address through
+# tailscale0, which the tailnet ACL does not filter, so ports closed to the world need a rule here.
+tailscale_firewalld_rich_rules: []
 
 # Adds --advertise-exit-node and turns on forwarding; approval is up to the
 # control server (headscale autoApprovers or a manual approve).
@@ -18,4 +24,7 @@ tailscale_login_server: ""
 # rejects --advertise-tags with a preauth key).
 tailscale_authkey: ""
 tailscale_hostname: "{{ inventory_hostname }}"
+# Only flags the role doesn't own: --advertise-exit-node and --advertise-routes belong to
+# tailscale_exit_node / tailscale_ip_forward, which also configure forwarding; --advertise-tags
+# is rejected with a preauth key.
 tailscale_up_args: []

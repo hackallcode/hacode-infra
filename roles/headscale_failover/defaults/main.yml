@@ -1,3 +1,4 @@
+# ===== agent =====
 # present: run the agent on a candidate; absent: remove it.
 headscale_failover_state: "present"
 # The name this server queues under in the election and shows in the panel.
@@ -6,11 +7,14 @@ headscale_failover_name: "{{ inventory_hostname }}"
 headscale_failover_self_ip: ""
 headscale_failover_candidate: true
 
-# Name clients reach headscale at, its zone, and a Cloudflare API token with DNS edit on the zone.
+# ===== server =====
+# Name clients reach headscale at; must be the hostname of the headscale role's headscale_server_url, which its
+# DNS guard resolves. The zone that record lives in; a Cloudflare API token with DNS edit on it.
 headscale_failover_server_name: ""
 headscale_failover_zone: ""
 headscale_failover_cloudflare_token: ""
 
+# ===== etcd =====
 # etcd the agents elect through; the client certificate is the etcd member's own.
 headscale_failover_etcd_endpoints: []
 headscale_failover_etcd_ca: "/etc/etcd/pki/ca.crt"
@@ -18,8 +22,11 @@ headscale_failover_etcd_cert: "/etc/etcd/pki/member.crt"
 headscale_failover_etcd_key: "/etc/etcd/pki/member.key"
 headscale_failover_prefix: "/headscale"
 
+# ===== election =====
 # A leader that cannot renew its lease stops headscale at 70% of the TTL; another takes over after the full TTL.
 headscale_failover_lease_ttl: 10
+# Seconds between agent loops. Must stay well under the lease TTL: a slow tick delays both the fencing
+# check and the takeover after the TTL runs out.
 headscale_failover_tick: 1
 # The database goes to etcd this many seconds after its last meaningful change, compressed, up to the limit.
 headscale_failover_snapshot_debounce: 10
@@ -31,11 +38,15 @@ headscale_failover_desired_wait: 15
 # `hand-over`: inventory name of the server that takes headscale.
 headscale_failover_to: ""
 
+# ===== paths =====
+# The headscale role's headscale_dir: the agent runs docker compose in it and reads its database.
 headscale_failover_headscale_dir: "/opt/headscale"
 headscale_failover_dir: "/etc/headscale-failover"
 headscale_failover_state_dir: "/var/lib/headscale-failover"
+# node_exporter's textfile collector directory; a wrong path makes every headscale_failover_* metric vanish.
 headscale_failover_textfile_dir: "/var/lib/node_exporter"
 
+# ===== api =====
 # "<address>:<port>" for the HTTP API (this server's state, manual switch requests); "" - off.
 headscale_failover_api_listen: ""
 headscale_failover_api_token: ""

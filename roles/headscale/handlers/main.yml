@@ -5,4 +5,4 @@
     state: "restarted"
   when:
     - "not ansible_check_mode"
-    - "_headscale_active | default(true)"
+    - "_headscale_active"

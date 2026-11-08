@@ -142,16 +142,18 @@
 
 - name: "Install maintenance timers"
   vars:
-    _jobs:
-      - what: "defrag"
-        command: "/usr/local/sbin/etcdctl-local defrag"
-        on_calendar: "{{ etcd_defrag_on_calendar }}"
-      - what: "backup"
-        command: >-
-          /bin/sh -c 'mkdir -p {{ etcd_backup_dir }} &&
-          /usr/local/sbin/etcdctl-local snapshot save {{ etcd_backup_dir }}/etcd-$(date +%%Y%%m%%d).db &&
-          find {{ etcd_backup_dir }} -name "etcd-*.db" -mtime +{{ etcd_backup_keep }} -delete'
-        on_calendar: "daily"
+    _defrag:
+      what: "defrag"
+      command: "/usr/local/sbin/etcdctl-local defrag"
+      on_calendar: "{{ etcd_defrag_on_calendar }}"
+    _backup:
+      what: "backup"
+      command: >-
+        /bin/sh -c 'mkdir -p {{ etcd_backup_dir }} &&
+        /usr/local/sbin/etcdctl-local snapshot save {{ etcd_backup_dir }}/etcd-$(date +%%Y%%m%%d).db &&
+        find {{ etcd_backup_dir }} -name "etcd-*.db" -mtime +{{ etcd_backup_keep }} -delete'
+      on_calendar: "daily"
+    _jobs: "{{ [_defrag] + ([_backup] if etcd_backup_dir | length > 0 else []) }}"
   block:
     - name: "Render maintenance units"
       ansible.builtin.template:
@@ -166,6 +168,27 @@
       vars:
         job: "{{ item.0 }}"
 
+    - name: "Stop the backup timer when backups are off"
+      ansible.builtin.systemd:
+        name: "etcd-backup.timer"
+        state: "stopped"
+        enabled: false
+      register: "_etcd_backup_stop"
+      failed_when:
+        - "_etcd_backup_stop is failed"
+        - "'Could not find' not in _etcd_backup_stop.msg | default('')"
+      when: "etcd_backup_dir | length == 0"
+
+    - name: "Remove the backup timer when backups are off"
+      ansible.builtin.file:
+        path: "/etc/systemd/system/etcd-backup.{{ item }}"
+        state: "absent"
+      loop: ["service", "timer"]
+      loop_control:
+        label: "etcd-backup.{{ item }}"
+      notify: "Reload systemd"
+      when: "etcd_backup_dir | length == 0"
+
     - name: "Enable maintenance timers"
       ansible.builtin.systemd:
         name: "etcd-{{ item.what }}.timer"
@@ -175,7 +198,7 @@
       loop: "{{ _jobs }}"
       loop_control:
         label: "etcd-{{ item.what }}.timer"
-      ignore_errors: "{{ ansible_check_mode }}"
+      when: "not ansible_check_mode"
 
 - name: "Enable etcd"
   ansible.builtin.systemd:

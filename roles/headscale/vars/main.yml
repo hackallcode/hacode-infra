@@ -4,10 +4,6 @@ _headscale_config:
   metrics_listen_addr: "{{ headscale_metrics_listen_addr }}"
   grpc_listen_addr: "127.0.0.1:50443"
   grpc_allow_insecure: false
-  noise:
-    private_key_path: >-
-      {{ '/etc/headscale/noise_private.key' if headscale_noise_private_key
-         else '/var/lib/headscale/noise_private.key' }}
   prefixes:
     v4: "100.64.0.0/10"
     v6: "fd7a:115c:a1e0::/48"
@@ -22,7 +18,6 @@ _headscale_config:
       private_key_path: "/var/lib/headscale/derp_server_private.key"
       automatically_add_embedded_derp_region: true
     urls: "{{ headscale_derp_urls }}"
-    paths: "{{ ['/etc/headscale/derp.yml'] if headscale_derp_regions else [] }}"
     auto_update_enabled: false
   disable_check_updates: true
   node:
@@ -30,7 +25,6 @@ _headscale_config:
   database:
     type: "sqlite"
     sqlite:
-      path: "/var/lib/headscale/db.sqlite"
       write_ahead_log: true
       wal_autocheckpoint: 1000
   tls_cert_path: ""
@@ -40,7 +34,6 @@ _headscale_config:
     format: "text"
   policy:
     mode: "{{ 'database' if headscale_initial_policy else 'file' }}"
-    path: "{{ '/etc/headscale/policy.json' if headscale_policy else '' }}"
   dns:
     magic_dns: "{{ headscale_base_domain | length > 0 }}"
     base_domain: "{{ headscale_base_domain }}"
@@ -56,5 +49,19 @@ _headscale_config:
     enabled: false
   taildrop:
     enabled: true
+
+# Merged over headscale_config_extra: the paths the role writes or edits files at.
+_headscale_config_locked:
+  noise:
+    private_key_path: >-
+      {{ '/etc/headscale/noise_private.key' if headscale_noise_private_key
+         else '/var/lib/headscale/noise_private.key' }}
+  derp:
+    paths: "{{ ['/etc/headscale/derp.yml'] if headscale_derp_regions else [] }}"
+  database:
+    sqlite:
+      path: "/var/lib/headscale/db.sqlite"
+  policy:
+    path: "{{ '/etc/headscale/policy.json' if headscale_policy else '' }}"
 
 _headscale_exec: "docker exec headscale headscale"
