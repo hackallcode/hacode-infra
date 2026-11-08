@@ -5,7 +5,3 @@
 
   roles:
     - role: "hacode.infra.tailscale"
-      vars:
-        tailscale_exit_node: true
-        tailscale_firewalld_rich_rules:
-          - 'rule family="ipv4" destination address="192.0.2.1" reject'

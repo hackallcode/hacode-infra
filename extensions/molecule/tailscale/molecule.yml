@@ -40,3 +40,14 @@ platforms:
     volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
     tmpfs: ["/tmp"]
     capabilities: ["SYS_ADMIN"]
+
+provisioner:
+  name: "ansible"
+  inventory:
+    group_vars:
+      all:
+        tailscale_exit_node: true
+        # In group_vars (not converge role vars) so verify's include_role re-runs the
+        # role with the same list instead of its empty default.
+        tailscale_firewalld_rich_rules:
+          - 'rule family="ipv4" destination address="192.0.2.1" reject'

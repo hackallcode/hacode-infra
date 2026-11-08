@@ -8,8 +8,8 @@ headscale_failover_self_ip: ""
 headscale_failover_candidate: true
 
 # ===== server =====
-# Name clients reach headscale at - the host of the headscale role's headscale_server_url, whose DNS guard
-# resolves the same record - its zone, and a Cloudflare API token with DNS edit on the zone.
+# Name clients reach headscale at; must be the hostname of the headscale role's headscale_server_url, which its
+# DNS guard resolves. The zone that record lives in; a Cloudflare API token with DNS edit on it.
 headscale_failover_server_name: ""
 headscale_failover_zone: ""
 headscale_failover_cloudflare_token: ""

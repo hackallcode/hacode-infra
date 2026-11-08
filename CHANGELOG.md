@@ -335,10 +335,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   headscale runs instead of parsing `docker ps`, and a host it cannot ask
   fails the play instead of skipping the switch.
 
-- `headscale` molecule scenario feeds the role its variables through
-  `group_vars`, like every other scenario, instead of a private
-  `vars_files` mechanism; the `headscale_failover` scenario now converges
-  the role itself (config, unit, service) on top of its etcd member.
+- The `headscale` and `tailscale` molecule scenarios feed the role its
+  variables through `group_vars`, like every other scenario; the
+  `headscale_failover` scenario now converges the role itself (config, unit,
+  service) on top of its etcd member.
 
 - `machine` role: build the NVIDIA DKMS module for the running kernel
   after driver installation and load the modules needed by GPU containers.
