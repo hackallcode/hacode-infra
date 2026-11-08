@@ -29,6 +29,8 @@ many certs via per-cert calls.
 | `certbot_renew_cron` | `true` | install the daily renewal cron job |
 | `certbot_authenticator` | `nginx` | plugin used by `certonly`; also selects the plugin package installed by `install.yml` |
 | `certbot_extra_authenticators` | `[]` | install extra plugin packages so one machine can issue under multiple plugins |
+| `certbot_credentials_file` | `""` | where install writes `certbot_credentials_content` |
+| `certbot_credentials_content` | `""` | plugin credentials (e.g. `dns_cloudflare_api_token = …`), written 0600 by install |
 
 ### Mode (per `certificate-get` call)
 
@@ -69,7 +71,7 @@ restored `renewal/` configs once DNS has moved.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `app_domains` | `[]` | list of domains; first entry is also `--cert-name`. Empty list → default entrypoint stops after install |
-| `certbot_add_www` | `true` | duplicate each non-wildcard entry with a `www.` SAN |
+| `certbot_add_www` | `false` | duplicate each non-wildcard entry with a `www.` SAN |
 
 ## Examples
 
@@ -119,9 +121,9 @@ restored `renewal/` configs once DNS has moved.
       vars:
         certbot_email: "ops@example.com"
         app_domains: ["example.com", "*.example.com"]
-        certbot_add_www: false
         certbot_authenticator: "dns-cloudflare"
         certbot_credentials_file: "/etc/letsencrypt/cloudflare.ini"
+        certbot_credentials_content: "dns_cloudflare_api_token = {{ vault_cloudflare_token }}"
 ```
 
 ### Many certs on one machine, mixed plugins
@@ -140,12 +142,12 @@ entrypoint, then loop `certificate-get` per cert:
     name: "hacode.infra.certbot"
     tasks_from: "certificate-get"
   loop:
-    - { domains: ["a.example.com"], auth: "nginx" }
-    - { domains: ["*.b.example.com", "b.example.com"], auth: "dns-cloudflare", add_www: false }
+    - { domains: ["example.com"], auth: "nginx", add_www: true }
+    - { domains: ["*.b.example.com", "b.example.com"], auth: "dns-cloudflare" }
   vars:
     app_domains: "{{ item.domains }}"
     certbot_authenticator: "{{ item.auth }}"
-    certbot_add_www: "{{ item.add_www | default(true) }}"
+    certbot_add_www: "{{ item.add_www | default(false) }}"
     certbot_credentials_file: "{{ '/etc/letsencrypt/cloudflare.ini' if item.auth == 'dns-cloudflare' else '' }}"
 ```
 

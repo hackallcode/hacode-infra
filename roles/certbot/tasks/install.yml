@@ -29,6 +29,19 @@
     name: "{{ ['certbot', 'openssl'] + _certbot_plugin_pkgs }}"
     state: "present"
 
+- name: "Write plugin credentials"
+  tags: ["package"]
+  ansible.builtin.copy:
+    content: "{{ certbot_credentials_content }}\n"
+    dest: "{{ certbot_credentials_file }}"
+    owner: "root"
+    group: "root"
+    mode: "0600"
+  no_log: true
+  when:
+    - "certbot_credentials_file | length > 0"
+    - "certbot_credentials_content | length > 0"
+
 - name: "Manage HTTP/HTTPS firewall rules on RHEL family"
   when: "ansible_os_family == 'RedHat'"
   tags: ["firewall"]

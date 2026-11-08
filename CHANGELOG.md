@@ -7,11 +7,30 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Breaking changes
+
+- `certbot` role: `certbot_add_www` defaults to `false`. Set it to `true`
+  where a `www.` name is still served, otherwise a certificate issued from
+  now on (new host, under 30 days to expiry, or `force`) comes without it.
+
+- `maria_db` role: `backup` / `restore` run `mariadb-dump` / `mariadb`
+  inside the container, with `--single-transaction`, and dumps are
+  `<YYYYMMDDTHHMMSSZ>_<host>_<db>.sql.gz` under `maria_db_backup_local_dir`. `restore`
+  now finds what `backup` wrote (it only looked for undated
+  `<db>.sql[.bz2]`) and takes the newest dump per database.
+  Dumps used to land in `{{ playbook_dir }}/../../backups/maria-db`;
+  set `maria_db_backup_local_dir` (or `hacode_backups_dir`) to keep that
+  location.
+
 ### Added
 
 - `wireguard` role: `wg_firewall_public` keeps `wg_port` closed in the
   default zone, `wg_firewalld_zone` places `wg0` in a zone, and `wg_endpoint`,
   `wg_client_dns` and `wg_mtu` set what clients get.
+
+- `certbot` role: `certbot_credentials_content` is written to
+  `certbot_credentials_file` (0600) on install, so `dns-*` plugins get their
+  credentials from a vaulted variable.
 
 - `machine` role: `machine_yum_repos` entries take an optional `gpgkey`,
   so a repo overridden in place (`file:`) can keep `gpgcheck: 1` — e.g.
@@ -238,15 +257,6 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `spec.template.*`.
 
 ### Changed
-
-- `maria_db` role: `backup` / `restore` run `mariadb-dump` / `mariadb`
-  inside the container, with `--single-transaction`, and dumps are
-  `<YYYYMMDDTHHMMSSZ>_<host>_<db>.sql.gz` under `maria_db_backup_local_dir`. `restore`
-  now finds what `backup` wrote (it only looked for undated
-  `<db>.sql[.bz2]`) and takes the newest dump per database.
-  **Migration**: dumps used to land in `{{ playbook_dir }}/../../backups/maria-db`;
-  set `maria_db_backup_local_dir` (or `hacode_backups_dir`) to keep that
-  location.
 
 - `app` role: `app_backup_local_dir` / `app_backup_remote_dir` default to
   `hacode_backups_dir` / `hacode_backups_remote_dir` subdirectories (same
@@ -582,6 +592,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 One line per commit; click through for full rationale and code.
 
+### Breaking changes
+
+- `k8s_addons`: split `<addon>-install` / `<addon>-uninstall` tags; append the lifecycle suffix to any `--tags <addon>`
+  invocation ([c7d859a](https://github.com/hackallcode/hacode-infra/commit/c7d859a))
+- Kebab-case user-visible paths: `maria_db` backups + `wg-configs`; `mv` the old dirs on each host ([11d638a](https://github.com/hackallcode/hacode-infra/commit/11d638a))
+
 ### Added
 
 - `k3s`: preflight auto-enables XFS `rootflags=pquota` on xfs roots ([3b0e2a7](https://github.com/hackallcode/hacode-infra/commit/3b0e2a7))
@@ -601,12 +617,8 @@ One line per commit; click through for full rationale and code.
 
 ### Changed
 
-- `k8s_addons`: split `<addon>-install` / `<addon>-uninstall` tags
-  ([c7d859a](https://github.com/hackallcode/hacode-infra/commit/c7d859a)).
-  **Migration**: append the lifecycle suffix to any `--tags <addon>` invocation.
 - `k8s_addons`: document controller-side deps + preflight assert ([03f5ab7](https://github.com/hackallcode/hacode-infra/commit/03f5ab7))
 - `k8s_addons`: document Longhorn CSI `replicaCount` install-time-only caveat ([dbeed70](https://github.com/hackallcode/hacode-infra/commit/dbeed70))
-- Kebab-case user-visible paths: `maria_db` backups + `wg-configs` (**migration**: `mv` the old dirs on each host) ([11d638a](https://github.com/hackallcode/hacode-infra/commit/11d638a))
 
 ### Fixed
 
