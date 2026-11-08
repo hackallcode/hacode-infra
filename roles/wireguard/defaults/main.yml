@@ -23,6 +23,24 @@ wg_backup_local_dir: "{{ hacode_backups_dir }}/wireguard"
 # UDP port the server listens on.
 wg_port: 1194
 
+# Open `wg_port` in the default firewalld zone. False keeps the server
+# reachable only through interfaces whose zone already lets it in (e.g.
+# tailscale0 in `trusted`).
+wg_firewall_public: true
+
+# firewalld zone for wg0 on the server; empty -> the default zone.
+wg_firewalld_zone: ""
+
+# Address clients put in `Endpoint`.
+wg_endpoint: "{{ ansible_host }}"
+
+# Resolvers clients put in `DNS`; empty -> the server's VPN addresses.
+wg_client_dns: []
+
+# Tunnel MTU on the server and in client configs; 0 -> wg-quick's default. Below 1280 Linux drops IPv6 from the
+# interface, so the server skips wg-quick's per-peer routes (the IPv4 subnet route comes with its address).
+wg_mtu: 0
+
 # IPv4 /24 prefix for the VPN subnet. Server is `.1`, clients pick `.ip`
 # from their entry in `wg_clients`. Override per inventory if running
 # multiple VPNs that must not collide.

@@ -46,7 +46,7 @@
 - name: "Reload WireGuard peers"
   tags: ["clients-add"]
   ansible.builtin.shell:
-    cmd: "/bin/wg syncconf wg0 <(/bin/wg-quick strip wg0)"
+    cmd: "! ip link show wg0 >/dev/null 2>&1 || /bin/wg syncconf wg0 <(/bin/wg-quick strip wg0)"
   args:
     executable: "/bin/bash"
   when: "config_res is changed or (force | default(false) | bool)"

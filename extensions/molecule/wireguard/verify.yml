@@ -26,6 +26,21 @@
       ansible.builtin.command: "grep -q 'server config begin' /etc/wireguard/wg0.conf"
       changed_when: false
 
+    - name: "Wg0.conf carries the configured MTU"
+      ansible.builtin.command: "grep -qx 'MTU = 1420' /etc/wireguard/wg0.conf"
+      changed_when: false
+
+- name: "Verify: wireguard firewall"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "The firewall opens wg_port"
+      ansible.builtin.command: "firewall-offline-cmd --query-port=51820/udp"
+      changed_when: false
+      when: "ansible_os_family == 'RedHat'"
+
 - name: "Verify: wireguard key backup round trip"
   hosts: "all"
   become: true

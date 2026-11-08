@@ -25,6 +25,16 @@ Install WireGuard server and clients; generate peers and download/export their c
 See the templates and per-task variables; this role expects a `wg_*` set of variables defined per-inventory (peer key
 material, IP allocations, listen port).
 
+## Firewall exposure and client settings
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `wg_firewall_public` | `true` | open `wg_port` in the default firewalld zone; `false` leaves the server reachable only through interfaces whose zone already lets it in |
+| `wg_firewalld_zone` | `""` | firewalld zone for `wg0` on the server; empty - the default zone |
+| `wg_endpoint` | `ansible_host` | address clients put in `Endpoint` |
+| `wg_client_dns` | `[]` | resolvers clients put in `DNS`; empty - the server's VPN addresses |
+| `wg_mtu` | `0` | tunnel MTU on the server and in client configs; `0` - wg-quick's default. Below 1280 Linux drops IPv6 from the interface, so the server sets `Table = off` |
+
 ## Moving a server to a new host
 
 The keys are the one piece of server state the role can't regenerate: new ones would mean re-provisioning every peer.

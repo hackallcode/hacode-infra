@@ -52,5 +52,6 @@ provisioner:
         wg_ipv4_prefix: "10.99.99"
         wg_ipv6_prefix: "fd99:99:99"
         wg_port: 51820
+        wg_mtu: 1420
         wg_clients: []
         wg_servers: []
