@@ -255,6 +255,8 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `k8s_addons` role: Envoy Gateway on k3s v1.37 needs `--disable=gateway-api-crd`.
+
 - `machine` role: build the NVIDIA DKMS module for the running kernel
   after driver installation and load the modules needed by GPU containers.
   A fresh install could leave DKMS in the `added` state, which a reboot

@@ -346,6 +346,14 @@ lets any node route to the Envoy pod, which is what a single upstream proxy
 targeting one NodePort needs; `Local` would only answer on nodes running an
 Envoy pod.
 
+On k3s that packages its own Gateway API CRDs (v1.37 does), disable that chart. It installs the standard channel and a
+`safe-upgrades` admission policy, and the policy rejects the experimental CRDs this chart brings:
+
+```yaml
+k3s_server_args:
+  - "--disable=gateway-api-crd"
+```
+
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `k8s_addons_envoy_gateway_enabled` | `false` | opt-in flag |
