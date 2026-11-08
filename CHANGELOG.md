@@ -7,617 +7,158 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-08
+
 ### Breaking changes
 
-- `certbot` role: `certbot_add_www` defaults to `false`. Set it to `true`
-  where a `www.` name is still served, otherwise a certificate issued from
-  now on (new host, under 30 days to expiry, or `force`) comes without it.
-
-- `maria_db` role: `backup` / `restore` run `mariadb-dump` / `mariadb`
-  inside the container, with `--single-transaction`, and dumps are
-  `<YYYYMMDDTHHMMSSZ>_<host>_<db>.sql.gz` under `maria_db_backup_local_dir`. `restore`
-  now finds what `backup` wrote (it only looked for undated
-  `<db>.sql[.bz2]`) and takes the newest dump per database.
-  Dumps used to land in `{{ playbook_dir }}/../../backups/maria-db`;
-  set `maria_db_backup_local_dir` (or `hacode_backups_dir`) to keep that
-  location.
+- `certbot`: `certbot_add_www` defaults to `false` — set `true` where a `www.`
+  name is still served, or certificates issued from now on come without it
+  ([9d503cc](https://github.com/hackallcode/hacode-infra/commit/9d503cc))
+- `maria_db`: `backup` / `restore` run inside the container with
+  `--single-transaction`; dumps are `<YYYYMMDDTHHMMSSZ>_<host>_<db>.sql.gz`
+  under `maria_db_backup_local_dir` (set it or `hacode_backups_dir` to keep
+  `playbook_dir/../../backups/maria-db`), `restore` takes the newest per database
+  ([9ebb049](https://github.com/hackallcode/hacode-infra/commit/9ebb049))
+- `machine`: sshd settings move to `sshd_config.d/00-hacode.conf`, ahead of
+  image fragments, and the run fails if `sshd -T` shows root or password logins
+  on (a `machine_ssh_dropins` entry sorting earlier skips the check). A host
+  whose image re-enabled them loses them — make sure a non-root user with a
+  key can reach it first
+  ([7f5ccab](https://github.com/hackallcode/hacode-infra/commit/7f5ccab))
+- `prometheus`: the bundled rules and Alertmanager template now reach the
+  host, so existing hosts start evaluating the CPU / RAM / filesystem /
+  instance alerts on the next run; opt out with
+  `prometheus_bundled_rules_enabled: false`
+  ([1d306b1](https://github.com/hackallcode/hacode-infra/commit/1d306b1))
 
 ### Added
 
-- `wireguard` role: `wg_firewall_public` keeps `wg_port` closed in the
-  default zone, `wg_firewalld_zone` places `wg0` in a zone, and `wg_endpoint`,
-  `wg_client_dns` and `wg_mtu` set what clients get.
-
-- `tailscale` role: `tailscale_firewalld_rich_rules` sets the rich rules of
-  `tailscale_firewalld_zone`, to keep exit node clients off ports of the host's
-  own public address that are closed to the world.
-
-- `certbot` role: `certbot_credentials_content` is written to
-  `certbot_credentials_file` (0600) on install, so `dns-*` plugins get their
-  credentials from a vaulted variable.
-
-- `headscale` role: self-hosted Tailscale control server with its embedded
-  DERP and STUN, in docker compose with host networking: config deep-merged
-  from `headscale_config_extra`, policy (from a variable or seeded into its
-  database) and extra DERP regions, OIDC login, users, fixed node addresses
-  (`headscale_node_ips`, by given name or reported hostname), `preauth-key`
-  for one-off login keys (tagged or per user) that are never stored, and
-  `api-key` for a working API key on another host. A DNS guard
-  (`headscale_guard_addresses`) runs headscale only where the server name
-  points.
-
-- `headscale_failover` role: one headscale for a set of candidates, elected
-  through etcd. An agent on each candidate holds a lease and queues in the
-  election; the leader restores the newest database snapshot from etcd,
-  points the server name's Cloudflare A record at itself and starts
-  headscale, then writes the database back after each meaningful change
-  under a check that it still leads; without the lease it stops headscale. A
-  manual switch is a request the leader hands over on, a hold file pauses
-  the leader while a deploy edits the database, `hand-over` switches it from
-  a playbook. HTTP API for a panel, textfile metrics, and `prometheus` alert
-  rules for a missing leader, a lost lease, leader changes, a large snapshot
-  and a stalled agent.
-
-- `etcd` role: an etcd member from the upstream release with TLS and client
-  certificates for clients and peers, signed on the controller by a CA from
-  variables; defrag and snapshot timers; `peer-url` moves a member to a new
-  address. `etcd_config_extra` deep-merges over the rendered config, and a
-  molecule scenario runs a single-member cluster with TLS.
-
-- `derper` role: standalone DERP relay with STUN, built from
-  `tailscale.com/cmd/derper` at a pinned release (there is no upstream
-  binary), plain HTTP behind a TLS proxy, `--verify-clients` on.
-
-- `tailscale` role: pinned tailscale from pkgs.tailscale.com, firewalld port
-  and zone for `tailscale0`, opt-in IP forwarding, `tailscale0` MTU
-  (`tailscale_mtu`, 1200 by default) for paths that drop large UDP packets,
-  and `up` to join a tailnet with a one-off key (`--force-reauth` when the
-  control server changed); reports `tailscale_backend_state` so a play logs
-  in only nodes that aren't `Running`.
-
-- `machine` role: `machine_yum_repos` entries take an optional `gpgkey`,
-  so a repo overridden in place (`file:`) can keep `gpgcheck: 1` — e.g.
-  EPEL pinned to the host's minor release where an image's own
-  `epel.repo` tracks the newest one.
-
-- Backup / restore for server state the roles can't regenerate, so a
-  host can move to a new machine: `wireguard` `server-backup` /
-  `server-restore` (the keys; peers keep their configs and only need
-  the new endpoint), `certbot` `backup` / `restore`
-  (`/etc/letsencrypt`, so certs stay valid before DNS moves),
-  `ssh_tunnel` `backup` / `restore` (each tunnel user's `~/.ssh`
-  without `authorized_keys`), and `app` `restore` to go with its
-  `backup`. All archive to
-  `<hacode_backups_dir>/<role>/<YYYYMMDDTHHMMSSZ>_<host>[_...].tar.gz`
-  and restore the newest one, keeping numeric uids so container-owned
-  data survives a distro change. The name carries the UTC time, so a
-  second backup the same day no longer replaces the first; restore
-  falls back to the date-only names that earlier `app` and `maria_db`
-  backups carry. Built on new `common` helpers (`tasks_from: backup |
-  restore | pull`) and the `hacode_backups_dir` /
-  `hacode_backups_remote_dir` defaults.
-
-- `k8s_addons` role: a CloudNativePG operator addon
-  (`k8s_addons_cnpg_*`, CRDs with the chart, CRDs kept on uninstall);
-  `k8s_addons_cert_manager_cluster_issuers` applies ClusterIssuers once
-  cert-manager is up; `k8s_addons_coredns_custom_overrides` adds raw
-  `<name>.override` snippets to the main `.:53` block, e.g. a
-  split-horizon rewrite of an app domain to the in-cluster ingress.
-  Both new lists reconcile both ways. The `coredns-custom` ConfigMap is
-  now server-side applied and its accumulator reset per run, so a server
-  or override dropped from the inventory stops answering instead of
-  lingering as a key CoreDNS still imports (this also fixes
-  `k8s_addons_coredns_custom_servers`, which had the same leak). ClusterIssuers the role creates carry
-  `app.kubernetes.io/managed-by: hacode.infra`, and a labelled issuer
-  the dict no longer names is deleted rather than left signing renewals;
-  issuers created by anything else are untouched.
-
-- `k8s_addons` role: the external Prometheus ServiceAccount can scrape
-  pods through the API-server proxy (`pods/proxy`), so a Prometheus
-  outside the cluster can scrape the pods it discovers with `role: pod`
-  without routing the pod network.
-
-- `prometheus` role: `alertmanager_extra_template_files` ships a
-  project's own Alertmanager templates, and
-  `alertmanager_bundled_templates_enabled: false` leaves out the bundled
-  one, so a project can define its own `telegram.default.message`.
-
-- `prometheus` role: knobs for a project that brings its own alerting on
-  a host shared with a workload. `prometheus_bundled_rules_enabled:
-  false` leaves out the curated rules (and removes them from the host)
-  so the project's thresholds are the only ones;
-  `node_exporter_allowed_sources` opens node_exporter to the given
-  IPv4 CIDRs only instead of to everyone, reconciled both ways — the
-  role owns the rich rules on that port, so a source dropped from the
-  list has its accept rule removed on the next run instead of staying
-  open forever; `prometheus_unit_overrides` writes
-  systemd `[Service]` settings per unit, e.g. `OOMScoreAdjust` and
-  `MemoryMax`, so the kernel kills the workload before the alerter and
-  the alerter cannot press the host.
-
-- `ssh_tunnel` role: per-tunnel `forwards` list for explicit `-L`,
-  `-R` and `-D` forwards with a bind address and a destination
-  (`{type, bind_address, bind_port, host, port}`). The
-  `forward_port` / `reverse_port` shorthands could only open a SOCKS
-  proxy on `0.0.0.0`, so publishing one port of this host on a jump
-  box's private address was out of reach. They render unchanged, so
-  existing units are not restarted.
-
-- `ssh_tunnel` role: per-tunnel `user` and `identity_file`, so a
-  tunnel can run as a local account with its own key (`User=`, that
-  user's `known_hosts`, `IdentityFile` + `IdentitiesOnly=yes`).
-  Root tunnels render unchanged.
-
-- `machine` role: forwarding-only accounts. User entries take an
-  optional `shell`, `machine_ssh_dropins` writes
-  `/etc/ssh/sshd_config.d/<name>.conf` fragments verbatim, and
-  `machine_tmux_users` picks who gets `~/.tmux.conf` like
-  `machine_zsh_users` does for oh-my-zsh.
-
-- `machine` role: `machine_yum_repos` entries take an optional `file`
-  key (default `<name>.repo`). Point it at the distro's own repo
-  filename (`almalinux-baseos.repo`, ...) to overwrite the stock repo
-  file in place. Since `.repo` files are marked `%config(noreplace)`
-  by the packaging, the in-house definition then survives an
-  `almalinux-repos` upgrade instead of colliding with the stock one —
-  no `machine_dnf_excludes` on `almalinux-release` (which breaks
-  depsolve on the version-locked `almalinux-release` / `-repos` /
-  `-gpg-keys` set), no rm-and-recreate ordering games. Also reconciles
-  `machine_dnf_excludes` both ways: emptying the list now removes the
-  `exclude=` line from `/etc/dnf/dnf.conf` again.
-
-- `singbox` role: per-instance `direct_domains` — hosts named there
-  go past the tunnel and leave the node on its own address instead of
-  via VLESS. Routes can't do this when the hosts to tunnel and the
-  ones to skip sit behind the same CDN (addresses are shared, names
-  are not); a sing-box `sniff` rule reads the TLS SNI and sends the
-  listed names to the direct outbound. Motivating case: a provider
-  refuses the tunnel's exit address while the same credentials work
-  from a direct route. Pair with the new per-instance `wan_interface`
-  so the direct outbound binds to the node's egress NIC — in `host`
-  mode the default route points at the tun, so an unbound direct
-  outbound loops the exception back through the tunnel instead of
-  leaving.
-
-- `singbox` role: `dests` routing mode. Sends `route_dests` CIDRs
-  through the tun in the main routing table — no marks, no ipsets,
-  no policy rules — so it works under Cilium's BPF datapath, where
-  `k3s-pods` mode is a no-op (the BPF forwarding path skips `ip rule`
-  lookups so the fwmark never routes the packet). Every other
-  destination keeps its route, including the ssh you are holding.
-
-- `machine` role: `machine_netplan_files` (list, default `[]`) — netplan
-  configs dropped into `/etc/netplan/` (root:root, 0600) and applied via
-  `netplan apply` on notify. Each item takes `name` plus one of `content`
-  (inline YAML) or `template` (Jinja path rendered on the controller).
-  Gated by `machine_netplan_enabled` (default `true`) and
-  `ansible_os_family == 'Debian'` — the whole block is skipped on RHEL
-  where netplan isn't installed. Empty list = no-op. The rendered config
-  is tracked in a shadow copy under `machine_netplan_state_dir` (default
-  `/var/lib/hacode/netplan`); `/etc/netplan` is rewritten and `netplan
-  apply` fired only when it changes, so runs stay idempotent even on
-  NetworkManager-backed hosts where `netplan apply` consumes the source
-  file (rewriting it as `90-NM-<uuid>.yaml`). `force=true` re-applies.
-
-- `machine` role: `machine_raspberry_cmdline_params` (list, default `[]`)
-  — kernel command-line parameters ensured in
-  `/boot/firmware/cmdline.txt` on Raspberry Pi OS. Params are matched by
-  key (the part before `=`): present with any value → left untouched,
-  absent → appended. Nothing is ever removed, so it composes with the
-  firmware-injected params. A change flags `/var/run/reboot-required`
-  inline (not via handler — the marker has to exist before `reboot.yml`
-  checks it at the end of the run). `machine_raspberry_cmdline_file`
-  overrides the path (Pi OS Bookworm default is `/boot/firmware/cmdline.txt`).
-
-- `k3s` role: `cordon`, `uncordon`, `drain`, `reboot` and `delete`
-  entrypoints (`tasks_from`) for taking a node out of scheduling and
-  putting it back — a machine being replaced, rebooted for maintenance,
-  or retired. All five delegate `k3s kubectl` to the cluster's primary
-  server, so they work against agents just as well as against a server. `k3s_drain_args` carries
-  `--ignore-daemonsets --delete-emptydir-data` by default, without
-  which drain refuses to evict on any cluster with a CNI or a CSI
-  driver; `k3s_drain_timeout` (default `600s`) bounds the wait;
-  `k3s_reboot_timeout` and `k3s_reboot_ready_timeout` bound the
-  reboot flow's host-back and node-Ready waits; `k3s_node_name` pins
-  the registered name when the inventory does not set `hostname`.
-  Peer-resolution (`k3s_cluster_peers`, `k3s_primary_url`,
-  `k3s_is_primary`) is factored into `_peers.yml` and imported by all
-  entrypoints and by `install-server` / `install-agent`, so the two
-  duplicated blocks are gone.
-
-- `machine` role: `machine_pip_packages` (list, default `[]`) — Python
-  packages to `pip install` system-wide. On PEP 668 distros
-  (Ubuntu 24.04+, Debian 12+, RHEL 10) the role detects the
-  `EXTERNALLY-MANAGED` marker and passes `--break-system-packages`
-  automatically; older pip that doesn't understand the flag stays
-  untouched. Runs after the `machine_pip_index_url` block so installs
-  hit the configured mirror when one is set.
-
-- `machine` role: `machine_pip_index_url`, `machine_pip_extra_index_url`
-  and `machine_pip_trusted_host` — point pip at an internal PyPI mirror
-  by merging into `/etc/pip.conf`'s `[global]` section via
-  `community.general.ini_file` (other keys already in `[global]` are
-  preserved). `machine_pip_index_url` gates the whole block; the extra
-  and trusted-host keys are reconciled to inventory each run — set the
-  value and the line is written, clear it and the previously-written
-  line is removed.
-
-- `k3s` role (server): `k3s_resolv_conf` (list, default `[]`) — upstream
-  nameservers to write into a curated resolv.conf and pass to kubelet
-  via `resolv-conf:` in `/etc/rancher/k3s/config.yaml`. CoreDNS forwards
-  cluster egress to this file (`forward . /etc/resolv.conf`) so it
-  becomes the effective cluster upstream. Set this on nodes that run a
-  local stub resolver (systemd-resolved / NetworkManager dnsmasq →
-  `127.0.0.1`), where k3s otherwise falls back to a hardcoded
-  `8.8.8.8` + IPv6 resolver that dead-ends on IPv4-only hosts. A
-  change re-renders the file and restarts k3s. Path is configurable
-  via `k3s_resolv_conf_path` (default `/etc/rancher/k3s/resolv.conf`).
-
-- `singbox` role — installs [sing-box](https://sing-box.sagernet.org/) as a
-  systemd-managed VLESS (+REALITY) egress client. Multi-instance: each
-  entry in `singbox_instances` becomes its own `sing-box@<name>.service`
-  with a dedicated TUN, routing table, fwmark and ipset, so several
-  independent tunnels to different servers can coexist on one host.
-  Three per-instance routing modes: `k3s-pods` (tunnel egress of pods in
-  `scope_namespaces` only, via an ipset of their pod IPs + fwmark
-  policy-routing — CNI-agnostic and gVisor-compatible), `host` (whole-host
-  egress through the TUN with excludes to stay reachable), and `none`
-  (bring the TUN up only). Routing is torn down via the unit's
-  `ExecStopPost`, so stopping an instance cleanly reverts the host.
-
-- `docker` role: `docker_daemon_config` (dict, default `{}`) — rendered to
-  `/etc/docker/daemon.json` when non-empty, with a `Restart docker` handler
-  applying changes. Enables e.g. opting out of the containerd image store on
-  Docker 28+/29 (`features.containerd-snapshotter: false`), whose referrers
-  API breaks pulls through registries that don't implement it (GitLab's
-  dependency proxy).
-
-- `k3s` role: version upgrades. When `k3s_version` is pinned and differs
-  from what `k3s --version` reports on the host, the role re-runs the
-  installer (which performs an in-place upgrade + service restart).
-  Previously the installer was guarded on unit presence + ExecStart drift
-  only, so bumping `k3s_version` on already-installed nodes was a no-op.
-  Detection runs on both servers and agents.
-
-- `k8s_addons`: Kyverno addon (Helm chart) — generic admission policy
-  engine, opt-in via `k8s_addons_kyverno_enabled`.
-- `k8s_addons`: egress proxy addon. A Kyverno `ClusterPolicy` injects an
-  init container (iptables REDIRECT of outbound TCP inside the pod
-  netns, minus `_exclude_cidrs` and the sidecar's own uid) plus a
-  gost sidecar forwarding captured traffic to `_forwarder`. Interception
-  in the pod netns is CNI-agnostic (works where host-level REDIRECT can't,
-  e.g. a Cilium node that owns pod egress). Requires
-  `k8s_addons_kyverno_enabled: true`. Three opt-out knobs skip pods that
-  can't take the injection: `_exclude_runtime_classes` (default
-  `["gvisor"]` — runsc can't do iptables/nft, the init would fail), the
-  `_optout_label` label (`egress-proxy-inject: "false"` on a pod
-  bypasses injection — for e.g. runAsNonRoot pods or workloads with
-  their own egress policy), and a native check on
-  `spec.securityContext.runAsNonRoot: true` (the init needs root for
-  iptables, so kubelet would reject it — skip up-front). Kyverno
-  controller autogen is disabled on the policy so pod-level labels /
-  runtimeClassName are read at the Pod path, not from
-  `spec.template.*`.
-
-### Changed
-
-- `app` role: `app_backup_local_dir` / `app_backup_remote_dir` default to
-  `hacode_backups_dir` / `hacode_backups_remote_dir` subdirectories (same
-  paths as before unless those are overridden).
-
-- `prometheus` role: the RAM, CPU and filesystem-space rules keep firing
-  for 3 minutes through missing samples. A host that goes away used to
-  resolve its open alerts first and only then fire InstanceDown, so the
-  chat read as if the disk or memory had recovered.
+- self-hosted Tailscale mesh: `headscale` (control server with embedded DERP
+  and STUN, OIDC), `derper` (standalone DERP relay), `etcd` (TLS member),
+  `headscale_failover` (etcd-elected leader restores the newest snapshot and
+  moves the Cloudflare A record) and `tailscale` (pinned client, firewalld
+  zone, one-shot `up`; `tailscale_firewalld_rich_rules` keeps exit-node
+  clients off the host's closed public ports)
+  ([c945b4f](https://github.com/hackallcode/hacode-infra/commit/c945b4f),
+  [525af60](https://github.com/hackallcode/hacode-infra/commit/525af60))
+- `singbox`: multi-instance VLESS (+REALITY) egress client with `k3s-pods`,
+  `host` and `dests` modes (`dests` works under Cilium's BPF datapath) and
+  `direct_domains` SNI bypass
+  ([7a8ad36](https://github.com/hackallcode/hacode-infra/commit/7a8ad36),
+  [ab42980](https://github.com/hackallcode/hacode-infra/commit/ab42980),
+  [51631e1](https://github.com/hackallcode/hacode-infra/commit/51631e1),
+  [688966d](https://github.com/hackallcode/hacode-infra/commit/688966d),
+  [eb23020](https://github.com/hackallcode/hacode-infra/commit/eb23020))
+- backup / restore for state the roles can't regenerate: `wireguard` keys,
+  `certbot` `/etc/letsencrypt`, `ssh_tunnel` `~/.ssh`, `app` data —
+  timestamped uid-preserving archives under `hacode_backups_dir`
+  ([9ebb049](https://github.com/hackallcode/hacode-infra/commit/9ebb049))
+- `k8s_addons`: CloudNativePG addon; cert-manager `ClusterIssuers` and CoreDNS
+  `<name>.override` snippets reconciled both ways (only issuers labelled
+  `managed-by: hacode.infra` get deleted); external Prometheus scrapes pods
+  through the API-server proxy
+  ([0dbd1f1](https://github.com/hackallcode/hacode-infra/commit/0dbd1f1),
+  [58ef129](https://github.com/hackallcode/hacode-infra/commit/58ef129))
+- `k8s_addons`: Kyverno addon and a transparent egress-proxy sidecar (skips
+  gvisor, opt-out-label and `runAsNonRoot` pods)
+  ([bc77d18](https://github.com/hackallcode/hacode-infra/commit/bc77d18),
+  [53187ff](https://github.com/hackallcode/hacode-infra/commit/53187ff),
+  [a5a65fc](https://github.com/hackallcode/hacode-infra/commit/a5a65fc))
+- `prometheus`: extra rule and Alertmanager template files, optional bundled
+  ones, `node_exporter_allowed_sources` reconciled both ways,
+  `prometheus_unit_overrides`, `keep_firing_for: 3m` on the resource alerts
+  ([f3d3720](https://github.com/hackallcode/hacode-infra/commit/f3d3720),
+  [1d306b1](https://github.com/hackallcode/hacode-infra/commit/1d306b1))
+- `ssh_tunnel`, `machine`: per-tunnel `-L` / `-R` / `-D` forwards with a bind
+  address, `user` + `identity_file`, forwarding-only accounts,
+  `machine_ssh_dropins`, `machine_tmux_users`
+  ([71a8a1a](https://github.com/hackallcode/hacode-infra/commit/71a8a1a))
+- `machine`: `machine_yum_repos` entries take `gpgkey` and `file:` (overwrites
+  a stock repo file in place), `machine_yum_remove_repo_files`,
+  `machine_dnf_excludes` reconciled both ways
+  ([b9295f0](https://github.com/hackallcode/hacode-infra/commit/b9295f0),
+  [33bb7c0](https://github.com/hackallcode/hacode-infra/commit/33bb7c0),
+  [4a934ec](https://github.com/hackallcode/hacode-infra/commit/4a934ec))
+- `machine`: `machine_netplan_files` (idempotent on NetworkManager hosts),
+  `machine_raspberry_cmdline_params`, `machine_pip_packages` (PEP 668-aware),
+  `/etc/pip.conf` internal-index settings
+  ([4ea7a7e](https://github.com/hackallcode/hacode-infra/commit/4ea7a7e),
+  [4aef69d](https://github.com/hackallcode/hacode-infra/commit/4aef69d),
+  [6acf0ad](https://github.com/hackallcode/hacode-infra/commit/6acf0ad),
+  [dde21ec](https://github.com/hackallcode/hacode-infra/commit/dde21ec))
+- `k3s`: `cordon` / `uncordon` / `drain` / `reboot` / `delete` entrypoints,
+  `k3s_resolv_conf` kubelet upstream, upgrade on `k3s_version` drift
+  ([ded63ef](https://github.com/hackallcode/hacode-infra/commit/ded63ef),
+  [f095ce8](https://github.com/hackallcode/hacode-infra/commit/f095ce8),
+  [3d31445](https://github.com/hackallcode/hacode-infra/commit/3d31445),
+  [47dfe52](https://github.com/hackallcode/hacode-infra/commit/47dfe52))
+- `docker`: `docker_daemon_config` rendered to `daemon.json`
+  ([b166189](https://github.com/hackallcode/hacode-infra/commit/b166189))
+- `wireguard`: `wg_firewall_public` (keeps `wg_port` closed), `wg_firewalld_zone`,
+  `wg_endpoint` / `wg_client_dns` / `wg_mtu`
+  ([42d6589](https://github.com/hackallcode/hacode-infra/commit/42d6589))
+- `certbot`: `certbot_credentials_content` written 0600 to
+  `certbot_credentials_file` for `dns-*` plugins
+  ([9d503cc](https://github.com/hackallcode/hacode-infra/commit/9d503cc))
 
 ### Fixed
 
-- `app`, `prometheus` roles: `--diff` stops printing rendered secrets:
-  project templates (`.env` and other app configs) and the upstream
-  alertmanager, prometheus and node_exporter roles run with diff off.
-
-- `k8s_addons` role: Envoy Gateway on k3s v1.37 needs `--disable=gateway-api-crd`.
-
-- `wireguard` role: a non-default `wg_port` reaches the firewall rule and
-  the client `Endpoint` instead of a hardcoded 1194, and adding a peer no
-  longer fails while `wg0` is down.
-
-- `etcd` role: `etcd_backup_dir: ""` really turns the daily snapshot off —
-  the timer is stopped and its units removed instead of rendering a broken
-  command — and the defrag/backup timers no longer report failures under
-  `--check`.
-
-- `headscale`, `derper` roles: the rendered compose file is `compose.yaml`,
-  the collection's one spelling of that artifact (as in `maria_db` and the
-  `docker` role's staged projects).
-
-- `headscale_failover` role: `hand-over` asks the Docker module whether
-  headscale runs instead of parsing `docker ps`, and a host it cannot ask
-  fails the play instead of skipping the switch.
-
-- The `headscale` and `tailscale` molecule scenarios feed the role its
-  variables through `group_vars`, like every other scenario; the
-  `headscale_failover` scenario now converges the role itself (config, unit,
-  service) on top of its etcd member.
-
-- `machine` role: build the NVIDIA DKMS module for the running kernel
-  after driver installation and load the modules needed by GPU containers.
-  A fresh install could leave DKMS in the `added` state, which a reboot
-  alone cannot repair. A stale loaded driver still requests a reboot.
-
-- `machine` role: apply `firewall_default_zone` to firewalld and bind the
-  interfaces named in `firewall_zone_interfaces` — by default only the one
-  carrying the primary default route — in both runtime and permanent
-  configuration. Previously the variable only selected the zone for
-  forwarding and masquerade, leaving ingress in the host's existing zone.
-  Secondary NICs keep their existing zones. For NetworkManager-managed
-  interfaces, persist the zone in the connection profile; otherwise use
-  firewalld's permanent configuration. Runtime and persistent zones are
-  reconciled independently, so a matching runtime zone does not hide drift.
-
-- `k8s_addons` role: the preflight check for the Python `kubernetes`
-  package runs the controller's Ansible Python, the one the modules use.
-  It ran the managed host's `ansible_python_interpreter` instead (e.g.
-  `/usr/bin/python3` from `group_vars/all`), so it failed when the
-  package lived only in Ansible's venv and passed when only the system
-  Python had it.
-
-- `machine` role: a freshly bootstrapped host reboots into the kernel the
-  package upgrade just installed, before Docker is set up, even with
-  `machine_reboot_enabled: false`. The image kernel's
-  `kernel-modules-extra` is often gone from the repos by then, which left
-  Docker's `br_netfilter` / `xt_*` / `iptable_*` modules unloadable on
-  first setup. Opt out with `machine_bootstrap_reboot_enabled: false`.
-
-- `machine` role: on AlmaLinux, a play with `gather_facts` off (as the
-  README now recommends) no longer fails at the GPG key import with
-  `'ansible_distribution_major_version' is undefined`. The repo-setup
-  facts left out the major version the default `machine_alma_gpg_key_url`
-  is built from.
-
-- `app` role: `upload` no longer drops source dirs that share a name
-  with a data path or template. They went to rsync as bare
-  `--exclude=<name>`, which matches at any depth, so `app_data_paths:
-  ["db"]` also kept a `internal/pkg/db` package off the host and the
-  build failed there. Data paths and templates are now anchored to the
-  content dir's root; the global and per-app exclude lists still match
-  anywhere. The exclude list is also built afresh per upload: a second
-  app deployed in the same play used to inherit the first one's.
-
-- `app` role: `restart` picks up a changed `.env` or compose file. It ran
-  `compose restart`, which keeps each container's config and environment,
-  so an edited `env_file` took effect only on a later `up`; it now applies
-  the config first, then restarts the whole stack as before.
-
-- `prometheus` role: installs no longer fail on a partial fact cache. The
-  facts `prometheus.prometheus` reads were gathered only when
-  `architecture` was missing, and a cache filled by another role's `min`
-  gathering has it but lacks `processor_count`, which the Prometheus unit
-  template needs. Each install now gathers when any fact it needs is
-  missing.
-
-- `certbot` role: installs `openssl`, which `certificate-get` reads a
-  cert's expiry with. Minimal images (Rocky 10) ship without the CLI,
-  the check failed, and every run tried to re-issue certs that had
-  months left — failing outright on a host DNS doesn't point at yet. The
-  check itself now fails when it can't run, instead of reading as an
-  expiring cert.
-
-- `machine` role: root and password SSH logins really are off. The
-  settings went into `sshd_config` below its `Include`, and sshd keeps
-  the first value it reads, so a fragment the image ships — a hoster's
-  `40-hosting.conf` with `PermitRootLogin yes` / `PasswordAuthentication
-  yes`, cloud-init's `50-cloud-init.conf` — silently won. They now live in
-  `sshd_config.d/00-hacode.conf`, commented out of `sshd_config` outside
-  `Match` blocks, and the role adds the `Include` where the distro ships
-  none (EL8, older Debian/Ubuntu), so `machine_ssh_dropins` works there
-  too instead of failing the run.
-  The role then checks what sshd applies (`sshd -T`) and stops the run
-  when root or password logins are not off, so a fragment named to sort
-  ahead of `00-hacode` can't win silently either; a
-  `machine_ssh_dropins` entry named that way is the deliberate override
-  and skips the check. **Heads-up**: on a host where an image fragment
-  had turned root or password logins back on, the next run really turns
-  them off. Make sure a non-root user can reach it with a key before
-  running it.
-
-- `machine` role: a fresh host bootstraps again. Since repos moved first
-  (#64), their facts gathering was the play's first contact and ran as
-  `ansible_user` before the fallback to `setup_user_name` in `users.yml`,
-  so a host without that account yet was dropped as unreachable. The
-  access probe and fallback now run before everything else, repos still
-  before the first package operation. The play itself has to leave
-  `gather_facts` off for this: implicit fact gathering runs as
-  `ansible_user` before any task. The README example now does, and a
-  new section explains the bootstrap.
-
-- `app` role: `backup` no longer dies with `MemoryError` on a small host.
-  `fetch` under become reads the archive through `slurp`, whole and
-  base64-encoded in the remote's memory; archives now come over rsync.
-
-- `maria_db` role: `backup` failed on EL8/9 hosts, where the `mysql`
-  client package gives a MySQL 8 `mysqldump` that community.mysql
-  refuses for a MariaDB server (it wants `mariadb-dump`).
-
-- `prometheus` role: the bundled rules and the Alertmanager template
-  actually reach the host. Their paths were built from `role_path` in
-  the `include_role` vars, which the upstream role evaluates as its
-  own path, so the globs matched nothing and every deployment has been
-  running without the curated alerts. They are resolved before the
-  include now; the static-targets glob is fixed the same way, though
-  the role bundles no target files of its own.
-  **Heads-up for existing hosts**: the first run after this lands is
-  the one where the curated CPU / RAM / filesystem / instance alerts
-  start evaluating, on hosts that have never had them. Set
-  `prometheus_bundled_rules_enabled: false` on inventories that want
-  to keep only their own thresholds.
-
-- `prometheus` role: the bundled CPU, filesystem and RAM alerts carry
-  `keep_firing_for: 3m`, so a host that stops answering is reported as
-  down rather than first resolving its resource alerts. Without it the
-  alerts lose their samples the moment the host goes away and clear
-  immediately, while `InstanceDown` (`up == 0`, `for: 1m`) has not
-  fired yet — the operator sees a burst of "resolved" a minute before
-  the real problem lands. Covered by a `promtool` case that goes stale
-  mid-series and asserts the alert holds at 5m and is gone at 8m.
-
-- `machine` role: `machine_yum_remove_repo_files` and
-  `machine_dnf_excludes` for closed-network hosts pointing the stock
-  repo ids at an in-house mirror. When `machine_yum_repos` re-uses
-  `baseos` / `appstream` / `extras`, the distro-shipped `almalinux-*.repo`
-  files still carry an internet `mirrorlist=` for the same ids —
-  duplicating them and, behind a closed network, timing out every
-  `dnf` metadata refresh. `machine_yum_remove_repo_files` lists
-  filename globs to delete from `/etc/yum.repos.d/` (e.g.
-  `almalinux*.repo`), applied once in `repos.yml` before any dnf op.
-  `machine_dnf_excludes` writes an `exclude=` line into
-  `/etc/dnf/dnf.conf`'s `[main]`, so a package upgrade of
-  `almalinux-release` (or similar) can't lay the stock files back
-  down. Both default to `[]`, so the change is a no-op for
-  inventories that don't run behind a closed network.
-
-- `machine` role: package repositories are now configured **before**
-  any dnf/apt operation. The role's first package action is the glibc
-  langpack install in `system.yml`, which refreshes every enabled repo;
-  a stale repo baked into the base image (a decommissioned mirror, say)
-  timed out there and aborted the whole run before `packages.yml` ever
-  got to drop the managed `.repo` files. Repo drops (custom yum repos +
-  AlmaLinux GPG key) and the initial apt cache refresh live in a new
-  `repos.yml` imported first in both `main.yml` and the `host`
-  entrypoint, so `machine` converges in a single pass on freshly-imaged
-  and already-provisioned hosts alike.
-
-- `machine` role: the `dns` subrole now gives the ethernet connection
-  profiles a resolver of their own when no device carries one, via the new
-  `dns_server_fallback_upstreams`. A cloud image can ship a profile with an
-  empty DNS list and no DHCP option behind it (netcup's does); with nothing
-  to hand its dnsmasq, NetworkManager never starts it, and the role stopped
-  on the wait for `127.0.0.1:53` after every task before it had reported
-  success on a host that resolved nothing. Hosts whose devices already carry
-  a resolver are left alone.
-
-- `k3s` role: `delete` now runs from a peer that survives the removal.
-  It delegated to the first peer, which is usually the node being deleted
-  (it comes first in the inventory), so `kubectl delete node` talked to the
-  apiserver it was deleting: the node object went, that k3s stopped serving,
-  and the command never returned - the playbook hung long after the cluster
-  was fine without the node. With no other server left, the role now says so
-  instead of hanging.
-
-- `machine` role: journald settings are now written as an
-  `/etc/systemd/journald.conf.d/95-hacode.conf` drop-in instead of edited
-  into the main `journald.conf`. On Raspberry Pi OS the shipped
-  `40-rpi-volatile-storage.conf` drop-in forces `Storage=volatile`, which
-  silently overrode the main file, so `journald_storage: persistent` was a
-  no-op and every boot's logs were lost on reboot. The task also creates
-  `/var/log/journal` when persistent.
-
-- `k8s_addons` role: cilium-prep now unfeeds `OLD_CILIUM_*` chains from
-  PREROUTING / POSTROUTING before flushing and deleting them. Cilium
-  leaves the feeder rules pointing at the renamed chains, so
-  `iptables -X` returned `CHAIN_DEL failed (Device or resource busy)`
-  and the task died on it. Cilium meanwhile looped on "iptables rules
-  full reconciliation failed" every 10s and never installed
-  `CILIUM_POST_nat` — every pod outside a tunnelled namespace lost its
-  way out, including CoreDNS, so the whole node started answering
-  "Temporary failure in name resolution". Unfeed / flush / delete now
-  run as one retried shell block so a re-added feeder from the live
-  agent doesn't derail the cleanup, and the feeder rules travel back
-  through `xargs` instead of a shell loop (one carries
-  `--comment "cilium-feeder: CILIUM_OUTPUT"`, which an unquoted
-  expansion splits in two).
-
-- `singbox` role (`k3s-pods` mode): default fwmark now stays out of the
-  bits Cilium writes the endpoint identity into. The old default
-  (`0x80000 << index`) landed in bits 16-31; about half of the
-  cluster's identities collided and had their traffic (node-to-node
-  VXLAN on port 8472 included) pulled into the tunnel — one live
-  reproducer had Longhorn CSI restarting 300 times on a 10s timeout
-  because its cross-node calls to `longhorn-backend` were being
-  re-routed into VLESS. The default becomes `0x1000 << index`, below
-  the identity bits and clear of the `0x4000` / `0x8000` that
-  kube-proxy owns. The route.sh header now also spells out that the
-  mode itself is a no-op under Cilium's BPF datapath (the mark is
-  set but `ip rule` is never consulted) — use the new `dests` mode
-  there.
-
-- `k8s_addons` role: host prep no longer dies on the stale-`OLD_CILIUM_*`
-  cleanup. The chains were found with `iptables-save`, which walks every
-  table, but flushed and deleted against `filter` only, so a `nat` / `raw`
-  / `mangle` chain failed with "No chain/target/match by that name" and
-  took the play with it - including the Longhorn host packages that run
-  after, leaving a fresh node without `iscsi-initiator-utils` and unable
-  to attach a volume. The table now travels with the chain name, and a
-  chain the agent has already cleaned up is no longer an error.
-
-- `singbox` role: `singbox-podwatch@<name>` now follows the lifecycle of
-  its `sing-box@<name>` parent — `PartOf=` propagates restart (a
-  `systemctl restart sing-box@<name>` now re-establishes the watch too
-  instead of leaving the previous `kubectl --watch` running against a
-  torn-down TUN), and `WantedBy=sing-box@%i.service` (instead of
-  `multi-user.target`) attaches enablement to the parent so it can't
-  start against a stopped sing-box. Install also removes the stale
-  `multi-user.target.wants/singbox-podwatch@<name>.service` symlink on
-  upgrade, so `systemctl enable` installs the new one (it is a no-op
-  while any prior enablement symlink exists).
-
-- `gitlab_runner` role: registration idempotency. `gitlab-runner list`
-  writes its inventory to stderr (not stdout); the "already-registered"
-  check only looked at stdout and treated every host as unregistered,
-  registering the runner again on each play (duplicate entries in
-  GitLab). `register` and `unregister` now match the runner name on
-  both streams, so `unregister` also finds the runner it has to remove.
-
-- `docker` role (RHEL family): `kernel-modules-extra` is now installed for
-  **every** installed kernel (via `rpm -q kernel-core`), not only the
-  running one (`uname -r`). A `dnf upgrade` stages a newer kernel that a
-  later reboot boots into; without the matching
-  `kernel-modules-extra-<VERSION>` already present, `br_netfilter` /
-  `xt_addrtype` are missing on that first post-reboot boot and Docker's
-  bridge setup fails.
-
-- `gost`: manage firewalld direct rules through the runtime config +
-  `firewall-cmd --runtime-to-permanent` instead of `--permanent` +
-  `--reload`. `--reload` rebuilds the whole iptables ruleset from
-  firewalld's permanent config and flushes direct rules other tools
-  own outside firewalld (Cilium's pod-egress masquerade on a k8s
-  node); runtime mutations leave those chains untouched.
-
-- `machine` role: `claude_code` / `codex` no longer try to enable the
-  `nodejs:20` dnf module stream on EL10. Modularity is gone in RHEL 10 and
-  its rebuilds, where `dnf module enable -y nodejs:20` fails outright with
-  "missing groups or modules: nodejs:20" and takes the whole play with it;
-  the plain `nodejs` + `npm` packages there are already new enough. EL8/EL9
-  still get the stream.
-
-- `docker` role: a host that cannot load Docker's kernel modules now fails
-  at the modules, not later at the daemon. The `modprobe` loop used to run
-  with `failed_when: false`, so a missing `br_netfilter` / `xt_addrtype`
-  passed silently and the run died at "Start and enable Docker" with
-  dockerd's own `Extension addrtype revision 0 not supported, missing
-  kernel module?` -- a message that names neither the module nor the
-  kernel. The loop still attempts every module, but an assert afterwards
-  names the ones that failed and the running kernel, and points at the
-  common cause (host still booted into an old kernel whose
-  `kernel-modules-extra` has aged out of the repositories while a newer
-  kernel waits for a reboot). Missing packages for other, non-running
-  kernels stay tolerated as before, and the assert is skipped in
-  containers, which have no modules of their own to load.
-
-- `app` role: `app_exclude_paths` and `app_global_exclude` now actually
-  keep things out of the backup archive. They were passed to
-  `community.general.archive` as `exclude_path`, which only drops whole
-  entries of the module's `path` list and only matches absolute paths -
-  so relative names like `log` or `config/backups` matched nothing and
-  every archive has been carrying build caches, `.git`, and whatever a
-  data dir happened to hold, including an app's own backups. The lists
-  are now expanded into `exclusion_patterns` (new
-  `app_backup_exclusion_patterns`, derived from `app_backup_exclude`),
-  which the module tests against each member's path inside the archive;
-  `exclude_path` is still passed, made absolute so it can do the one job
-  it has. Backups get smaller on the next run - a data dir that was
-  meant to be excluded stops being archived, so check
-  `app_exclude_paths` if you were relying on the old contents.
+- `machine`: a fresh host bootstraps in one pass (the play must set
+  `gather_facts: false`) and reboots into the upgraded kernel before Docker
+  setup, even with `machine_reboot_enabled: false` (opt out with
+  `machine_bootstrap_reboot_enabled: false`)
+  ([3d5e59a](https://github.com/hackallcode/hacode-infra/commit/3d5e59a),
+  [aaf819b](https://github.com/hackallcode/hacode-infra/commit/aaf819b),
+  [76692de](https://github.com/hackallcode/hacode-infra/commit/76692de),
+  [0b12856](https://github.com/hackallcode/hacode-infra/commit/0b12856))
+- `machine`: `firewall_default_zone` now covers ingress, not only forwarding
+  and masquerade — `firewall_zone_interfaces` (default: the primary-route NIC)
+  move to it, runtime and permanent reconciled independently
+  ([195195a](https://github.com/hackallcode/hacode-infra/commit/195195a),
+  [9d6cfc0](https://github.com/hackallcode/hacode-infra/commit/9d6cfc0))
+- `machine`: NVIDIA DKMS module is built for the running kernel and the GPU
+  container modules are loaded
+  ([720adf9](https://github.com/hackallcode/hacode-infra/commit/720adf9))
+- `machine`: journald settings survive Pi OS's volatile-storage drop-in (its
+  own drop-in filename is configurable), connections without a resolver get
+  fallback upstreams, `nodejs:20` is skipped on EL10
+  ([eb9c419](https://github.com/hackallcode/hacode-infra/commit/eb9c419),
+  [6f800cb](https://github.com/hackallcode/hacode-infra/commit/6f800cb),
+  [d9c4dfd](https://github.com/hackallcode/hacode-infra/commit/d9c4dfd),
+  [f25a9ef](https://github.com/hackallcode/hacode-infra/commit/f25a9ef))
+- `app`: backup excludes work, so archives shrink — check `app_exclude_paths`
+  if you relied on the old contents; uploads keep source dirs named like a
+  data path, `restart` applies a changed `env_file`, archives stream over rsync
+  ([43f62a7](https://github.com/hackallcode/hacode-infra/commit/43f62a7),
+  [87eed1c](https://github.com/hackallcode/hacode-infra/commit/87eed1c))
+- `k8s_addons`: stale `OLD_CILIUM_*` cleanup no longer fails the play; the
+  `kubernetes` Python package is probed with the controller's interpreter
+  ([e807bfd](https://github.com/hackallcode/hacode-infra/commit/e807bfd),
+  [23301b8](https://github.com/hackallcode/hacode-infra/commit/23301b8),
+  [5e252b5](https://github.com/hackallcode/hacode-infra/commit/5e252b5))
+- `k8s_addons`: Envoy Gateway on k3s v1.37 needs `--disable=gateway-api-crd`
+  ([ac6b8cd](https://github.com/hackallcode/hacode-infra/commit/ac6b8cd))
+- `wireguard`: a non-default `wg_port` reaches the firewall rule and client
+  `Endpoint`; adding a peer works while `wg0` is down
+  ([42d6589](https://github.com/hackallcode/hacode-infra/commit/42d6589))
+- `docker`: `kernel-modules-extra` covers every installed kernel, and a host
+  that cannot load the modules fails there, naming the cause
+  ([b166189](https://github.com/hackallcode/hacode-infra/commit/b166189),
+  [f25a9ef](https://github.com/hackallcode/hacode-infra/commit/f25a9ef))
+- `gitlab_runner`: re-runs no longer register a duplicate runner, `unregister`
+  finds it
+  ([9c79e16](https://github.com/hackallcode/hacode-infra/commit/9c79e16),
+  [b31fca6](https://github.com/hackallcode/hacode-infra/commit/b31fca6))
+- `prometheus`: a partial fact cache no longer fails installs
+  ([2582053](https://github.com/hackallcode/hacode-infra/commit/2582053))
+- `certbot`: `openssl` is installed; an expiry check that cannot run fails
+  instead of re-issuing
+  ([2427920](https://github.com/hackallcode/hacode-infra/commit/2427920))
+- `gost`: firewalld changes no longer flush other tools' direct rules
+  (Cilium's masquerade)
+  ([60dfe27](https://github.com/hackallcode/hacode-infra/commit/60dfe27))
+- `app`, `prometheus`: `--diff` no longer prints rendered secrets
+  ([381f6a4](https://github.com/hackallcode/hacode-infra/commit/381f6a4))
 
 ## [0.4.0] - 2026-07-03
 
