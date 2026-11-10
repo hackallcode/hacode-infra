@@ -14,6 +14,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `certbot` role: `certbot_deploy_hook` is also installed into
   `renewal-hooks/deploy`, so it reaches certificates issued before it was set.
 
+### Changed
+
+- `nginx` role: the `app-prepare` scaffold enables HTTP/2 with `http2 on;`, as
+  the `http2` parameter of `listen` is deprecated since nginx 1.25.1. The
+  directive needs that version or newer; on an older nginx, move `http2` back
+  to the `listen` lines of a newly scaffolded config.
+
 ## [0.5.0] - 2026-11-08
 
 ### Breaking changes
