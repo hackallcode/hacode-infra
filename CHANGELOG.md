@@ -7,6 +7,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Added
+
+- `nginx` role: `nginx_config_template` renders the vhost config through
+  Jinja, so it can use vault values.
+
 ## [0.5.0] - 2026-11-08
 
 ### Breaking changes

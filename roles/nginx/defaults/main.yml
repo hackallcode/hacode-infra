@@ -2,3 +2,9 @@
 # Map of `{ username: plaintext_password }`. Rendered into htpasswd files
 # alongside the vhost config — keep the password values in Ansible Vault.
 basic_users: {}
+
+# Render the vhost config through Jinja instead of uploading it as is, so it
+# can use vault values. Off by default because `{{`, `{%` and `{#` in an
+# existing config would start being read as Jinja. A rendered config is kept
+# out of `--diff` output.
+nginx_config_template: false

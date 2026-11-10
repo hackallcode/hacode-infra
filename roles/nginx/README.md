@@ -9,6 +9,7 @@ Install nginx and render per-app vhost configs.
 | `domain` | `null` (required) | primary domain for the app |
 | `aliases` | `[]` | extra domain names; result is alias-to-primary redirects |
 | `basic_users` | `{}` | mapping `{user: password}` for basic auth |
+| `nginx_config_template` | `false` | render the vhost config through Jinja instead of uploading it as is |
 
 ## Tasks
 

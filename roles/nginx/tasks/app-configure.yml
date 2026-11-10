@@ -32,9 +32,13 @@
       register: "users_config"
 
     - name: "Upload config"
+      diff: "{{ ansible_diff_mode and not nginx_config_template }}"
+      vars:
+        nginx_config_path: "../configs/nginx/{{ hostname }}/{{ app_domains[0] }}.conf"
       ansible.builtin.copy:
-        src: "../configs/nginx/{{ hostname }}/{{ app_domains[0] }}.conf"
-        dest: "/etc/nginx/conf.d/"
+        src: "{{ omit if nginx_config_template else nginx_config_path }}"
+        content: "{{ lookup('ansible.builtin.template', nginx_config_path) if nginx_config_template else omit }}"
+        dest: "/etc/nginx/conf.d/{{ app_domains[0] }}.conf"
         owner: "{{ nginx_user }}"
         group: "{{ nginx_group }}"
         mode: "u=rw,g=r,o="

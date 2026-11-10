@@ -1,10 +1,29 @@
-- name: "Converge: nginx role (install only)"
+- name: "Converge: nginx role (install and app-configure)"
   hosts: "all"
   become: true
   gather_facts: true
+  vars:
+    hostname: "molecule"
+    app_project: "molecule"
+    nginx_molecule_value: "value-from-vars"
 
   tasks:
     - name: "Run only install.yml from the nginx role"
       ansible.builtin.include_role:
         name: "hacode.infra.nginx"
         tasks_from: "install"
+
+    - name: "Upload a vhost config as is"
+      ansible.builtin.include_role:
+        name: "hacode.infra.nginx"
+        tasks_from: "app-configure"
+      vars:
+        app_domains: ["verbatim.example.test"]
+
+    - name: "Render a vhost config as a template"
+      ansible.builtin.include_role:
+        name: "hacode.infra.nginx"
+        tasks_from: "app-configure"
+      vars:
+        app_domains: ["template.example.test"]
+        nginx_config_template: true
