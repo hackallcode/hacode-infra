@@ -24,6 +24,20 @@
           - "certbot_creds.stat.mode == '0600'"
           - "certbot_creds.stat.checksum == ('dns_cloudflare_api_token = molecule-token\n' | hash('sha1'))"
 
+    - name: "Read the renewal deploy hook"
+      ansible.builtin.stat:
+        path: "/etc/letsencrypt/renewal-hooks/deploy/hacode-infra.sh"
+        get_checksum: true
+        checksum_algorithm: "sha1"
+      register: "certbot_deploy_hook_file"
+
+    - name: "Renewal deploy hook is an executable script running the configured command"
+      ansible.builtin.assert:
+        that:
+          - "certbot_deploy_hook_file.stat.exists"
+          - "certbot_deploy_hook_file.stat.executable"
+          - "certbot_deploy_hook_file.stat.checksum == ('#!/bin/sh\necho molecule-hook\n' | hash('sha1'))"
+
     - name: "Renewal cron job is registered"
       ansible.builtin.command: "crontab -l"
       register: "cron_list"

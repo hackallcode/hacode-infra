@@ -55,3 +55,4 @@ provisioner:
         certbot_email: "molecule@example.test"
         certbot_credentials_file: "/etc/letsencrypt/cloudflare.ini"
         certbot_credentials_content: "dns_cloudflare_api_token = molecule-token"
+        certbot_deploy_hook: "echo molecule-hook"
