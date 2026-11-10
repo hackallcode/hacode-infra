@@ -69,3 +69,6 @@ first. Wait for `panel_hash` in `/headscale/db-meta` before enabling it on the s
 agent adopts its running Headscale and publishes the merged local panel state. A takeover refuses to overwrite
 an existing panel if the shared panel snapshot is missing. Standbys restore the shared snapshot before starting.
 Authentication sessions from the former standby are not merged; those browsers sign in again once.
+
+Panel startup does not wait for its Docker healthcheck: readiness can take longer than the election lease,
+so waiting would block lease renewals and fencing. Docker healthchecks continue to report readiness separately.

@@ -230,8 +230,8 @@ class Cloudflare:
 class Headscale:
     """The headscale compose project on this host."""
 
-    def __init__(self, directory, name="headscale", database="db.sqlite"):
-        self.directory, self.name = directory, name
+    def __init__(self, directory, name="headscale", database="db.sqlite", wait=True):
+        self.directory, self.name, self.wait = directory, name, wait
         self.db = os.path.join(directory, "data", database)
 
     def _compose(self, *args):
@@ -244,7 +244,7 @@ class Headscale:
         return r.stdout.strip() == "true"
 
     def start(self):
-        return self._compose("up", "-d", "--wait")
+        return self._compose("up", "-d", *(["--wait"] if self.wait else []))
 
     def stop(self):
         return self._compose("stop")
@@ -564,7 +564,7 @@ def load_json(path, default):
 def make_agent(cfg):
     etcd = Etcd(cfg["etcd"]["endpoints"], cfg["etcd"].get("ca"), cfg["etcd"].get("cert"), cfg["etcd"].get("key"))
     dns = Cloudflare(open(cfg["token_file"]).read().strip(), cfg["zone"], cfg["server_name"])
-    panel = Headscale(cfg["headplane_dir"], "headplane", "hp_persist.db") if cfg.get("headplane_dir") else None
+    panel = Headscale(cfg["headplane_dir"], "headplane", "hp_persist.db", wait=False) if cfg.get("headplane_dir") else None
     return Agent(cfg, etcd, Headscale(cfg["headscale_dir"]), dns, panel=panel)
 
 
