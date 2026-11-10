@@ -17,6 +17,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   on the leader only and moves its database through etcd with Headscale's, so
   users, roles, links and sessions survive a handover. Independent panels need
   merging first, as the role README describes.
+- `headscale_failover` role: the serving agent moves etcd's Raft leadership to
+  its own member, named by `headscale_failover_etcd_member` (`""` turns it
+  off), so its renewals and snapshots commit without a round trip to another
+  server.
 
 ### Changed
 
@@ -27,6 +31,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `headscale_failover` role: the agent starts Headscale without waiting for its
   Docker healthcheck, as readiness can outlast the election lease, and gives a
   stopping container one second before Docker kills it.
+- `headscale_failover` role: the election lease renews in its own thread, so a
+  slow tick (Docker, Cloudflare, etcd reads through a distant Raft leader) no
+  longer fences a healthy leader; a tick stuck for over a minute still lets
+  another server take over. `headscale_failover_etcd_timeout` (2 s) replaces
+  the fixed 1 s etcd request timeout.
 
 ## [0.5.0] - 2026-11-08
 
