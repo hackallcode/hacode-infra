@@ -138,7 +138,8 @@ def logical_hash(db_path, volatile_columns=VOLATILE_COLUMNS):
     conn = read_only(db_path)
     try:
         tables = [r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' "
+            "AND name NOT GLOB '_litestream*' ORDER BY name")]
         for table in tables:
             cols = [r[1] for r in conn.execute(f'PRAGMA table_info("{table}")') if r[1] not in volatile_columns]
             h.update(table.encode())
@@ -534,12 +535,13 @@ class Agent:
         if desired and (target == self.name or not fresh):
             self.etcd.txn([{"key": b64(self.k_desired), "target": "VALUE", "result": "EQUAL",
                             "value": b64(json.dumps(desired))}], [op_delete(self.k_desired)])
-        if self.serving_term != self.term or not self.headscale.running():
+        taking_over = self.serving_term != self.term or not self.headscale.running()
+        if taking_over:
             self.status["action"] = "taking over"
             if not self.adopt():
                 self.become_leader()
         self.start_panel()
-        if not self.write_snapshot(force=self.was_held):
+        if not self.write_snapshot(force=self.was_held or taking_over):
             self.fence("lost the lead while writing the database")
             return
         self.was_held = False
