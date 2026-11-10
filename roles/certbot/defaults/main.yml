@@ -41,7 +41,12 @@ certbot_credentials_content: ""
 
 # pre/post run on every issue or renewal; deploy runs only when a cert
 # was actually issued/renewed. Stored per-cert by `certonly`, so the
-# renew cron picks them up without re-passing.
+# renew cron picks them up without re-passing. `certbot_deploy_hook` is
+# also installed into `renewal-hooks/deploy` by install, so it reaches
+# certs issued before it was set; certbot before 5.3 reads that directory
+# only on `renew`, which is why `certonly` keeps passing the flag. A cert
+# with the hook stored runs it twice per renewal, and certbot 5.3+ does
+# the same on issue, so the command has to be safe to repeat.
 certbot_pre_hook: ""
 certbot_post_hook: ""
 certbot_deploy_hook: ""

@@ -11,6 +11,8 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 - `nginx` role: `nginx_config_template` renders the vhost config through
   Jinja, so it can use vault values.
+- `certbot` role: `certbot_deploy_hook` is also installed into
+  `renewal-hooks/deploy`, so it reaches certificates issued before it was set.
 
 ## [0.5.0] - 2026-11-08
 

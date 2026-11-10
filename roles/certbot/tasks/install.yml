@@ -42,6 +42,32 @@
     - "certbot_credentials_file | length > 0"
     - "certbot_credentials_content | length > 0"
 
+- name: "Create the renewal deploy hooks directory"
+  tags: ["package"]
+  ansible.builtin.file:
+    path: "/etc/letsencrypt/renewal-hooks/deploy"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+- name: "Write the renewal deploy hook"
+  tags: ["package"]
+  ansible.builtin.copy:
+    content: "#!/bin/sh\n{{ certbot_deploy_hook }}\n"
+    dest: "/etc/letsencrypt/renewal-hooks/deploy/hacode-infra.sh"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  when: "certbot_deploy_hook | length > 0"
+
+- name: "Remove the renewal deploy hook"
+  tags: ["package"]
+  ansible.builtin.file:
+    path: "/etc/letsencrypt/renewal-hooks/deploy/hacode-infra.sh"
+    state: "absent"
+  when: "certbot_deploy_hook | length == 0"
+
 - name: "Manage HTTP/HTTPS firewall rules on RHEL family"
   when: "ansible_os_family == 'RedHat'"
   tags: ["firewall"]

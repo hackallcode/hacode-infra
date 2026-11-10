@@ -43,7 +43,7 @@ many certs via per-cert calls.
 | `certbot_credentials_file` | `""` | passed via `--<plugin>-credentials`, required by most `dns-*` plugins |
 | `certbot_pre_hook` | `""` | `--pre-hook` shell command — runs before every issue/renewal |
 | `certbot_post_hook` | `""` | `--post-hook` shell command — runs after every issue/renewal |
-| `certbot_deploy_hook` | `""` | `--deploy-hook` shell command — runs only when a cert was actually issued/renewed |
+| `certbot_deploy_hook` | `""` | shell command run only when a cert was actually issued/renewed — `--deploy-hook` on `certonly`, and a script in `renewal-hooks/deploy` written by `install`, which covers certs issued before it was set |
 | `certbot_extra_args` | `[]` | raw flags appended to every `certonly` invocation |
 
 ### Environment
