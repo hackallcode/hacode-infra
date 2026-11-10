@@ -535,12 +535,13 @@ class Agent:
         if desired and (target == self.name or not fresh):
             self.etcd.txn([{"key": b64(self.k_desired), "target": "VALUE", "result": "EQUAL",
                             "value": b64(json.dumps(desired))}], [op_delete(self.k_desired)])
-        if self.serving_term != self.term or not self.headscale.running():
+        taking_over = self.serving_term != self.term or not self.headscale.running()
+        if taking_over:
             self.status["action"] = "taking over"
             if not self.adopt():
                 self.become_leader()
         self.start_panel()
-        if not self.write_snapshot(force=self.was_held):
+        if not self.write_snapshot(force=self.was_held or taking_over):
             self.fence("lost the lead while writing the database")
             return
         self.was_held = False

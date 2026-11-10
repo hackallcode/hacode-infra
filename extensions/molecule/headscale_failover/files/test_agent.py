@@ -286,12 +286,13 @@ class WithEtcd(unittest.TestCase):
         self.tick_all(2)
         ru = self.agents["ru"]
         stale_term = ru.term
+        original_meta = hf.kv_json(ru.etcd.get(ru.k_db_meta))
         ru.etcd.txn([hf.cmp_created(ru.k_mine, stale_term)], [hf.op_delete(ru.k_mine)])
         add_node(ru.headscale.db, "written-after-losing-the-lead")
         ru.snapshot_hash = None
         self.assertFalse(ru.write_snapshot(force=True))
         meta = hf.kv_json(ru.etcd.get(ru.k_db_meta))
-        self.assertEqual(meta["term"], 0)
+        self.assertEqual(meta, original_meta)
 
     def test_agent_restart_keeps_a_serving_headscale(self):
         self.tick_all(2)
@@ -336,6 +337,24 @@ class WithEtcd(unittest.TestCase):
         with sqlite3.connect(nl.panel.db) as c:
             self.assertEqual(c.execute("SELECT * FROM users").fetchall(), [('veronika', '6', 'user', 2)])
             self.assertEqual(c.execute("SELECT * FROM auth_sessions").fetchall(), [('session', 'veronika')])
+
+    def test_new_leader_restart_keeps_unsnapshotted_panel_changes(self):
+        self.enable_panels()
+        self.tick_all(2)
+        nl = self.agents["nl"]
+        nl.request()
+        self.tick_all(2)
+        self.assertEqual(self.leader(), "nl")
+        add_node(nl.headscale.db, "after-takeover")
+        with sqlite3.connect(nl.panel.db) as c:
+            c.execute("UPDATE users SET updated_at=3")
+        restarted = hf.Agent(nl.cfg, hf.Etcd([self.url]), nl.headscale, self.dns,
+                             panel=nl.panel, log=lambda *a: None)
+        self.agents["nl"] = restarted
+        self.tick_all(2)
+        self.assertIn("after-takeover", node_names(restarted.headscale.db))
+        with sqlite3.connect(restarted.panel.db) as c:
+            self.assertEqual(c.execute("SELECT updated_at FROM users").fetchone(), (3,))
 
     def test_panel_only_changes_are_snapshotted(self):
         self.enable_panels()
