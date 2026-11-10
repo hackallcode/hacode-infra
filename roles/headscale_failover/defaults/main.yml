@@ -41,6 +41,8 @@ headscale_failover_to: ""
 # ===== paths =====
 # The headscale role's headscale_dir: the agent runs docker compose in it and reads its database.
 headscale_failover_headscale_dir: "/opt/headscale"
+# Headplane's compose directory: the leader runs it there and moves its database with headscale's; "" - off.
+headscale_failover_headplane_dir: ""
 headscale_failover_dir: "/etc/headscale-failover"
 headscale_failover_state_dir: "/var/lib/headscale-failover"
 # node_exporter's textfile collector directory; a wrong path makes every headscale_failover_* metric vanish.
