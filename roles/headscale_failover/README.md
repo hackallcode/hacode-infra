@@ -47,3 +47,25 @@ queue, the requested server takes over, the request is cleared. Columns that cha
 Metrics (node-exporter textfile `headscale_failover.prom`): `leader`, `has_leader`, `serving`, `lease_ok`, `etcd_ok`,
 `error`, `snapshot_timestamp_seconds`, `snapshot_bytes`, `last_tick_timestamp_seconds`; alert rules are in the
 `prometheus` role.
+
+## Optional Headplane state
+
+Set `headscale_failover_headplane_dir` (default `""`, disabled) to the Headplane compose directory.
+The agent then runs Headplane only on the Headscale leader. Standby nginx must proxy `/panel` to the serving
+peer on 502. Keep `cookie_secret` identical on both panels. Keep each server's `headscale_api_key` file local;
+only `data/hp_persist.db` travels (users, roles, links, sessions and host information).
+
+Disable independent panel startup: use compose `restart: "no"` and deploy its files without starting it.
+With the `app` role, `app_disabled: true` stops the old container during deploy; the leader's agent starts the
+updated project on its next tick. Deploy Headplane before the failover role on a fresh server.
+
+Both SQLite snapshots and their metadata commit in a single leader-fenced etcd transaction. Headplane-only
+changes also trigger a snapshot. The existing snapshot debounce and combined compressed size limit apply.
+A graceful handover stops writes before the final snapshot; loss of quorum fences both services.
+
+To upgrade existing independent panels, back up both databases, merge missing user records by OIDC subject
+into the current leader (preserving its user IDs and sessions), then enable this option on the current leader
+first. Wait for `panel_hash` in `/headscale/db-meta` before enabling it on the standby. Restarting the leader's
+agent adopts its running Headscale and publishes the merged local panel state. A takeover refuses to overwrite
+an existing panel if the shared panel snapshot is missing. Standbys restore the shared snapshot before starting.
+Authentication sessions from the former standby are not merged; those browsers sign in again once.

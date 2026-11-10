@@ -50,3 +50,6 @@ headscale_failover_textfile_dir: "/var/lib/node_exporter"
 # "<address>:<port>" for the HTTP API (this server's state, manual switch requests); "" - off.
 headscale_failover_api_listen: ""
 headscale_failover_api_token: ""
+
+# Optional panel: only the elected leader runs it; its SQLite state travels with headscale.
+headscale_failover_headplane_dir: ""

@@ -212,6 +212,7 @@ class WithEtcd(unittest.TestCase):
         self.assertIn("handed over to nl on request", history)
 
     def test_a_leader_cut_off_from_etcd_fences_before_the_other_takes_over(self):
+        self.enable_panels()
         self.tick_all(2)
         ru, nl = self.agents["ru"], self.agents["nl"]
         ru.etcd = hf.Etcd(["http://127.0.0.1:9"], timeout=0.2)
@@ -229,6 +230,8 @@ class WithEtcd(unittest.TestCase):
         self.assertIsNotNone(fenced_at, "the cut-off leader kept serving")
         self.assertIsNotNone(taken_at, "nobody took over")
         self.assertLess(fenced_at, taken_at)
+        self.assertFalse(ru.panel.up)
+        self.assertTrue(nl.panel.up)
         self.assertEqual(self.dns.ip, "192.0.2.20")
 
     def test_a_restart_keeps_changes_not_yet_in_etcd(self):
@@ -293,6 +296,86 @@ class WithEtcd(unittest.TestCase):
         self.tick_all(3)
         self.assertTrue(restarted.headscale.up)
         self.assertEqual(restarted.headscale.starts, starts)
+
+    def enable_panels(self):
+        for name, agent in self.agents.items():
+            agent.panel = FakeHeadscale(os.path.join(self.dir, name, "panel"))
+            with sqlite3.connect(agent.panel.db) as c:
+                c.execute("CREATE TABLE users (sub TEXT PRIMARY KEY, headscale_user_id TEXT, role TEXT, updated_at INTEGER)")
+                c.execute("CREATE TABLE auth_sessions (id TEXT PRIMARY KEY, user_sub TEXT)")
+                if name == "ru":
+                    c.execute("INSERT INTO users VALUES ('veronika', '6', 'user', 1)")
+        ru = self.agents["ru"]
+        meta = hf.kv_json(ru.etcd.get(ru.k_db_meta))
+        meta["panel_hash"] = hf.logical_hash(ru.panel.db, set())
+        ru.etcd.txn([], [hf.op_put(ru.k_panel, hf.gzip.compress(hf.snapshot_bytes(ru.panel.db))),
+                         hf.op_put(ru.k_db_meta, json.dumps(meta))])
+
+    def test_panel_links_roles_and_sessions_travel_on_handover(self):
+        self.enable_panels()
+        self.tick_all(2)
+        ru, nl = self.agents["ru"], self.agents["nl"]
+        with sqlite3.connect(ru.panel.db) as c:
+            c.execute("INSERT INTO auth_sessions VALUES ('session', 'veronika')")
+            c.execute("UPDATE users SET updated_at=2")
+        # No normal snapshot tick: resign must capture the final writes itself.
+        nl.request()
+        self.tick_all(2)
+        self.assertEqual(self.leader(), "nl")
+        self.assertFalse(ru.panel.up)
+        self.assertTrue(nl.panel.up)
+        with sqlite3.connect(nl.panel.db) as c:
+            self.assertEqual(c.execute("SELECT * FROM users").fetchall(), [('veronika', '6', 'user', 2)])
+            self.assertEqual(c.execute("SELECT * FROM auth_sessions").fetchall(), [('session', 'veronika')])
+
+    def test_panel_only_changes_are_snapshotted(self):
+        self.enable_panels()
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        before = hf.kv_value(ru.etcd.get(ru.k_panel))
+        with sqlite3.connect(ru.panel.db) as c:
+            c.execute("UPDATE users SET updated_at=5")
+        self.tick_all(1)
+        self.assertNotEqual(before, hf.kv_value(ru.etcd.get(ru.k_panel)))
+
+    def test_watchdog_also_fences_a_panel_when_headscale_is_already_stopped(self):
+        self.enable_panels()
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        ru.headscale.stop()
+        ru.renewed_at = time.monotonic() - self.TTL
+        ru.lease_until = time.monotonic() - 1
+        ru.watchdog_check()
+        self.assertFalse(ru.panel.up)
+
+    def test_standby_stops_an_independently_started_panel(self):
+        self.enable_panels()
+        self.tick_all(2)
+        nl = self.agents["nl"]
+        nl.panel.start()
+        nl.tick()
+        self.assertFalse(nl.panel.up)
+
+    def test_takeover_refuses_to_overwrite_an_unmigrated_panel(self):
+        self.enable_panels()
+        ru = self.agents["ru"]
+        ru.etcd.txn([], [hf.op_delete(ru.k_panel)])
+        self.tick_all(1)
+        self.assertFalse(ru.headscale.up)
+        self.assertIn("migrate", ru.status["error"])
+        with sqlite3.connect(ru.panel.db) as c:
+            self.assertEqual(c.execute("SELECT sub FROM users").fetchall(), [('veronika',)])
+
+    def test_stale_leader_cannot_replace_panel_snapshot(self):
+        self.enable_panels()
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        before = hf.kv_value(ru.etcd.get(ru.k_panel))
+        ru.etcd.txn([], [hf.op_delete(ru.k_mine)])
+        with sqlite3.connect(ru.panel.db) as c:
+            c.execute("DELETE FROM users")
+        self.assertFalse(ru.write_snapshot(force=True))
+        self.assertEqual(before, hf.kv_value(ru.etcd.get(ru.k_panel)))
 
     def hold_edit(self, ru, age=0):
         meta = hf.kv_json(ru.etcd.get(ru.k_db_meta))

@@ -132,7 +132,7 @@ def read_only(db_path):
     return conn
 
 
-def logical_hash(db_path):
+def logical_hash(db_path, volatile_columns=VOLATILE_COLUMNS):
     """Hash of what matters in the database: every table but the per-reconnect columns."""
     h = hashlib.sha256()
     conn = read_only(db_path)
@@ -140,7 +140,7 @@ def logical_hash(db_path):
         tables = [r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
         for table in tables:
-            cols = [r[1] for r in conn.execute(f'PRAGMA table_info("{table}")') if r[1] not in VOLATILE_COLUMNS]
+            cols = [r[1] for r in conn.execute(f'PRAGMA table_info("{table}")') if r[1] not in volatile_columns]
             h.update(table.encode())
             if not cols:
                 continue
@@ -229,16 +229,16 @@ class Cloudflare:
 class Headscale:
     """The headscale compose project on this host."""
 
-    def __init__(self, directory):
-        self.directory = directory
-        self.db = os.path.join(directory, "data", "db.sqlite")
+    def __init__(self, directory, name="headscale", database="db.sqlite"):
+        self.directory, self.name = directory, name
+        self.db = os.path.join(directory, "data", database)
 
     def _compose(self, *args):
         return subprocess.run(["docker", "compose", *args], cwd=self.directory, check=False,
                               capture_output=True, text=True).returncode == 0
 
     def running(self):
-        r = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", "headscale"],
+        r = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", self.name],
                            capture_output=True, text=True, check=False)
         return r.stdout.strip() == "true"
 
@@ -252,8 +252,9 @@ class Headscale:
 class Agent:
     """One tick at a time; etcd decides who leads, the agent makes this host follow."""
 
-    def __init__(self, cfg, etcd, headscale, dns, clock=time.monotonic, wall=time.time, log=print):
+    def __init__(self, cfg, etcd, headscale, dns, clock=time.monotonic, wall=time.time, log=print, panel=None):
         self.cfg, self.etcd, self.headscale, self.dns = cfg, etcd, headscale, dns
+        self.panel = panel
         self.clock, self.wall, self.log = clock, wall, log
         self.name = cfg["name"]
         p = cfg["prefix"].rstrip("/")
@@ -261,6 +262,8 @@ class Agent:
         self.k_mine = self.k_election + self.name
         self.k_desired, self.k_db, self.k_db_meta, self.k_history = (f"{p}/desired", f"{p}/db", f"{p}/db-meta",
                                                                      f"{p}/history")
+        self.k_panel = f"{p}/headplane-db"
+        self.panel_hash = None
         self.lease_file = os.path.join(cfg["state_dir"], "lease.json") if cfg.get("state_dir") else None
         self.lease = load_json(self.lease_file, {}).get("id") if self.lease_file else None
         self.hold_file = os.path.join(cfg["state_dir"], "hold") if cfg.get("state_dir") else None
@@ -327,20 +330,46 @@ class Agent:
 
     # ----- leading -----
 
+    def services_running(self):
+        return self.headscale.running() or bool(self.panel and self.panel.running())
+
+    def stop_services(self):
+        # Close panel writes before taking the final handover snapshot.
+        panel_stopped = not self.panel or self.panel.stop()
+        headscale_stopped = self.headscale.stop()
+        if not panel_stopped or not headscale_stopped:
+            raise RuntimeError("could not stop all failover services")
+
+    def start_panel(self):
+        if self.panel and not self.panel.running():
+            if not self.lease_ok():
+                raise RuntimeError("lease expired before starting headplane")
+            if not self.panel.start():
+                raise RuntimeError("headplane did not start")
+
     def become_leader(self):
         kv = self.etcd.get(self.k_db)
         if not kv:
             raise RuntimeError("no database snapshot in etcd: run `seed` on the server that has it")
         data = gzip.decompress(kv_value(kv))
+        panel_data = kv_value(self.etcd.get(self.k_panel)) if self.panel else None
+        if self.panel and not panel_data and os.path.exists(self.panel.db):
+            raise RuntimeError("no Headplane snapshot: migrate the existing panel database before enabling failover")
         with self.lock:
             if not self.lease_ok():
                 raise RuntimeError("the lease ran out before headscale could start")
-            self.headscale.stop()
+            self.stop_services()
             restore_db(self.headscale.db, data)
+            if panel_data:
+                restore_db(self.panel.db, gzip.decompress(panel_data))
             if self.dns.get() != self.cfg["self_ip"]:
                 self.dns.set(self.cfg["self_ip"])
+            if not self.lease_ok():
+                raise RuntimeError("lease expired before starting headscale")
             if not self.headscale.start():
                 raise RuntimeError("headscale did not start")
+            self.start_panel()
+        self.panel_hash = logical_hash(self.panel.db, set()) if panel_data else None
         self.snapshot_hash = logical_hash(self.headscale.db)
         self.changed_since = None
         self.serving_term = self.term
@@ -357,6 +386,12 @@ class Agent:
             return False
         if meta.get("by") != self.name and meta.get("hash") != logical_hash(self.headscale.db):
             return False
+        if self.panel:
+            panel_hash = logical_hash(self.panel.db, set()) if os.path.exists(self.panel.db) else None
+            if meta.get("by") != self.name and meta.get("panel_hash") != panel_hash:
+                return False
+            self.panel_hash = meta.get("panel_hash")
+            self.start_panel()
         if self.dns.get() != self.cfg["self_ip"]:
             self.dns.set(self.cfg["self_ip"])
         self.snapshot_hash, self.changed_since, self.serving_term = meta.get("hash"), None, self.term
@@ -365,7 +400,8 @@ class Agent:
     def write_snapshot(self, force=False):
         """Put the database into etcd if it changed; False when this server no longer leads."""
         current = logical_hash(self.headscale.db)
-        if current == self.snapshot_hash and not force:
+        panel_hash = logical_hash(self.panel.db, set()) if self.panel else None
+        if current == self.snapshot_hash and panel_hash == self.panel_hash and not force:
             self.changed_since = None
             return True
         if not force:
@@ -378,15 +414,23 @@ class Agent:
         if len(data) > self.cfg["snapshot_limit"]:
             raise RuntimeError(f"snapshot is {len(data)} bytes, over the {self.cfg['snapshot_limit']} limit")
         meta = {"term": self.term, "by": self.name, "at": int(self.wall()), "bytes": len(data), "hash": current}
-        ok = self.etcd.txn([cmp_created(self.k_mine, self.term)],
-                           [op_put(self.k_db, data), op_put(self.k_db_meta, json.dumps(meta))])
+        ops = [op_put(self.k_db, data)]
+        if self.panel:
+            panel_data = gzip.compress(snapshot_bytes(self.panel.db))
+            if len(data) + len(panel_data) > self.cfg["snapshot_limit"]:
+                raise RuntimeError("combined Headscale and Headplane snapshot exceeds snapshot_limit")
+            meta.update(panel_hash=panel_hash, panel_bytes=len(panel_data), bytes=len(data) + len(panel_data))
+            ops.append(op_put(self.k_panel, panel_data))
+        ops.append(op_put(self.k_db_meta, json.dumps(meta)))
+        ok = self.etcd.txn([cmp_created(self.k_mine, self.term)], ops)
         if ok:
-            self.snapshot_hash, self.changed_since = current, None
+            self.snapshot_hash, self.panel_hash, self.changed_since = current, panel_hash, None
         return ok
 
     def resign(self, to):
-        self.write_snapshot(force=True)
-        self.headscale.stop()
+        self.stop_services()
+        if not self.write_snapshot(force=True):
+            raise RuntimeError("lost leadership before the final snapshot")
         self.serving_term = None
         self.etcd.txn([cmp_created(self.k_mine, self.term)], [op_delete(self.k_mine)])
         self.term = None
@@ -395,18 +439,18 @@ class Agent:
 
     def watchdog_check(self):
         """Stop headscale once the lease may have run out, whatever the tick is stuck on; no etcd calls."""
-        if self.renewed_at and not self.lease_ok() and self.headscale.running():
+        if self.renewed_at and not self.lease_ok() and self.services_running():
             with self.lock:
                 self.log("fence: the lease is running out, stopping headscale")
-                self.headscale.stop()
+                self.stop_services()
                 self.serving_term = None
                 self.status["action"] = "fenced"
 
     def fence(self, why):
-        if self.headscale.running():
+        if self.services_running():
             self.log(f"fence: {why}, stopping headscale")
             with self.lock:
-                self.headscale.stop()
+                self.stop_services()
         if self.serving_term is not None:
             self.serving_term = None
             try:
@@ -437,7 +481,7 @@ class Agent:
             if leader == self.name and term == self.term:
                 self.lead(desired, [n for n, _ in order])
             else:
-                if self.serving_term is not None or self.headscale.running():
+                if self.serving_term is not None or self.services_running():
                     self.fence(f"{leader or 'nobody'} leads")
                 self.status["action"] = "standby"
         except (EtcdError, RuntimeError, ValueError, OSError, sqlite3.Error) as e:
@@ -494,6 +538,7 @@ class Agent:
             self.status["action"] = "taking over"
             if not self.adopt():
                 self.become_leader()
+        self.start_panel()
         if not self.write_snapshot(force=self.was_held):
             self.fence("lost the lead while writing the database")
             return
@@ -517,7 +562,8 @@ def load_json(path, default):
 def make_agent(cfg):
     etcd = Etcd(cfg["etcd"]["endpoints"], cfg["etcd"].get("ca"), cfg["etcd"].get("cert"), cfg["etcd"].get("key"))
     dns = Cloudflare(open(cfg["token_file"]).read().strip(), cfg["zone"], cfg["server_name"])
-    return Agent(cfg, etcd, Headscale(cfg["headscale_dir"]), dns)
+    panel = Headscale(cfg["headplane_dir"], "headplane", "hp_persist.db") if cfg.get("headplane_dir") else None
+    return Agent(cfg, etcd, Headscale(cfg["headscale_dir"]), dns, panel=panel)
 
 
 def metrics_text(agent, meta):
@@ -607,7 +653,10 @@ def run(cfg):
 
 def watchdog(agent):
     while True:
-        agent.watchdog_check()
+        try:
+            agent.watchdog_check()
+        except (RuntimeError, OSError) as e:
+            agent.log(f"watchdog: {e}")
         time.sleep(0.5)
 
 
@@ -626,8 +675,16 @@ def seed(cfg):
     data = gzip.compress(snapshot_bytes(agent.headscale.db))
     meta = {"term": 0, "by": agent.name, "at": int(time.time()), "bytes": len(data),
             "hash": logical_hash(agent.headscale.db)}
-    if not agent.etcd.txn([cmp_created(agent.k_db, 0)],
-                          [op_put(agent.k_db, data), op_put(agent.k_db_meta, json.dumps(meta))]):
+    ops = [op_put(agent.k_db, data)]
+    if agent.panel and os.path.exists(agent.panel.db):
+        panel_data = gzip.compress(snapshot_bytes(agent.panel.db))
+        meta.update(panel_hash=logical_hash(agent.panel.db, set()), panel_bytes=len(panel_data),
+                    bytes=len(data) + len(panel_data))
+        ops.append(op_put(agent.k_panel, panel_data))
+    if meta["bytes"] > cfg["snapshot_limit"]:
+        raise SystemExit("snapshot exceeds snapshot_limit")
+    ops.append(op_put(agent.k_db_meta, json.dumps(meta)))
+    if not agent.etcd.txn([cmp_created(agent.k_db, 0)], ops):
         raise SystemExit("etcd already holds a database snapshot")
     print(f"seeded {len(data)} bytes from {agent.headscale.db}")
 
