@@ -25,6 +25,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HISTORY_LENGTH = 50
 # A hold file older than this was left behind by a dead run and no longer counts.
 HOLD_MAX = 300
+# A tick stuck longer than this stops the background lease renewals, so a hung agent lets another server lead.
+TICK_STALL = 60
 # Columns that change on every reconnect; a snapshot is not rewritten for them alone.
 VOLATILE_COLUMNS = {"last_seen", "endpoints", "host_info", "updated_at", "disco_key"}
 
@@ -76,8 +78,9 @@ class Etcd:
         """Remaining TTL after renewing, 0 when the lease is gone."""
         return int(self.call("/v3/lease/keepalive", {"ID": lease}).get("result", {}).get("TTL", 0))
 
-    def get(self, key):
-        kvs = self.call("/v3/kv/range", {"key": b64(key)}).get("kvs", [])
+    def get(self, key, serializable=False):
+        """serializable: answered by the local member without a Raft round trip, possibly a little stale."""
+        kvs = self.call("/v3/kv/range", {"key": b64(key), "serializable": serializable}).get("kvs", [])
         return kvs[0] if kvs else None
 
     def prefix(self, prefix):
@@ -297,6 +300,8 @@ class Agent:
         self.was_held = False
         self.lease_until = 0.0
         self.renewed_at = 0.0
+        self.lease_lock = threading.Lock()
+        self.alive_at = clock()
         self.term = None
         self.serving_term = None
         self.resigned_until = 0.0
@@ -312,22 +317,32 @@ class Agent:
 
     def keep_lease(self, force=False):
         ttl = self.cfg["lease_ttl"]
-        if not force and self.lease and self.clock() - self.renewed_at < ttl / 3:
+        with self.lease_lock:
+            if not force and self.lease and self.clock() - self.renewed_at < ttl / 5:
+                return
+            sent = self.clock()
+            left = 0
+            if self.lease:
+                left = self.etcd.keepalive(self.lease)
+                if left <= 0:
+                    self.log("lease expired")
+                    self.lease, self.term = None, None
+            if not self.lease:
+                self.lease, self.term = self.etcd.grant(ttl), None
+                left = ttl
+                if self.lease_file:
+                    write_atomic(self.lease_file, json.dumps({"id": self.lease}))
+            self.renewed_at = sent
+            self.lease_until = sent + left
+
+    def renew_in_background(self):
+        """Renew apart from the tick: slow docker, DNS or etcd reads in a tick must not eat the fencing margin."""
+        if self.clock() - self.alive_at > TICK_STALL:
             return
-        sent = self.clock()
-        left = 0
-        if self.lease:
-            left = self.etcd.keepalive(self.lease)
-            if left <= 0:
-                self.log("lease expired")
-                self.lease, self.term = None, None
-        if not self.lease:
-            self.lease, self.term = self.etcd.grant(ttl), None
-            left = ttl
-            if self.lease_file:
-                write_atomic(self.lease_file, json.dumps({"id": self.lease}))
-        self.renewed_at = sent
-        self.lease_until = sent + left
+        try:
+            self.keep_lease()
+        except EtcdError as e:
+            self.log(f"keepalive: {e}")
 
     def lease_ok(self):
         return self.lease is not None and self.clock() < self.lease_until - self.cfg["lease_ttl"] * 0.3
@@ -367,6 +382,7 @@ class Agent:
             raise RuntimeError("could not stop all failover services")
 
     def renew_startup_lease(self):
+        self.alive_at = self.clock()
         term = self.term
         self.keep_lease()
         if term is None or self.term != term or not self.lease_ok():
@@ -511,6 +527,7 @@ class Agent:
     # ----- one tick -----
 
     def tick(self):
+        self.alive_at = self.clock()
         try:
             self.keep_lease()
             self.status["etcd_ok"] = True
@@ -540,8 +557,8 @@ class Agent:
 
     def refresh_view(self, queue):
         """What the API shows, read here so that requests never wait on etcd."""
-        view = dict(self.view, queue=queue, snapshot=kv_json(self.etcd.get(self.k_db_meta)),
-                    history=kv_json(self.etcd.get(self.k_history), []))
+        view = dict(self.view, queue=queue, snapshot=kv_json(self.etcd.get(self.k_db_meta, serializable=True)),
+                    history=kv_json(self.etcd.get(self.k_history, serializable=True), []))
         if self.ticks % 5 == 0 or not view["members"]:
             view["members"] = [self.member_health(m) for m in self.etcd.members()]
         self.ticks += 1
@@ -611,7 +628,8 @@ def load_json(path, default):
 
 
 def make_agent(cfg):
-    etcd = Etcd(cfg["etcd"]["endpoints"], cfg["etcd"].get("ca"), cfg["etcd"].get("cert"), cfg["etcd"].get("key"))
+    etcd = Etcd(cfg["etcd"]["endpoints"], cfg["etcd"].get("ca"), cfg["etcd"].get("cert"), cfg["etcd"].get("key"),
+                cfg["etcd"].get("timeout", 2))
     with open(cfg["token_file"]) as token:
         dns = Cloudflare(token.read().strip(), cfg["zone"], cfg["server_name"])
     headscale = ComposeProject(cfg["headscale_dir"])
@@ -695,6 +713,7 @@ def run(cfg):
         token = open(cfg["api_token_file"]).read().strip()
         threading.Thread(target=start_api, args=(agent, cfg["api_listen"], token), daemon=True).start()
     threading.Thread(target=watchdog, args=(agent,), daemon=True).start()
+    threading.Thread(target=keepalive, args=(agent,), daemon=True).start()
     textfile = os.path.join(cfg["textfile_dir"], "headscale_failover.prom")
     while True:
         started = time.monotonic()
@@ -713,6 +732,12 @@ def watchdog(agent):
         except (RuntimeError, OSError) as e:
             agent.log(f"watchdog: {e}")
         time.sleep(0.5)
+
+
+def keepalive(agent):
+    while True:
+        agent.renew_in_background()
+        time.sleep(agent.cfg["lease_ttl"] / 10)
 
 
 def start_api(agent, listen, token):

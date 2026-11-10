@@ -21,9 +21,12 @@ headscale_failover_etcd_ca: "/etc/etcd/pki/ca.crt"
 headscale_failover_etcd_cert: "/etc/etcd/pki/member.crt"
 headscale_failover_etcd_key: "/etc/etcd/pki/member.key"
 headscale_failover_prefix: "/headscale"
+# Seconds per etcd request and endpoint; reads and renewals from a member far from the Raft leader take a round trip.
+headscale_failover_etcd_timeout: 2
 
 # ===== election =====
 # A leader that cannot renew its lease stops headscale at 70% of the TTL; another takes over after the full TTL.
+# The lease renews every fifth of the TTL in its own thread, apart from the tick.
 headscale_failover_lease_ttl: 10
 # Seconds between agent loops. Must stay well under the lease TTL: a slow tick delays both the fencing
 # check and the takeover after the TTL runs out.

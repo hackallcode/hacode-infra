@@ -34,8 +34,9 @@ queue, the requested server takes over, the request is cleared. Columns that cha
 | `headscale_failover_cloudflare_token` | `""` | Cloudflare API token with DNS edit on the zone |
 | `headscale_failover_etcd_endpoints` | `[]` | etcd client URLs |
 | `headscale_failover_etcd_ca` / `_cert` / `_key` | the etcd member's files under `/etc/etcd/pki` | client TLS |
+| `headscale_failover_etcd_timeout` | `2` | seconds per etcd request and endpoint |
 | `headscale_failover_prefix` | `/headscale` | etcd key prefix |
-| `headscale_failover_lease_ttl` | `10` | lease TTL in seconds; a leader stops headscale at 70% of it without a renewal |
+| `headscale_failover_lease_ttl` | `10` | lease TTL in seconds; renewed every fifth of it in a thread apart from the loop; a leader stops headscale at 70% of it without a renewal |
 | `headscale_failover_tick` | `1` | seconds between agent loops; keep well under the lease TTL |
 | `headscale_failover_snapshot_debounce` | `10` | seconds after the last change before a snapshot |
 | `headscale_failover_snapshot_limit` | `524288` | largest compressed snapshot, bytes |
@@ -80,3 +81,6 @@ services, so an expired lease cannot start a stale leader.
 
 Docker startup commands renew the election lease while they run, even when container creation itself exceeds
 the TTL. A renewal failure cancels the Docker CLI process group and stops both services before retrying.
+
+The lease renews in its own thread, so a slow loop (Docker, Cloudflare, etcd reads through a distant Raft leader)
+does not eat the fencing margin. A loop stuck for over a minute stops the renewals, and another server takes over.

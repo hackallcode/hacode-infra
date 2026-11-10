@@ -351,6 +351,28 @@ class WithEtcd(unittest.TestCase):
         self.assertFalse(ru.headscale.up, "the watchdog kept a leader without a lease serving")
         self.assertLess(time.monotonic() - start, self.TTL * 0.8)
 
+    def test_background_renewals_keep_the_lease_while_a_tick_is_stuck(self):
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        start = time.monotonic()
+        while time.monotonic() - start < self.TTL * 1.5:
+            ru.renew_in_background()
+            ru.watchdog_check()
+            time.sleep(0.2)
+        self.assertTrue(ru.lease_ok())
+        self.assertTrue(ru.headscale.up, "the watchdog fenced a leader whose renewals ran apart from the tick")
+
+    def test_a_stalled_tick_stops_the_background_renewals(self):
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        ru.alive_at = time.monotonic() - hf.TICK_STALL - 1
+        start = time.monotonic()
+        while time.monotonic() - start < self.TTL and ru.headscale.up:
+            ru.renew_in_background()
+            ru.watchdog_check()
+            time.sleep(0.2)
+        self.assertFalse(ru.headscale.up, "a hung agent kept its lease")
+
     def test_the_api_view_comes_from_the_last_tick(self):
         self.tick_all(2)
         view = self.agents["nl"].view
