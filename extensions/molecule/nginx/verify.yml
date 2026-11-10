@@ -21,3 +21,15 @@
         path: "/var/www"
       register: "www_dir"
       failed_when: "not www_dir.stat.isdir"
+
+    - name: "Vhost config is uploaded as is by default"
+      ansible.builtin.slurp:
+        src: "/etc/nginx/conf.d/verbatim.example.test.conf"
+      register: "nginx_verbatim"
+      failed_when: "'value-from-vars' in (nginx_verbatim.content | b64decode)"
+
+    - name: "Vhost config is rendered with nginx_config_template"
+      ansible.builtin.slurp:
+        src: "/etc/nginx/conf.d/template.example.test.conf"
+      register: "nginx_rendered"
+      failed_when: "'value-from-vars' not in (nginx_rendered.content | b64decode)"

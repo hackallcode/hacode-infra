@@ -226,6 +226,11 @@ and leaves no trace of who confirmed what. Descriptions are read
 after merge for context; threads are the place for state that only
 matters while the PR is open.
 
+**If you're using an LLM to open the PR**, drop the "Generated with
+…" footer it adds by default. The description becomes the body of
+the squash commit on `master`, so it has to read as the maintainer's
+own work, same as a commit.
+
 ## Lint and CI
 
 There's a single local gate: the `lint` make target. It runs

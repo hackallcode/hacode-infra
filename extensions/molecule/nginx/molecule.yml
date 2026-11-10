@@ -1,8 +1,7 @@
-# nginx scenario: exercises `tasks_from: install` only — the configure step
-# overwrites /etc/nginx/nginx.conf from role files which assumes a particular
-# distro layout, and the per-app vhost flow needs certbot. The install step
-# (package + service + firewall + nginx user/group + /var/www) is enough to
-# validate the role on each supported platform.
+# nginx scenario: exercises `tasks_from: install` and `app-configure` on
+# fixture vhosts from ../configs/ — the configure step overwrites
+# /etc/nginx/nginx.conf from role files which assumes a particular distro
+# layout, and a real TLS vhost needs certbot.
 
 driver:
   name: "docker"
