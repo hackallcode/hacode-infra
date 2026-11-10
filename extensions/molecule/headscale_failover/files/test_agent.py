@@ -12,6 +12,7 @@ import tempfile
 import time
 import unittest
 import urllib.request
+from unittest.mock import patch
 
 loader = importlib.machinery.SourceFileLoader("hf", sys.argv.pop(1))
 spec = importlib.util.spec_from_loader("hf", loader)
@@ -99,6 +100,23 @@ class Pure(unittest.TestCase):
         with self.assertRaises((ValueError, sqlite3.DatabaseError)):
             hf.restore_db(self.db, b"not a database" * 100)
         self.assertEqual(node_names(self.db), ["ru"])
+
+    def test_panel_launch_does_not_wait_for_a_slow_healthcheck(self):
+        token = os.path.join(self.dir, "test-token")
+        with open(token, "w") as f:
+            f.write("test")
+        cfg = {"name": "ru", "prefix": "/mesh", "etcd": {"endpoints": []}, "token_file": token,
+               "zone": "example.com", "server_name": "mesh.example.com", "headscale_dir": self.dir,
+               "headplane_dir": self.dir}
+        agent = hf.make_agent(cfg)
+
+        def compose(args, **kwargs):
+            if "--wait" in args:
+                raise TimeoutError("panel healthcheck outlived the leader lease")
+            return subprocess.CompletedProcess(args, 0)
+
+        with patch.object(hf.subprocess, "run", side_effect=compose):
+            self.assertTrue(agent.panel.start())
 
     def test_token_check(self):
         self.assertTrue(hf.authorized("Bearer s3cret", "s3cret"))
