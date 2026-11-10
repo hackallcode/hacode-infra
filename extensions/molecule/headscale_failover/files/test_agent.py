@@ -50,6 +50,10 @@ def node_names(path):
         conn.close()
 
 
+def executable_tempdir():
+    return tempfile.mkdtemp(prefix="headscale-failover-", dir=os.path.expanduser("~"))
+
+
 def fake_docker(directory, body):
     executable = os.path.join(directory, "docker")
     with open(executable, "w") as f:
@@ -59,7 +63,7 @@ def fake_docker(directory, body):
 
 class Pure(unittest.TestCase):
     def setUp(self):
-        self.dir = tempfile.mkdtemp()
+        self.dir = executable_tempdir()
         self.db = os.path.join(self.dir, "db.sqlite")
         make_db(self.db)
 
@@ -172,7 +176,7 @@ class WithEtcd(unittest.TestCase):
     TTL = 5
 
     def setUp(self):
-        self.dir = tempfile.mkdtemp()
+        self.dir = executable_tempdir()
         client, peer = free_port(), free_port()
         self.url = f"http://127.0.0.1:{client}"
         self.proc = subprocess.Popen(
