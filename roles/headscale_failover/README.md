@@ -35,6 +35,7 @@ queue, the requested server takes over, the request is cleared. Columns that cha
 | `headscale_failover_etcd_endpoints` | `[]` | etcd client URLs |
 | `headscale_failover_etcd_ca` / `_cert` / `_key` | the etcd member's files under `/etc/etcd/pki` | client TLS |
 | `headscale_failover_etcd_timeout` | `2` | seconds per etcd request and endpoint |
+| `headscale_failover_etcd_member` | `headscale_failover_name` | this server's etcd member; the leader moves the Raft leadership to it, `""` - off |
 | `headscale_failover_prefix` | `/headscale` | etcd key prefix |
 | `headscale_failover_lease_ttl` | `10` | lease TTL in seconds; renewed every fifth of it in a thread apart from the loop; a leader stops headscale at 70% of it without a renewal |
 | `headscale_failover_tick` | `1` | seconds between agent loops; keep well under the lease TTL |
@@ -84,3 +85,5 @@ the TTL. A renewal failure cancels the Docker CLI process group and stops both s
 
 The lease renews in its own thread, so a slow loop (Docker, Cloudflare, etcd reads through a distant Raft leader)
 does not eat the fencing margin. A loop stuck for over a minute stops the renewals, and another server takes over.
+The serving agent also moves etcd's Raft leadership to its own member, at most once a minute, so its renewals and
+snapshots commit without a round trip to another server.

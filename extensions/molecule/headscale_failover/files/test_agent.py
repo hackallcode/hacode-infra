@@ -135,6 +135,34 @@ class Pure(unittest.TestCase):
         self.assertFalse(hf.authorized("Bearer ", ""))
 
 
+class RaftLeader(unittest.TestCase):
+    def setUp(self):
+        self.calls = []
+        record = patch.object(hf.Etcd, "call", autospec=True,
+                              side_effect=lambda etcd, path, body: self.calls.append((etcd.endpoints[0], path, body)))
+        record.start()
+        self.addCleanup(record.stop)
+        self.agent = hf.Agent({"name": "ru", "prefix": "/m", "etcd_member": "ru"}, hf.Etcd(["https://ru:2379"]),
+                              None, None, log=lambda *a: None)
+
+    def members(self, leader):
+        return [{"name": n, "id": i, "client": f"https://{n}:2379", "ok": True, "raft_leader": n == leader}
+                for n, i in (("ru", "11"), ("nl", "22"), ("pi", "33"))]
+
+    def test_the_serving_server_takes_the_raft_leadership(self):
+        self.agent.view["members"] = self.members("nl")
+        self.agent.follow_raft_leader()
+        self.assertEqual(self.calls, [("https://nl:2379", "/v3/maintenance/transfer-leadership", {"targetID": "11"})])
+
+    def test_no_move_when_the_local_member_leads_or_just_moved(self):
+        self.agent.view["members"] = self.members("ru")
+        self.agent.follow_raft_leader()
+        self.agent.view["members"] = self.members("nl")
+        self.agent.raft_moved_at = self.agent.clock()
+        self.agent.follow_raft_leader()
+        self.assertEqual(self.calls, [])
+
+
 class FakeHeadscale:
     def __init__(self, directory):
         os.makedirs(directory, exist_ok=True)

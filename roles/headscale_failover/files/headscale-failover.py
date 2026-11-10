@@ -27,6 +27,8 @@ HISTORY_LENGTH = 50
 HOLD_MAX = 300
 # A tick stuck longer than this stops the background lease renewals, so a hung agent lets another server lead.
 TICK_STALL = 60
+# Seconds between attempts to move etcd's Raft leadership; the member list in the view lags by a few ticks.
+RAFT_MOVE_PAUSE = 60
 # Columns that change on every reconnect; a snapshot is not rewritten for them alone.
 VOLATILE_COLUMNS = {"last_seen", "endpoints", "host_info", "updated_at", "disco_key"}
 
@@ -302,6 +304,7 @@ class Agent:
         self.renewed_at = 0.0
         self.lease_lock = threading.Lock()
         self.alive_at = clock()
+        self.raft_moved_at = None
         self.term = None
         self.serving_term = None
         self.resigned_until = 0.0
@@ -567,7 +570,8 @@ class Agent:
     def member_health(self, member):
         """Whether an etcd member answers on its own address, and whether it is the Raft leader."""
         client = (member.get("clientURLs") or [None])[0]
-        health = {"name": member.get("name"), "client": client, "ok": False, "raft_leader": False}
+        health = {"name": member.get("name"), "id": member.get("ID"), "client": client, "ok": False,
+                  "raft_leader": False}
         if not client:
             return health
         probe = Etcd([client], timeout=1)
@@ -579,6 +583,26 @@ class Agent:
         health["ok"] = True
         health["raft_leader"] = status.get("leader") == status.get("header", {}).get("member_id")
         return health
+
+    def follow_raft_leader(self):
+        """Move etcd's Raft leadership to this server's member while it leads: lease renewals and database writes
+        then commit locally instead of crossing to another server."""
+        member = self.cfg.get("etcd_member")
+        if not member or (self.raft_moved_at is not None and self.clock() - self.raft_moved_at < RAFT_MOVE_PAUSE):
+            return
+        mine = next((m for m in self.view["members"] if m["name"] == member and m["ok"]), None)
+        leader = next((m for m in self.view["members"] if m["raft_leader"]), None)
+        if not mine or not leader or leader is mine:
+            return
+        self.raft_moved_at = self.clock()
+        probe = Etcd([leader["client"]], timeout=self.etcd.timeout)
+        probe.ctx = self.etcd.ctx
+        try:
+            probe.call("/v3/maintenance/transfer-leadership", {"targetID": mine["id"]})
+        except EtcdError as e:
+            self.log(f"raft leader: {e}")
+            return
+        self.log(f"moved the etcd Raft leadership from {leader['name']} to {member}")
 
     def held(self):
         """A deploy is editing the stopped database: keep the lease, leave headscale and the snapshot alone."""
@@ -612,6 +636,7 @@ class Agent:
             return
         self.was_held = False
         self.status["action"] = "serve"
+        self.follow_raft_leader()
 
     # ----- manual switch -----
 
