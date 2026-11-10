@@ -138,7 +138,8 @@ def logical_hash(db_path, volatile_columns=VOLATILE_COLUMNS):
     conn = read_only(db_path)
     try:
         tables = [r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' "
+            "AND name NOT GLOB '_litestream*' ORDER BY name")]
         for table in tables:
             cols = [r[1] for r in conn.execute(f'PRAGMA table_info("{table}")') if r[1] not in volatile_columns]
             h.update(table.encode())

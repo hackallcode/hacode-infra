@@ -68,6 +68,15 @@ class Pure(unittest.TestCase):
         conn.close()
         self.assertEqual(hf.logical_hash(self.db), before)
 
+    def test_litestream_bookkeeping_does_not_change_the_snapshot_hash(self):
+        before = hf.logical_hash(self.db)
+        conn = sqlite3.connect(self.db)
+        conn.execute("CREATE TABLE _litestream_seq (id INTEGER PRIMARY KEY, seq INTEGER)")
+        conn.execute("INSERT INTO _litestream_seq VALUES (1, 10)")
+        conn.commit()
+        conn.close()
+        self.assertEqual(hf.logical_hash(self.db), before)
+
     def test_real_changes_do(self):
         before = hf.logical_hash(self.db)
         add_node(self.db, "nl")
