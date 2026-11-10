@@ -21,9 +21,14 @@ headscale_failover_etcd_ca: "/etc/etcd/pki/ca.crt"
 headscale_failover_etcd_cert: "/etc/etcd/pki/member.crt"
 headscale_failover_etcd_key: "/etc/etcd/pki/member.key"
 headscale_failover_prefix: "/headscale"
+# Seconds per etcd request and endpoint; reads and renewals from a member far from the Raft leader take a round trip.
+headscale_failover_etcd_timeout: 2
+# This server's etcd member name: while it leads, the agent moves etcd's Raft leadership there; "" - off.
+headscale_failover_etcd_member: "{{ headscale_failover_name }}"
 
 # ===== election =====
 # A leader that cannot renew its lease stops headscale at 70% of the TTL; another takes over after the full TTL.
+# The lease renews every fifth of the TTL in its own thread, apart from the tick.
 headscale_failover_lease_ttl: 10
 # Seconds between agent loops. Must stay well under the lease TTL: a slow tick delays both the fencing
 # check and the takeover after the TTL runs out.
@@ -41,6 +46,8 @@ headscale_failover_to: ""
 # ===== paths =====
 # The headscale role's headscale_dir: the agent runs docker compose in it and reads its database.
 headscale_failover_headscale_dir: "/opt/headscale"
+# Headplane's compose directory: the leader runs it there and moves its database with headscale's; "" - off.
+headscale_failover_headplane_dir: ""
 headscale_failover_dir: "/etc/headscale-failover"
 headscale_failover_state_dir: "/var/lib/headscale-failover"
 # node_exporter's textfile collector directory; a wrong path makes every headscale_failover_* metric vanish.

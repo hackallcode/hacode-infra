@@ -27,6 +27,18 @@
       retries: 30
       delay: 2
 
+    - name: "Wait for the target panel to be ready"
+      community.docker.docker_container_info:
+        name: "headplane"
+      delegate_to: "{{ headscale_failover_to }}"
+      register: "_failover_panel"
+      until: >-
+        (_failover_panel.container.State.Running | default(false))
+        and (_failover_panel.container.State.Health.Status | default('healthy')) == 'healthy'
+      retries: 60
+      delay: 2
+      when: "headscale_failover_headplane_dir | length > 0"
+
     - name: "Wait for the server name to follow"
       ansible.builtin.command:
         argv: ["getent", "ahosts", "{{ headscale_failover_server_name }}"]
