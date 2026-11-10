@@ -13,6 +13,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   Jinja, so it can use vault values.
 - `certbot` role: `certbot_deploy_hook` is also installed into
   `renewal-hooks/deploy`, so it reaches certificates issued before it was set.
+- `headscale_failover` role: `headscale_failover_headplane_dir` runs Headplane
+  on the leader only and moves its database through etcd with Headscale's, so
+  users, roles, links and sessions survive a handover. Independent panels need
+  merging first, as the role README describes.
+- `headscale_failover` role: the serving agent moves etcd's Raft leadership to
+  its own member, named by `headscale_failover_etcd_member` (`""` turns it
+  off), so its renewals and snapshots commit without a round trip to another
+  server.
 
 ### Changed
 
@@ -20,6 +28,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   the `http2` parameter of `listen` is deprecated since nginx 1.25.1. The
   directive needs that version or newer; on an older nginx, move `http2` back
   to the `listen` lines of a newly scaffolded config.
+- `headscale_failover` role: the agent starts Headscale without waiting for its
+  Docker healthcheck, as readiness can outlast the election lease, and gives a
+  stopping container one second before Docker kills it.
+- `headscale_failover` role: the election lease renews in its own thread, so a
+  slow tick (Docker, Cloudflare, etcd reads through a distant Raft leader) no
+  longer fences a healthy leader; a tick stuck for over a minute still lets
+  another server take over. `headscale_failover_etcd_timeout` (2 s) replaces
+  the fixed 1 s etcd request timeout.
 
 ## [0.5.0] - 2026-11-08
 

@@ -9,9 +9,13 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import urllib.request
+from contextlib import closing
+from types import SimpleNamespace
+from unittest.mock import patch
 
 loader = importlib.machinery.SourceFileLoader("hf", sys.argv.pop(1))
 spec = importlib.util.spec_from_loader("hf", loader)
@@ -46,9 +50,20 @@ def node_names(path):
         conn.close()
 
 
+def executable_tempdir():
+    return tempfile.mkdtemp(prefix="headscale-failover-", dir=os.path.expanduser("~"))
+
+
+def fake_docker(directory, body):
+    executable = os.path.join(directory, "docker")
+    with open(executable, "w") as f:
+        f.write(f"#!{sys.executable}\nimport sys, time\n{body}\n")
+    os.chmod(executable, 0o755)
+
+
 class Pure(unittest.TestCase):
     def setUp(self):
-        self.dir = tempfile.mkdtemp()
+        self.dir = executable_tempdir()
         self.db = os.path.join(self.dir, "db.sqlite")
         make_db(self.db)
 
@@ -64,6 +79,15 @@ class Pure(unittest.TestCase):
         before = hf.logical_hash(self.db)
         conn = sqlite3.connect(self.db)
         conn.execute("UPDATE nodes SET last_seen = 't1', endpoints = 'e1'")
+        conn.commit()
+        conn.close()
+        self.assertEqual(hf.logical_hash(self.db), before)
+
+    def test_litestream_bookkeeping_does_not_change_the_snapshot_hash(self):
+        before = hf.logical_hash(self.db)
+        conn = sqlite3.connect(self.db)
+        conn.execute("CREATE TABLE _litestream_seq (id INTEGER PRIMARY KEY, seq INTEGER)")
+        conn.execute("INSERT INTO _litestream_seq VALUES (1, 10)")
         conn.commit()
         conn.close()
         self.assertEqual(hf.logical_hash(self.db), before)
@@ -91,11 +115,52 @@ class Pure(unittest.TestCase):
             hf.restore_db(self.db, b"not a database" * 100)
         self.assertEqual(node_names(self.db), ["ru"])
 
+    def test_panel_launch_does_not_wait_for_a_slow_healthcheck(self):
+        token = os.path.join(self.dir, "test-token")
+        with open(token, "w") as f:
+            f.write("test")
+        cfg = {"name": "ru", "prefix": "/mesh", "etcd": {"endpoints": []}, "token_file": token,
+               "zone": "example.com", "server_name": "mesh.example.com", "headscale_dir": self.dir,
+               "headplane_dir": self.dir}
+        agent = hf.make_agent(cfg)
+        agent.panel.renew_lease = lambda: None
+        fake_docker(self.dir, 'sys.exit("--wait" in sys.argv)')
+        with patch.dict(os.environ, PATH=self.dir):
+            self.assertTrue(agent.panel.start())
+
     def test_token_check(self):
         self.assertTrue(hf.authorized("Bearer s3cret", "s3cret"))
         self.assertFalse(hf.authorized("Bearer other", "s3cret"))
         self.assertFalse(hf.authorized(None, "s3cret"))
         self.assertFalse(hf.authorized("Bearer ", ""))
+
+
+class RaftLeader(unittest.TestCase):
+    def setUp(self):
+        self.calls = []
+        record = patch.object(hf.Etcd, "call", autospec=True,
+                              side_effect=lambda etcd, path, body: self.calls.append((etcd.endpoints[0], path, body)))
+        record.start()
+        self.addCleanup(record.stop)
+        self.agent = hf.Agent({"name": "ru", "prefix": "/m", "etcd_member": "ru"}, hf.Etcd(["https://ru:2379"]),
+                              None, None, log=lambda *a: None)
+
+    def members(self, leader):
+        return [{"name": n, "id": i, "client": f"https://{n}:2379", "ok": True, "raft_leader": n == leader}
+                for n, i in (("ru", "11"), ("nl", "22"), ("pi", "33"))]
+
+    def test_the_serving_server_takes_the_raft_leadership(self):
+        self.agent.view["members"] = self.members("nl")
+        self.agent.follow_raft_leader()
+        self.assertEqual(self.calls, [("https://nl:2379", "/v3/maintenance/transfer-leadership", {"targetID": "11"})])
+
+    def test_no_move_when_the_local_member_leads_or_just_moved(self):
+        self.agent.view["members"] = self.members("ru")
+        self.agent.follow_raft_leader()
+        self.agent.view["members"] = self.members("nl")
+        self.agent.raft_moved_at = self.agent.clock()
+        self.agent.follow_raft_leader()
+        self.assertEqual(self.calls, [])
 
 
 class FakeHeadscale:
@@ -139,7 +204,7 @@ class WithEtcd(unittest.TestCase):
     TTL = 5
 
     def setUp(self):
-        self.dir = tempfile.mkdtemp()
+        self.dir = executable_tempdir()
         client, peer = free_port(), free_port()
         self.url = f"http://127.0.0.1:{client}"
         self.proc = subprocess.Popen(
@@ -187,6 +252,54 @@ class WithEtcd(unittest.TestCase):
         self.assertLessEqual(len(serving), 1, f"two serving at once: {serving}")
         return serving[0] if serving else None
 
+    def slow_project(self, agent):
+        fake_docker(self.dir, f"time.sleep({self.TTL + 1})")
+        path = patch.dict(os.environ, PATH=self.dir)
+        path.start()
+        self.addCleanup(path.stop)
+        project = hf.ComposeProject(self.dir)
+        project.renew_lease = agent.renew_startup_lease
+        return project
+
+    def test_slow_docker_start_renews_lease_and_prevents_peer_takeover(self):
+        self.tick_all(2)
+        ru, nl = self.agents["ru"], self.agents["nl"]
+        before = ru.renewed_at
+        project = self.slow_project(ru)
+
+        def renew_lease():
+            ru.renew_startup_lease()
+            nl.tick()
+            self.assertFalse(nl.headscale.up)
+
+        project.renew_lease = renew_lease
+        ru.start_project(project)
+        self.assertGreater(ru.renewed_at, before)
+        self.assertTrue(ru.headscale.up)
+        self.assertEqual(self.leader(), "ru")
+
+    def test_quorum_loss_cancels_slow_start_and_stops_services(self):
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        project = self.slow_project(ru)
+        ru.etcd = hf.Etcd(["http://127.0.0.1:9"], timeout=0.1)
+        before = time.monotonic()
+        with self.assertRaises(hf.EtcdError):
+            ru.start_project(project)
+        self.assertLess(time.monotonic() - before, self.TTL)
+        self.assertFalse(ru.headscale.up)
+
+    def test_startup_can_renew_before_the_normal_renewal_interval(self):
+        ru = self.agents["ru"]
+        ru.keep_lease()
+        before = ru.lease_until
+        now = ru.renewed_at + 0.1
+        ru.clock = lambda: now
+        ru.keep_lease()
+        self.assertEqual(ru.lease_until, before)
+        ru.keep_lease(force=True)
+        self.assertGreater(ru.lease_until, before)
+
     def test_first_candidate_leads_from_the_seed(self):
         self.tick_all(2)
         self.assertEqual(self.leader(), "ru")
@@ -212,6 +325,7 @@ class WithEtcd(unittest.TestCase):
         self.assertIn("handed over to nl on request", history)
 
     def test_a_leader_cut_off_from_etcd_fences_before_the_other_takes_over(self):
+        self.enable_panels()
         self.tick_all(2)
         ru, nl = self.agents["ru"], self.agents["nl"]
         ru.etcd = hf.Etcd(["http://127.0.0.1:9"], timeout=0.2)
@@ -229,6 +343,8 @@ class WithEtcd(unittest.TestCase):
         self.assertIsNotNone(fenced_at, "the cut-off leader kept serving")
         self.assertIsNotNone(taken_at, "nobody took over")
         self.assertLess(fenced_at, taken_at)
+        self.assertFalse(ru.panel.up)
+        self.assertTrue(nl.panel.up)
         self.assertEqual(self.dns.ip, "192.0.2.20")
 
     def test_a_restart_keeps_changes_not_yet_in_etcd(self):
@@ -263,6 +379,28 @@ class WithEtcd(unittest.TestCase):
         self.assertFalse(ru.headscale.up, "the watchdog kept a leader without a lease serving")
         self.assertLess(time.monotonic() - start, self.TTL * 0.8)
 
+    def test_background_renewals_keep_the_lease_while_a_tick_is_stuck(self):
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        start = time.monotonic()
+        while time.monotonic() - start < self.TTL * 1.5:
+            ru.renew_in_background()
+            ru.watchdog_check()
+            time.sleep(0.2)
+        self.assertTrue(ru.lease_ok())
+        self.assertTrue(ru.headscale.up, "the watchdog fenced a leader whose renewals ran apart from the tick")
+
+    def test_a_stalled_tick_stops_the_background_renewals(self):
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        ru.alive_at = time.monotonic() - hf.TICK_STALL - 1
+        start = time.monotonic()
+        while time.monotonic() - start < self.TTL and ru.headscale.up:
+            ru.renew_in_background()
+            ru.watchdog_check()
+            time.sleep(0.2)
+        self.assertFalse(ru.headscale.up, "a hung agent kept its lease")
+
     def test_the_api_view_comes_from_the_last_tick(self):
         self.tick_all(2)
         view = self.agents["nl"].view
@@ -274,12 +412,13 @@ class WithEtcd(unittest.TestCase):
         self.tick_all(2)
         ru = self.agents["ru"]
         stale_term = ru.term
+        original_meta = hf.kv_json(ru.etcd.get(ru.k_db_meta))
         ru.etcd.txn([hf.cmp_created(ru.k_mine, stale_term)], [hf.op_delete(ru.k_mine)])
         add_node(ru.headscale.db, "written-after-losing-the-lead")
         ru.snapshot_hash = None
         self.assertFalse(ru.write_snapshot(force=True))
         meta = hf.kv_json(ru.etcd.get(ru.k_db_meta))
-        self.assertEqual(meta["term"], 0)
+        self.assertEqual(meta, original_meta)
 
     def test_agent_restart_keeps_a_serving_headscale(self):
         self.tick_all(2)
@@ -293,6 +432,133 @@ class WithEtcd(unittest.TestCase):
         self.tick_all(3)
         self.assertTrue(restarted.headscale.up)
         self.assertEqual(restarted.headscale.starts, starts)
+
+    def enable_panels(self):
+        for name, agent in self.agents.items():
+            agent.panel = FakeHeadscale(os.path.join(self.dir, name, "panel"))
+            with closing(sqlite3.connect(agent.panel.db)) as c, c:
+                c.execute("CREATE TABLE users (sub TEXT PRIMARY KEY, headscale_user_id TEXT, role TEXT, updated_at INTEGER)")
+                c.execute("CREATE TABLE auth_sessions (id TEXT PRIMARY KEY, user_sub TEXT)")
+                if name == "ru":
+                    c.execute("INSERT INTO users VALUES ('veronika', '6', 'user', 1)")
+        ru = self.agents["ru"]
+        meta = hf.kv_json(ru.etcd.get(ru.k_db_meta))
+        meta["panel_hash"] = hf.logical_hash(ru.panel.db, set())
+        ru.etcd.txn([], [hf.op_put(ru.k_panel, hf.gzip.compress(hf.snapshot_bytes(ru.panel.db))),
+                         hf.op_put(ru.k_db_meta, json.dumps(meta))])
+
+    def test_handover_captures_unsnapshotted_panel_links_roles_and_sessions(self):
+        self.enable_panels()
+        self.tick_all(2)
+        ru, nl = self.agents["ru"], self.agents["nl"]
+        with closing(sqlite3.connect(ru.panel.db)) as c, c:
+            c.execute("INSERT INTO auth_sessions VALUES ('session', 'veronika')")
+            c.execute("UPDATE users SET updated_at=2")
+        nl.request()
+        self.tick_all(2)
+        self.assertEqual(self.leader(), "nl")
+        self.assertFalse(ru.panel.up)
+        self.assertTrue(nl.panel.up)
+        with closing(sqlite3.connect(nl.panel.db)) as c, c:
+            self.assertEqual(c.execute("SELECT * FROM users").fetchall(), [('veronika', '6', 'user', 2)])
+            self.assertEqual(c.execute("SELECT * FROM auth_sessions").fetchall(), [('session', 'veronika')])
+
+    def test_new_leader_restart_keeps_unsnapshotted_panel_changes(self):
+        self.enable_panels()
+        self.tick_all(2)
+        nl = self.agents["nl"]
+        nl.request()
+        self.tick_all(2)
+        self.assertEqual(self.leader(), "nl")
+        add_node(nl.headscale.db, "after-takeover")
+        with closing(sqlite3.connect(nl.panel.db)) as c, c:
+            c.execute("UPDATE users SET updated_at=3")
+        restarted = hf.Agent(nl.cfg, hf.Etcd([self.url]), nl.headscale, self.dns,
+                             panel=nl.panel, log=lambda *a: None)
+        self.agents["nl"] = restarted
+        self.tick_all(2)
+        self.assertIn("after-takeover", node_names(restarted.headscale.db))
+        with closing(sqlite3.connect(restarted.panel.db)) as c, c:
+            self.assertEqual(c.execute("SELECT updated_at FROM users").fetchone(), (3,))
+
+    def test_slow_dns_does_not_hold_the_fencing_lock_or_start_an_expired_leader(self):
+        ru, nl = self.agents["ru"], self.agents["nl"]
+        entered, release = threading.Event(), threading.Event()
+        original = ru.dns.get
+
+        def slow_dns():
+            entered.set()
+            release.wait(timeout=self.TTL * 3)
+            return original()
+
+        ru.dns = SimpleNamespace(get=slow_dns, set=self.dns.set)
+        worker = threading.Thread(target=ru.tick)
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(timeout=3))
+            self.assertTrue(ru.lock.acquire(timeout=0.2), "DNS blocked the fencing lock")
+            ru.lock.release()
+            deadline = time.monotonic() + self.TTL * 3
+            while not nl.headscale.up and time.monotonic() < deadline:
+                nl.tick()
+                time.sleep(0.2)
+            self.assertTrue(nl.headscale.up)
+        finally:
+            release.set()
+            worker.join(timeout=5)
+            ru.dns = self.dns
+        self.assertFalse(worker.is_alive())
+        self.assertFalse(ru.headscale.up, "expired candidate started after DNS returned")
+        self.assertEqual(self.leader(), "nl")
+
+    def test_panel_only_changes_are_snapshotted(self):
+        self.enable_panels()
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        before = hf.kv_value(ru.etcd.get(ru.k_panel))
+        with closing(sqlite3.connect(ru.panel.db)) as c, c:
+            c.execute("UPDATE users SET updated_at=5")
+        self.tick_all(1)
+        self.assertNotEqual(before, hf.kv_value(ru.etcd.get(ru.k_panel)))
+
+    def test_watchdog_also_fences_a_panel_when_headscale_is_already_stopped(self):
+        self.enable_panels()
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        ru.headscale.stop()
+        ru.renewed_at = time.monotonic() - self.TTL
+        ru.lease_until = time.monotonic() - 1
+        ru.watchdog_check()
+        self.assertFalse(ru.panel.up)
+
+    def test_standby_stops_an_independently_started_panel(self):
+        self.enable_panels()
+        self.tick_all(2)
+        nl = self.agents["nl"]
+        nl.panel.start()
+        nl.tick()
+        self.assertFalse(nl.panel.up)
+
+    def test_takeover_refuses_to_overwrite_an_unmigrated_panel(self):
+        self.enable_panels()
+        ru = self.agents["ru"]
+        ru.etcd.txn([], [hf.op_delete(ru.k_panel)])
+        self.tick_all(1)
+        self.assertFalse(ru.headscale.up)
+        self.assertIn("migrate", ru.status["error"])
+        with closing(sqlite3.connect(ru.panel.db)) as c, c:
+            self.assertEqual(c.execute("SELECT sub FROM users").fetchall(), [('veronika',)])
+
+    def test_stale_leader_cannot_replace_panel_snapshot(self):
+        self.enable_panels()
+        self.tick_all(2)
+        ru = self.agents["ru"]
+        before = hf.kv_value(ru.etcd.get(ru.k_panel))
+        ru.etcd.txn([], [hf.op_delete(ru.k_mine)])
+        with closing(sqlite3.connect(ru.panel.db)) as c, c:
+            c.execute("DELETE FROM users")
+        self.assertFalse(ru.write_snapshot(force=True))
+        self.assertEqual(before, hf.kv_value(ru.etcd.get(ru.k_panel)))
 
     def hold_edit(self, ru, age=0):
         meta = hf.kv_json(ru.etcd.get(ru.k_db_meta))
