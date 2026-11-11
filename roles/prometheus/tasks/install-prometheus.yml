@@ -25,13 +25,13 @@
   become: false
   register: "managed_rule_files"
 
-# Every extension prometheus.prometheus puts into `rule_files`, so a file left
-# from an older layout (e.g. `*.rules`) can't load a second copy of a rule.
+# prometheus.prometheus also loads `*.rules`, which older versions of this role
+# wrote: a leftover one would load a second copy of a rule.
 - name: "List rule files on host"
   tags: ["install"]
   ansible.builtin.find:
     paths: "/etc/prometheus/rules"
-    patterns: ["*.yml", "*.yaml", "*.rules"]
+    patterns: ["*.yml", "*.rules"]
   register: "host_rule_files"
 
 - name: "Remove stale rule files"

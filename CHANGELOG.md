@@ -45,9 +45,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
-- `prometheus` role: the stale rule cleanup also removes `*.yaml` and `*.rules`
-  files from `/etc/prometheus/rules`, which Prometheus loads next to `*.yml`; a
-  leftover copy kept an older version of a rule firing.
+- `prometheus` role: the stale rule cleanup also removes `*.rules` files from
+  `/etc/prometheus/rules`, which Prometheus loads next to `*.yml`; a leftover
+  copy kept an older version of a rule firing.
 
 ## [0.5.0] - 2026-11-08
 
