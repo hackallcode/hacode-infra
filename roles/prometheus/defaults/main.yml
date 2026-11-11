@@ -39,12 +39,15 @@ prometheus_web_listen_port: 9090
 prometheus_metrics_path: "/metrics"
 
 # Built-in scrape jobs. Prometheus self-scrape is wired up so the
-# bundled `prometheus.yml` rule file has something to evaluate.
+# bundled `prometheus.yml` rule file has something to evaluate; it goes to
+# `prometheus_web_listen_ip`, or to loopback when that is `0.0.0.0`.
 prometheus_scrape_default_configs:
   - job_name: "prometheus"
     metrics_path: "{{ prometheus_metrics_path }}"
     static_configs:
-      - targets: ["127.0.0.1:{{ prometheus_web_listen_port }}"]
+      - targets:
+          - "{{ '127.0.0.1' if prometheus_web_listen_ip in ['0.0.0.0', ''] else prometheus_web_listen_ip }}:{{
+                prometheus_web_listen_port }}"
 
 # Inventory-supplied scrape jobs appended to the defaults. Same shape
 # as prometheus' `scrape_configs:` schema.

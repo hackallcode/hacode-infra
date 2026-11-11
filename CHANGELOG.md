@@ -45,6 +45,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `prometheus` role: the built-in self-scrape goes to `prometheus_web_listen_ip`
+  (loopback for `0.0.0.0`), so Prometheus bound to another address still
+  scrapes itself.
 - `prometheus` role: the stale rule cleanup also removes `*.rules` files from
   `/etc/prometheus/rules`, which Prometheus loads next to `*.yml`; a leftover
   copy kept an older version of a rule firing.
