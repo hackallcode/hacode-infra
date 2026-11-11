@@ -33,6 +33,18 @@
       retries: 30
       delay: 2
 
+    - name: "Prometheus sends alerts to Alertmanager on its listen address"
+      ansible.builtin.uri:
+        url: "http://192.0.2.10:9090/api/v1/alertmanagers"
+        return_content: true
+      register: "p_alertmanagers"
+      until: >-
+        p_alertmanagers.json is defined
+        and (p_alertmanagers.json.data.activeAlertmanagers | map(attribute='url') | list)
+            == ['http://192.0.2.10:9093/api/v2/alerts']
+      retries: 30
+      delay: 2
+
     - name: "Prometheus config exists"
       ansible.builtin.stat:
         path: "/etc/prometheus/prometheus.yml"

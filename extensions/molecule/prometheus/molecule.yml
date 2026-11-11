@@ -54,9 +54,10 @@ provisioner:
           - name: "noop"
         alertmanager_route:
           receiver: "noop"
-        # Not loopback, so the self-scrape has to follow the listen address;
-        # prepare puts it on lo.
+        # Not loopback, so the self-scrape and the Alertmanager target have
+        # to follow the listen addresses; prepare puts it on lo.
         prometheus_web_listen_ip: "192.0.2.10"
+        alertmanager_web_listen_ip: "192.0.2.10"
         prometheus_unit_overrides:
           prometheus:
             OOMScoreAdjust: -900

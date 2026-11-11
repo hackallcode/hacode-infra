@@ -54,10 +54,13 @@ prometheus_scrape_default_configs:
 prometheus_scrape_custom_configs: []
 
 # Built-in Alertmanager target so Prometheus has somewhere to send
-# firing alerts (the local AM instance bound above).
+# firing alerts (the local AM instance bound above); it goes to
+# `alertmanager_web_listen_ip`, or to loopback when that is `0.0.0.0`.
 prometheus_am_default_configs:
   - static_configs:
-      - targets: ["127.0.0.1:{{ alertmanager_web_listen_port }}"]
+      - targets:
+          - "{{ '127.0.0.1' if alertmanager_web_listen_ip in ['0.0.0.0', ''] else alertmanager_web_listen_ip }}:{{
+                alertmanager_web_listen_port }}"
 
 # Inventory-supplied Alertmanager targets appended to the defaults.
 prometheus_am_custom_configs: []
