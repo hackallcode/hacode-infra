@@ -21,9 +21,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   its own member, named by `headscale_failover_etcd_member` (`""` turns it
   off), so its renewals and snapshots commit without a round trip to another
   server.
-- `tailscale` role: `tailscale_metrics_enabled` writes tailscaled's client
-  metrics and the path to each active peer (direct, peer relay or DERP) into
-  node_exporter's textfile collector, to see which peers go through a relay.
+- `tailscale` role: `tailscale_metrics_enabled` has tailscaled serve its client
+  metrics, including traffic by path (direct, peer relay or DERP), for
+  Prometheus at `<tailnet IP>:5252/metrics`.
 
 ### Changed
 

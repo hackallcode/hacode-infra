@@ -4,9 +4,6 @@
   changed_when: "_tailscale_logout.rc == 0"
   failed_when: false
 
-- name: "Remove the metrics export"
-  ansible.builtin.import_tasks: "metrics-absent.yml"
-
 - name: "Remove tailscale"
   ansible.builtin.package:
     name: "tailscale"

@@ -129,38 +129,20 @@
         immediate: true
       loop: "{{ tailscale_firewalld_rich_rules }}"
 
-- name: "Set up the metrics export"
-  when: "tailscale_metrics_enabled | bool"
-  block:
-    - name: "Install the metrics script"
-      ansible.builtin.copy:
-        src: "tailscale-metrics.py"
-        dest: "/usr/local/bin/tailscale-metrics"
-        owner: "root"
-        group: "root"
-        mode: "0755"
+- name: "Read tailscale prefs"
+  ansible.builtin.command: "tailscale debug prefs"
+  register: "_tailscale_prefs"
+  changed_when: false
+  check_mode: false
+  failed_when: false
 
-    - name: "Install the metrics units"
-      ansible.builtin.template:
-        src: "{{ item }}.j2"
-        dest: "/etc/systemd/system/{{ item }}"
-        owner: "root"
-        group: "root"
-        mode: "0644"
-      loop: ["tailscale-metrics.service", "tailscale-metrics.timer"]
-      register: "_tailscale_metrics_units"
-
-    - name: "Start the metrics timer"
-      ansible.builtin.systemd:
-        name: "tailscale-metrics.timer"
-        enabled: true
-        state: "{{ 'restarted' if _tailscale_metrics_units is changed else 'started' }}"
-        daemon_reload: "{{ _tailscale_metrics_units is changed }}"
-      when: "not ansible_check_mode"
-
-- name: "Remove the metrics export"
-  ansible.builtin.import_tasks: "metrics-absent.yml"
-  when: "not tailscale_metrics_enabled | bool"
+- name: "Serve client metrics through the web client"
+  ansible.builtin.command:
+    argv: ["tailscale", "set", "--webclient={{ tailscale_metrics_enabled | bool | lower }}"]
+  when:
+    - "_tailscale_prefs.rc == 0"
+    - "(_tailscale_prefs.stdout | from_json).RunWebClient | default(false) != tailscale_metrics_enabled | bool"
+  changed_when: true
 
 - name: "Read tailscale state"
   tags: ["always"]
