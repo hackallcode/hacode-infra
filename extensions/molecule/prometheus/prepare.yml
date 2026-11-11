@@ -42,3 +42,12 @@
                 - alert: "Stale"
                   expr: "vector(1)"
         mode: "0644"
+
+    - name: "Install iproute"
+      ansible.builtin.package:
+        name: "{{ 'iproute' if ansible_os_family == 'RedHat' else 'iproute2' }}"
+        state: "present"
+
+    - name: "Add the listen address to lo"
+      ansible.builtin.command: "ip addr replace 192.0.2.10/32 dev lo"
+      changed_when: true
