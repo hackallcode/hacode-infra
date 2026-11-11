@@ -1,0 +1,7 @@
+[Unit]
+Description=Write tailscale metrics for node_exporter
+After=tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/tailscale-metrics {{ tailscale_metrics_textfile_dir }}/tailscale.prom

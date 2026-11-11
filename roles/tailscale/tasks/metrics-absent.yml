@@ -1,0 +1,19 @@
+- name: "Stop the metrics timer"
+  ansible.builtin.systemd:
+    name: "tailscale-metrics.timer"
+    state: "stopped"
+    enabled: false
+  register: "_tailscale_metrics_stop"
+  failed_when:
+    - "_tailscale_metrics_stop is failed"
+    - "'Could not find' not in _tailscale_metrics_stop.msg | default('')"
+
+- name: "Remove the metrics files"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "absent"
+  loop:
+    - "/etc/systemd/system/tailscale-metrics.timer"
+    - "/etc/systemd/system/tailscale-metrics.service"
+    - "/usr/local/bin/tailscale-metrics"
+    - "{{ tailscale_metrics_textfile_dir }}/tailscale.prom"

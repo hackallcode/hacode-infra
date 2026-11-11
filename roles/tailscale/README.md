@@ -8,6 +8,9 @@ one run by `hacode.infra.headscale` - with a one-off preauth key.
 - `install` (default): repository, pinned package, `tailscaled` port and MTU, IP forwarding (opt-in), firewalld (UDP
   port open, `tailscale0` in `tailscale_firewalld_zone`); sets the `tailscale_backend_state` fact (`Running`,
   `NeedsLogin`, ...).
+  With `tailscale_metrics_enabled`, a timer writes `tailscale.prom` for node_exporter's textfile collector:
+  `tailscale metrics print` (bytes by `path`: `direct_ipv4`, `direct_ipv6`, `peer_relay_*`, `derp`) plus
+  `tailscale_peer_path{peer,path,relay}` for each peer with recent traffic and `tailscale_peer_{rx,tx}_bytes_total{peer}`.
 - `up`: `tailscale up --reset` with `tailscale_login_server`, `tailscale_authkey` and `tailscale_up_args`. Run it for
   nodes whose `tailscale_backend_state` isn't `Running`, or to re-apply the flags.
 - `uninstall`: log out, remove the package, repository, firewalld rules and state.
@@ -23,6 +26,9 @@ one run by `hacode.infra.headscale` - with a one-off preauth key.
 | `tailscale_firewalld_rich_rules` | `[]` | all rich rules of that zone, as `firewall-cmd --list-rich-rules` prints them; any other rule there is removed |
 | `tailscale_exit_node` | `false` | `up`: `--advertise-exit-node`, forwarding on |
 | `tailscale_ip_forward` | `tailscale_exit_node` | enable IPv4/IPv6 forwarding (exit node, subnet routes) |
+| `tailscale_metrics_enabled` | `false` | write tailscaled's client metrics and per-peer path metrics for node_exporter; `false` removes the timer and the file |
+| `tailscale_metrics_textfile_dir` | `/var/lib/node_exporter` | node_exporter textfile directory; it must exist |
+| `tailscale_metrics_interval` | `1min` | how often the file is rewritten |
 | `tailscale_login_server` | `""` | `up`: control server URL |
 | `tailscale_authkey` | `""` | `up`: one-off preauth key, never stored; a tagged key tags the node |
 | `tailscale_hostname` | `inventory_hostname` | `up`: node name |

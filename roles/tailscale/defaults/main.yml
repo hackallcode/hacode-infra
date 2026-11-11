@@ -18,6 +18,13 @@ tailscale_exit_node: false
 # Needed for --advertise-routes too.
 tailscale_ip_forward: "{{ tailscale_exit_node }}"
 
+# Write tailscaled's client metrics (bytes by path: direct, peer relay, DERP) and the path to each active peer into
+# node_exporter's textfile collector every `tailscale_metrics_interval`. `false` removes the timer and the file.
+tailscale_metrics_enabled: false
+# node_exporter's textfile collector directory; it must already exist.
+tailscale_metrics_textfile_dir: "/var/lib/node_exporter"
+tailscale_metrics_interval: "1min"
+
 # ===== up =====
 tailscale_login_server: ""
 # One-off preauth key; never stored. A tagged key tags the node (headscale
