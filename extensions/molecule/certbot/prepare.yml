@@ -15,6 +15,17 @@
         state: "present"
       when: "ansible_os_family == 'RedHat'"
 
+    # Alma and Rocky leave releasever_minor unset, so EPEL 10 resolves to its newest minor, whose certbot
+    # deps need a python3-cryptography the older base OS doesn't ship yet.
+    - name: "Pin EPEL to the minor release of the base OS"
+      ansible.builtin.replace:
+        path: "/etc/yum.repos.d/epel.repo"
+        regexp: 'repo=epel\$\{releasever_minor:\+-z\}-\$releasever&'
+        replace: "repo=epel-{{ ansible_distribution_version }}&"
+      when:
+        - "ansible_os_family == 'RedHat'"
+        - "ansible_distribution_major_version == '10'"
+
     - name: "Start firewalld on RHEL family"
       ansible.builtin.systemd:
         name: "firewalld"
