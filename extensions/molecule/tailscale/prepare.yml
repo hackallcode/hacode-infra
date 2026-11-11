@@ -30,3 +30,9 @@
         path: "/etc/sysctl.d"
         state: "directory"
         mode: "0755"
+
+    - name: "Create the node_exporter textfile dir"
+      ansible.builtin.file:
+        path: "/var/lib/node_exporter"
+        state: "directory"
+        mode: "0755"

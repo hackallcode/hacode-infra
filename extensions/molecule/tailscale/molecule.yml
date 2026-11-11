@@ -47,6 +47,8 @@ provisioner:
     group_vars:
       all:
         tailscale_exit_node: true
+        tailscale_metrics_enabled: true
+        tailscale_metrics_textfile_dir: "/var/lib/node_exporter"
         # In group_vars (not converge role vars) so verify's include_role re-runs the
         # role with the same list instead of its empty default.
         tailscale_firewalld_rich_rules:

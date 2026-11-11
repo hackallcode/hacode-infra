@@ -56,3 +56,23 @@
       changed_when: false
       failed_when: "rich_rules.stdout_lines != ['rule family=\"ipv4\" destination address=\"192.0.2.1\" reject']"
       when: "ansible_os_family == 'RedHat'"
+
+    - name: "Metrics timer is active"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-active tailscale-metrics.timer"
+      changed_when: false
+
+    - name: "Write the metrics once"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl start tailscale-metrics.service"
+      changed_when: false
+
+    - name: "Read the metrics file"
+      ansible.builtin.command: "cat /var/lib/node_exporter/tailscale.prom"
+      register: "metrics"
+      changed_when: false
+
+    - name: "Metrics file carries tailscaled's traffic by path and the peer metric headers"
+      ansible.builtin.assert:
+        that:
+          - "'tailscaled_inbound_bytes_total{path=\"derp\"}' in metrics.stdout"
+          - "'# TYPE tailscale_peer_path gauge' in metrics.stdout"
+        quiet: true
