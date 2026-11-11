@@ -60,6 +60,11 @@
     name: "prometheus"
     state: "reloaded"
   when: "stale_rules_cleanup.changed"
+  register: "_prom_stale_reload"
+  # Not installed yet: the install below starts it on the cleaned rules.
+  failed_when:
+    - "_prom_stale_reload is failed"
+    - "'Could not find' not in _prom_stale_reload.msg | default('')"
 
 # Resolved here: inside the included role `role_path` is that role's.
 - name: "Resolve Prometheus rule and target files"
