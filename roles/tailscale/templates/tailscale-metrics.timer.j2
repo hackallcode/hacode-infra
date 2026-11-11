@@ -1,0 +1,9 @@
+[Unit]
+Description=Write tailscale metrics for node_exporter every {{ tailscale_metrics_interval }}
+
+[Timer]
+OnBootSec={{ tailscale_metrics_interval }}
+OnUnitActiveSec={{ tailscale_metrics_interval }}
+
+[Install]
+WantedBy=timers.target

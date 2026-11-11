@@ -32,3 +32,45 @@ tests:
       - eval_time: 2m
         alertname: InstanceDown
         exp_alerts: []
+
+  # headscale на резервном сервере остановлен → не срабатывает, node того же сервера → срабатывает
+  - interval: 30s
+    input_series:
+      - series: 'up{job="headscale",instance_name="standby"}'
+        values: "0x20"
+      - series: 'up{job="node",instance_name="standby"}'
+        values: "0x20"
+      - series: 'headscale_failover_serving{job="node",instance_name="standby"}'
+        values: "0x20"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance_name: standby
+            exp_annotations:
+              summary: "Instance standby down"
+              description: "standby of job node has been down for more than 1 minute."
+
+  # headscale остановлен на обслуживающем сервере → срабатывает
+  - interval: 30s
+    input_series:
+      - series: 'up{job="headscale",instance_name="leader"}'
+        values: "0x20"
+      - series: 'headscale_failover_serving{job="node",instance_name="leader"}'
+        values: "1x20"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: headscale
+              instance_name: leader
+            exp_annotations:
+              summary: "Instance leader down"
+              description: "leader of job headscale has been down for more than 1 minute."

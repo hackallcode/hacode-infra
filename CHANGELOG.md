@@ -21,6 +21,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   its own member, named by `headscale_failover_etcd_member` (`""` turns it
   off), so its renewals and snapshots commit without a round trip to another
   server.
+- `tailscale` role: `tailscale_metrics_enabled` writes tailscaled's client
+  metrics and the path to each active peer (direct, peer relay or DERP) into
+  node_exporter's textfile collector, to see which peers go through a relay.
 
 ### Changed
 
@@ -36,6 +39,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   longer fences a healthy leader; a tick stuck for over a minute still lets
   another server take over. `headscale_failover_etcd_timeout` (2 s) replaces
   the fixed 1 s etcd request timeout.
+- `prometheus` role: `InstanceDown` skips a `headscale` scrape job target on a
+  server whose `headscale_failover_serving` is 0, as a standby keeps Headscale
+  stopped.
 
 ## [0.5.0] - 2026-11-08
 
