@@ -25,3 +25,20 @@
         update_cache: true
         cache_valid_time: 600
       when: "ansible_os_family == 'Debian'"
+
+    - name: "Create the rules dir"
+      ansible.builtin.file:
+        path: "/etc/prometheus/rules"
+        state: "directory"
+        mode: "0755"
+
+    - name: "Seed a rule file of an older layout the role must remove"
+      ansible.builtin.copy:
+        dest: "/etc/prometheus/rules/instances.rules"
+        content: |
+          groups:
+            - name: "stale"
+              rules:
+                - alert: "Stale"
+                  expr: "vector(1)"
+        mode: "0644"

@@ -64,6 +64,12 @@
       register: "p_bundled_rule"
       failed_when: "not p_bundled_rule.stat.exists"
 
+    - name: "Rule file of an older layout is gone"
+      ansible.builtin.stat:
+        path: "/etc/prometheus/rules/instances.rules"
+      register: "p_stale_rule"
+      failed_when: "p_stale_rule.stat.exists"
+
     - name: "Bundled Alertmanager template reached the host"
       ansible.builtin.stat:
         path: "/etc/alertmanager/templates/telegram-alert.tmpl"
