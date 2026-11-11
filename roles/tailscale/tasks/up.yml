@@ -21,6 +21,7 @@
           '--hostname=' ~ tailscale_hostname,
           '--timeout=60s', '--accept-risk=lose-ssh']
          + (['--advertise-exit-node'] if tailscale_exit_node | bool else [])
+         + (['--webclient'] if tailscale_metrics_enabled | bool else [])
          + (['--force-reauth'] if (_tailscale_prefs.stdout | from_json).ControlURL not in ['', tailscale_login_server]
             else [])
          + tailscale_up_args }}

@@ -18,12 +18,10 @@ tailscale_exit_node: false
 # Needed for --advertise-routes too.
 tailscale_ip_forward: "{{ tailscale_exit_node }}"
 
-# Write tailscaled's client metrics (bytes by path: direct, peer relay, DERP) and the path to each active peer into
-# node_exporter's textfile collector every `tailscale_metrics_interval`. `false` removes the timer and the file.
+# Serve tailscaled's client metrics (bytes by path: direct, peer relay, DERP; home DERP region; health) for Prometheus
+# at http://<tailnet IP>:5252/metrics. tailscaled serves them through its web client, which also puts the node's web
+# interface on that port, so the tailnet policy decides who reaches it.
 tailscale_metrics_enabled: false
-# node_exporter's textfile collector directory; it must already exist.
-tailscale_metrics_textfile_dir: "/var/lib/node_exporter"
-tailscale_metrics_interval: "1min"
 
 # ===== up =====
 tailscale_login_server: ""
@@ -32,6 +30,6 @@ tailscale_login_server: ""
 tailscale_authkey: ""
 tailscale_hostname: "{{ inventory_hostname }}"
 # Only flags the role doesn't own: --advertise-exit-node and --advertise-routes belong to
-# tailscale_exit_node / tailscale_ip_forward, which also configure forwarding; --advertise-tags
-# is rejected with a preauth key.
+# tailscale_exit_node / tailscale_ip_forward, which also configure forwarding, --webclient to
+# tailscale_metrics_enabled; --advertise-tags is rejected with a preauth key.
 tailscale_up_args: []
