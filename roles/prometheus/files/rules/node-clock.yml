@@ -9,15 +9,17 @@ groups:
         for: "10m"
         labels:
           severity: "warning"
+          category: "clock"
         annotations:
-          summary: 'Clock skew detected.'
-          description: 'Clock on {{ $labels.instance_name }} is out of sync by more than 300s. Ensure NTP is configured correctly on this host.'
+          summary: "Clock skew detected."
+          description: "The clock on {{ $labels.instance_name }} is off by {{ printf \"%.3f\" $value }}s; check NTP."
 
       - alert: "NodeClockNotSynchronising"
         expr: "min_over_time(node_timex_sync_status[5m]) == 0"
         for: "10m"
         labels:
           severity: "warning"
+          category: "clock"
         annotations:
-          summary: 'Clock not synchronising.'
-          description: 'Clock on {{ $labels.instance_name }} is not synchronising. Ensure NTP is configured on this host.'
+          summary: "Clock not synchronising."
+          description: "The clock on {{ $labels.instance_name }} is not synchronising; check NTP."

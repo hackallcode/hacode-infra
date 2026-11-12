@@ -18,8 +18,10 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: info
+              category: monitoring
             exp_annotations:
-              summary: "I'm alive!"
+              summary: "Prometheus is alive."
+              description: "Prometheus is alive."
 
       # Понедельник 08:00 → не срабатывает
       - eval_time: 4d8h

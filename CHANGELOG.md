@@ -27,6 +27,19 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Changed
 
+- `prometheus` role: `CpuUtilizationWarning` and `CpuUtilizationCritical` are
+  one `CpuUtilizationHigh` alert with `warning` and `critical` severities,
+  which wait 5 minutes instead of 1.
+- `prometheus` role: `NodeTrafficUsage1Day` is gone, as its 35 GB threshold is
+  one hosting plan's; a project ships such a rule through
+  `prometheus_extra_rule_dirs`.
+- `prometheus` role: `HeadscaleLeaderChanged` fires once per handover, on the
+  new leader only, as `info` for 5 minutes instead of a 15-minute `warning`.
+- `prometheus` role: the Telegram message is a bold header of severity,
+  category and how long the alert has fired or lasted, over one line per alert
+  from its `description`. `alertmanager_instance_emojis` adds an emoji of each
+  host to the header, by the `instance_name` label. Every bundled rule carries a `category` label and a
+  `description` sentence that names the host and the value.
 - `nginx` role: the `app-prepare` scaffold enables HTTP/2 with `http2 on;`, as
   the `http2` parameter of `listen` is deprecated since nginx 1.25.1. The
   directive needs that version or newer; on an older nginx, move `http2` back
@@ -45,6 +58,8 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `prometheus` role: Alertmanager template files the role does not ship are
+  removed, as a leftover one could redefine `telegram.default.message`.
 - `prometheus` role: the built-in self-scrape goes to `prometheus_web_listen_ip`
   (loopback for `0.0.0.0`), so Prometheus bound to another address still
   scrapes itself.

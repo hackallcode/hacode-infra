@@ -1,0 +1,7 @@
+{{ define "telegram.instance_emojis" }}
+{{- $alerts := . }}
+[% for name, emoji in alertmanager_instance_emojis.items() %]
+{{- $hit := false }}{{ range $alerts }}{{ if eq .Labels.instance_name [[ name | to_json ]] }}{{ $hit = true }}{{ end }}{{ end }}
+{{- if $hit }}[[ emoji ]]{{ end }}
+[% endfor %]
+{{- end }}

@@ -5,21 +5,26 @@ groups:
         expr: "node_reboot_required > 0"
         labels:
           severity: "warning"
+          category: "host"
         annotations:
-          summary: "{{ $labels.instance_name }} requires a reboot."
+          summary: "Reboot required."
+          description: "{{ $labels.instance_name }} requires a reboot."
 
       - alert: "NodeReboot"
         expr: "time() - node_boot_time_seconds < 300"
         for: "1m"
         labels:
           severity: "critical"
+          category: "host"
         annotations:
-          summary: "Reboot detected"
-          description: "Reboot detected on {{ $labels.instance_name }}.\nSystem started {{ $value }} seconds ago."
+          summary: "Reboot detected."
+          description: "{{ $labels.instance_name }} rebooted {{ $value | humanizeDuration }} ago."
 
       - alert: "NodeMigration"
         expr: "changes(node_boot_time_seconds[20m]) > 0 and (time() - node_boot_time_seconds) > 1260"
         labels:
           severity: "warning"
+          category: "host"
         annotations:
-          summary: "Migration detected on {{ $labels.instance_name }}."
+          summary: "Migration detected."
+          description: "{{ $labels.instance_name }} changed its boot time without a reboot: the VM migrated."

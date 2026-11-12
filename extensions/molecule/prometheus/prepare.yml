@@ -43,6 +43,19 @@
                   expr: "vector(1)"
         mode: "0644"
 
+    - name: "Create the Alertmanager templates dir"
+      ansible.builtin.file:
+        path: "/etc/alertmanager/templates"
+        state: "directory"
+        mode: "0755"
+
+    - name: "Seed a template file of an older layout the role must remove"
+      ansible.builtin.copy:
+        dest: "/etc/alertmanager/templates/telegram_alert.tmpl"
+        content: |
+          {{ '{{' }} define "telegram.default.message" {{ '}}' }}stale{{ '{{' }} end {{ '}}' }}
+        mode: "0644"
+
     - name: "Install iproute"
       ansible.builtin.package:
         name: "{{ 'iproute' if ansible_os_family == 'RedHat' else 'iproute2' }}"

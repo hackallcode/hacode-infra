@@ -10,12 +10,12 @@ tests:
   # predict_linear отрицательный на 24ч и 4ч.
   - interval: 1m
     input_series:
-      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "107374182400x400"
-      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         # 40GB -> 10GB линейно за 360 минут (≈83886080 байт/мин)
         values: "42949672960-83886080x360 10737418240x40"
-      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "0x400"
 
     alert_rule_test:
@@ -24,33 +24,35 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              category: disk
               job: node
               fstype: ext4
               device: /dev/sda1
+              mountpoint: /
               instance_name: testhost
             exp_annotations:
               summary: "Filesystem is predicted to run out of space within the next 24 hours."
-              description: "Filesystem on /dev/sda1 at testhost has only 10.00% available space left and is filling up."
+              description: "/ on testhost has 10% of its space free and fills up within a day."
           - exp_labels:
               severity: critical
+              category: disk
               job: node
               fstype: ext4
               device: /dev/sda1
+              mountpoint: /
               instance_name: testhost
             exp_annotations:
               summary: "Filesystem is predicted to run out of space within the next 4 hours."
-              description: >-
-                Filesystem on /dev/sda1 at testhost has only 10.00%
-                available space left and is filling up fast.
+              description: "/ on testhost has 10% of its space free and fills up within 4 hours."
 
   # Диск занят на 50% и стабилен → ни один FillingUp не срабатывает.
   - interval: 1m
     input_series:
-      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "107374182400x400"
-      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "53687091200x400"
-      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "0x400"
 
     alert_rule_test:
@@ -61,11 +63,11 @@ tests:
   # Стабильно 8% свободно (8GB из 100GB) → warning срабатывает, critical нет.
   - interval: 1m
     input_series:
-      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "107374182400x20"
-      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "8589934592x20"
-      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "0x20"
 
     alert_rule_test:
@@ -74,22 +76,24 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              category: disk
               job: node
               fstype: ext4
               device: /dev/sda1
+              mountpoint: /
               instance_name: testhost
             exp_annotations:
               summary: "Filesystem has less than 10% space left."
-              description: "Filesystem on /dev/sda1 at testhost has only 8.00% available space left."
+              description: "/ on testhost has 8% of its space free."
 
   # Стабильно 3% свободно → срабатывают оба: warning и critical.
   - interval: 1m
     input_series:
-      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "107374182400x20"
-      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "3221225472x20"
-      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "0x20"
 
     alert_rule_test:
@@ -98,31 +102,35 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              category: disk
               job: node
               fstype: ext4
               device: /dev/sda1
+              mountpoint: /
               instance_name: testhost
             exp_annotations:
               summary: "Filesystem has less than 10% space left."
-              description: "Filesystem on /dev/sda1 at testhost has only 3.00% available space left."
+              description: "/ on testhost has 3% of its space free."
           - exp_labels:
               severity: critical
+              category: disk
               job: node
               fstype: ext4
               device: /dev/sda1
+              mountpoint: /
               instance_name: testhost
             exp_annotations:
               summary: "Filesystem has less than 5% space left."
-              description: "Filesystem on /dev/sda1 at testhost has only 3.00% available space left."
+              description: "/ on testhost has 3% of its space free."
 
   # Стабильно 50% свободно → ни один AlmostOutOfSpace не срабатывает.
   - interval: 1m
     input_series:
-      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "107374182400x20"
-      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "53687091200x20"
-      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",instance_name="testhost"}'
+      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
         values: "0x20"
 
     alert_rule_test:

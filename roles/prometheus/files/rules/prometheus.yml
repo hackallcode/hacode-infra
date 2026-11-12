@@ -5,6 +5,7 @@ groups:
         expr: "prometheus_config_last_reload_successful != 1"
         labels:
           severity: "critical"
+          category: "monitoring"
         annotations:
-          summary: 'Prometheus config reload error.'
-          description: 'Prometheus config reload error on {{ $labels.instance_name }}: {{ $value }}.'
+          summary: 'Prometheus config reload failed.'
+          description: '{{ with $externalLabels.environment }}{{ . }}{{ else }}Prometheus{{ end }} failed to reload its config.'

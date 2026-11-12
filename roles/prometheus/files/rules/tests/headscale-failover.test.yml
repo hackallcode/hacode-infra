@@ -20,10 +20,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: mesh
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "etcd has no headscale leader, as testhost sees it: no candidate is queued."
+              summary: "etcd has no headscale leader."
+              description: "testhost sees no headscale leader in etcd: no candidate is queued."
 
   # без lease дольше минуты → HeadscaleLeaseLost
   - interval: 1m
@@ -36,27 +38,33 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: mesh
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "testhost cannot hold its etcd lease: it is out of the quorum and stopped headscale."
+              summary: "A server cannot hold its etcd lease."
+              description: "testhost cannot hold its etcd lease: it is out of the quorum and stopped headscale."
 
-  # лидерство сменилось → HeadscaleLeaderChanged, через 15 мин без смен - тихо
+  # leadership moves to testhost -> it fires there, quiet after 5 min; nothing for otherhost
   - interval: 1m
     input_series:
       - series: 'headscale_failover_leader{job="node",instance_name="testhost"}'
         values: "0 1x30"
+      - series: 'headscale_failover_leader{job="node",instance_name="otherhost"}'
+        values: "1 0x30"
     alert_rule_test:
-      - eval_time: 5m
+      - eval_time: 3m
         alertname: HeadscaleLeaderChanged
         exp_alerts:
           - exp_labels:
-              severity: warning
+              severity: info
+              category: mesh
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "headscale leadership changed on testhost in the last 15 minutes."
-      - eval_time: 25m
+              summary: "headscale leadership moved."
+              description: "headscale leadership moved to testhost."
+      - eval_time: 10m
         alertname: HeadscaleLeaderChanged
         exp_alerts: []
 
@@ -71,7 +79,9 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              category: mesh
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "The headscale failover agent on testhost has not run for 2 minutes."
+              summary: "The headscale failover agent stopped running."
+              description: "The headscale failover agent on testhost has not run for 5m 0s."

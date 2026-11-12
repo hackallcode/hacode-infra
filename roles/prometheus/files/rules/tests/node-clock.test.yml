@@ -16,13 +16,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              category: clock
               job: node
               instance_name: testhost
             exp_annotations:
               summary: "Clock skew detected."
-              description: >-
-                Clock on testhost is out of sync by more than 300s.
-                Ensure NTP is configured correctly on this host.
+              description: "The clock on testhost is off by 0.075s; check NTP."
 
   # offset стабилен около нуля → не срабатывает
   - interval: 1m
@@ -47,11 +46,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              category: clock
               job: node
               instance_name: testhost
             exp_annotations:
               summary: "Clock not synchronising."
-              description: "Clock on testhost is not synchronising. Ensure NTP is configured on this host."
+              description: "The clock on testhost is not synchronising; check NTP."
 
   # sync_status == 1 → не срабатывает
   - interval: 1m

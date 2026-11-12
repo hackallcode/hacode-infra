@@ -9,9 +9,10 @@ groups:
         keep_firing_for: "3m"
         labels:
           severity: "critical"
+          category: "memory"
         annotations:
-          summary: 'Less than 100 MB available memory'
-          description: '{{ printf "%.2f" $value }} MB of memory available on {{ $labels.instance_name }}.'
+          summary: 'Less than 100 MB of memory available.'
+          description: '{{ $labels.instance_name }} has {{ printf "%.0f" $value }} MB of its memory available, not counting swap.'
 
       - alert: "LowRamPercent"
         expr: "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10"
@@ -19,13 +20,16 @@ groups:
         keep_firing_for: "3m"
         labels:
           severity: "critical"
+          category: "memory"
         annotations:
-          summary: 'Less than 10 percent available memory'
-          description: '{{ printf "%.2f" $value }}% of memory available on {{ $labels.instance_name }}.'
+          summary: 'Less than 10% of memory available.'
+          description: '{{ $labels.instance_name }} has {{ printf "%.0f" $value }}% of its memory available, not counting swap.'
 
       - alert: "OomKillDetected"
         expr: "increase(node_vmstat_oom_kill[1m]) > 0"
         labels:
           severity: "warning"
+          category: "memory"
         annotations:
-          summary: 'OOM kill detected {{ $value }} times on {{ $labels.instance_name }}.'
+          summary: 'OOM kill detected.'
+          description: 'The OOM killer ran {{ printf "%.0f" $value }} times on {{ $labels.instance_name }} in the last minute.'

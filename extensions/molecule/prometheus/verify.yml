@@ -93,11 +93,24 @@
       register: "p_stale_rule"
       failed_when: "p_stale_rule.stat.exists"
 
+    - name: "Template file of an older layout is gone"
+      ansible.builtin.stat:
+        path: "/etc/alertmanager/templates/telegram_alert.tmpl"
+      register: "am_stale_template"
+      failed_when: "am_stale_template.stat.exists"
+
     - name: "Bundled Alertmanager template reached the host"
       ansible.builtin.stat:
         path: "/etc/alertmanager/templates/telegram-alert.tmpl"
       register: "am_bundled_template"
       failed_when: "not am_bundled_template.stat.exists"
+
+    - name: "Instance emojis template is rendered from alertmanager_instance_emojis"
+      ansible.builtin.slurp:
+        src: "/etc/alertmanager/templates/instance-emojis.tmpl"
+      register: "am_instance_emojis"
+      failed_when: >-
+        'eq .Labels.instance_name "molecule-host"' not in (am_instance_emojis.content | b64decode)
 
     - name: "Project template from alertmanager_extra_template_files landed too"
       ansible.builtin.slurp:
