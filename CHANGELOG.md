@@ -38,8 +38,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `prometheus` role: the Telegram message is a bold header of severity,
   category and how long the alert has fired or lasted, over one line per alert
   from its `description`. `alertmanager_instance_emojis` adds an emoji of each
-  host to the header, by the `instance_name` label. Every bundled rule carries a `category` label and a
-  `description` sentence that names the host and the value.
+  host to the header, by the `instance_name` label. Every bundled rule carries
+  a `category` label and a `description` sentence that names the host and the
+  value.
 - `nginx` role: the `app-prepare` scaffold enables HTTP/2 with `http2 on;`, as
   the `http2` parameter of `listen` is deprecated since nginx 1.25.1. The
   directive needs that version or newer; on an older nginx, move `http2` back

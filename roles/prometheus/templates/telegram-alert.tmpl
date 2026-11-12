@@ -8,7 +8,7 @@
 
 {{ define "telegram.alerts" }}
 {{- $first := index . 0 }}
-{{- $severity := $first.Labels.severity }}
+{{- $severity := or $first.Labels.severity "info" }}
 {{- $category := or $first.Labels.category "alert" }}
 {{- if eq $first.Status "resolved" }}&#9989;
 {{- else if eq $severity "critical" }}&#128680;
