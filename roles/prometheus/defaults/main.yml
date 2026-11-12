@@ -34,6 +34,12 @@ alertmanager_extra_template_files: []
 # `{"web-1": "🌍"}`. A message with several hosts shows each of them.
 alertmanager_instance_emojis: {}
 
+# Add an inhibit rule that mutes a `warning` alert while its `critical`
+# twin of the same name fires on the same host and mountpoint, so a
+# bundled alert with both severities sends one message. Project rules in
+# `alertmanager_inhibit_rules` are kept after it.
+alertmanager_severity_inhibit_enabled: true
+
 # Prometheus server listener. Localhost-only by default — same exposure
 # rule as Alertmanager.
 prometheus_web_listen_ip: "127.0.0.1"

@@ -112,6 +112,15 @@
       failed_when: >-
         'eq .Labels.instance_name "molecule-host"' not in (am_instance_emojis.content | b64decode)
 
+    - name: "Severity inhibit rule reached the Alertmanager config"
+      ansible.builtin.slurp:
+        src: "/etc/alertmanager/alertmanager.yml"
+      register: "am_config"
+      failed_when: >-
+        (am_config.content | b64decode | from_yaml).inhibit_rules | default([])
+        | selectattr('target_matchers', 'equalto', ['severity="warning"'])
+        | list | length != 1
+
     - name: "Project template from alertmanager_extra_template_files landed too"
       ansible.builtin.slurp:
         src: "/etc/alertmanager/templates/molecule-extra.tmpl"

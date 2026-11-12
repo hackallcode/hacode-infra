@@ -9,6 +9,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `prometheus` role: `alertmanager_severity_inhibit_enabled` adds an inhibit
+  rule, so a `critical` alert mutes its `warning` twin of the same name, host
+  and mountpoint, and a bundled alert with both severities sends one message.
+  Rules in `alertmanager_inhibit_rules` are kept after it.
 - `nginx` role: `nginx_config_template` renders the vhost config through
   Jinja, so it can use vault values.
 - `certbot` role: `certbot_deploy_hook` is also installed into

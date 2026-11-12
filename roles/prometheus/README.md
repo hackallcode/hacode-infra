@@ -21,6 +21,7 @@ backend. Ships a curated set of alert rules under `files/rules/`.
 | `alertmanager_bundled_templates_enabled` | `true` | ship the bundled `templates/*.tmpl`; `false` keeps only `alertmanager_extra_template_files` |
 | `alertmanager_extra_template_files` | `[]` | controller-side globs of extra Alertmanager `*.tmpl` files |
 | `alertmanager_instance_emojis` | `{}` | emoji of a host in the Telegram header, by the `instance_name` label |
+| `alertmanager_severity_inhibit_enabled` | `true` | a `critical` alert mutes its `warning` twin of the same name, host and mountpoint; `alertmanager_inhibit_rules` are kept after it |
 | `prometheus_bundled_rules_enabled` | `true` | ship the curated rules under `files/rules/`; `false` keeps only `prometheus_extra_rule_dirs` |
 | `node_exporter_allowed_sources` | `[]` | CIDRs allowed to reach node_exporter (RHEL family); `[]` opens the port to everyone |
 | `prometheus_unit_overrides` | `{}` | per-unit systemd `[Service]` settings written as a drop-in, e.g. `OOMScoreAdjust`, `MemoryMax` |

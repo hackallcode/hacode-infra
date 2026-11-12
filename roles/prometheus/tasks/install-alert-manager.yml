@@ -19,6 +19,12 @@
     _am_template_files: >-
       {{ ([role_path ~ '/templates/*.tmpl'] if alertmanager_bundled_templates_enabled else [])
          + alertmanager_extra_template_files }}
+    _am_inhibit_rules: >-
+      {{ ([{'source_matchers': ['severity="critical"'],
+            'target_matchers': ['severity="warning"'],
+            'equal': ['alertname', 'instance_name', 'mountpoint']}]
+          if alertmanager_severity_inhibit_enabled else [])
+         + (alertmanager_inhibit_rules | default([])) }}
 
 - name: "Install Alert Manager"
   tags: ["install"]
@@ -26,6 +32,7 @@
     alertmanager_version: "0.32.0"
     alertmanager_web_listen_address: "{{ alertmanager_web_listen_ip }}:{{ alertmanager_web_listen_port }}"
     alertmanager_template_files: "{{ _am_template_files }}"
+    alertmanager_inhibit_rules: "{{ _am_inhibit_rules }}"
   ansible.builtin.include_role:
     name: "prometheus.prometheus.alertmanager"
     apply:
