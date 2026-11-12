@@ -13,6 +13,7 @@
   'hold_file': failover_state_dir ~ '/' ~ service.name ~ '/hold',
   'lease_ttl': service.lease_ttl | default(failover_lease_ttl) | int,
   'litestream': failover_dir ~ '/bin/litestream',
+  'place_streams': failover_place_streams | bool,
   'metrics_dir': failover_textfile_dir or None,
 } | combine({'api': {'listen': service.api_listen, 'token_file': failover_config_dir ~ '/api-token'}}
             if service.api_listen | default('') else {}) | to_nice_json }}

@@ -30,6 +30,7 @@ the agent, so a dead or hung agent stops them.
 | `failover_node` | `inventory_hostname` | this node's name |
 | `failover_nats_servers` / `failover_nats_local` | `[]` / `""` (required) | NATS URLs, the local server first, and the one Litestream uses |
 | `failover_nats_replicas` | `3` | replicas of the KV and object store buckets the agent creates |
+| `failover_place_streams` | `true` | while leading, move the leaders of the service's streams to this node's NATS server; `false` on a node too loaded to host them |
 | `failover_nats_tls` | the `nats` role's server certificate | client certificate for NATS: `{ca, cert, key}` |
 | `failover_services` | `[]` | services, see below |
 | `failover_lease_ttl` | `15` | lease TTL in seconds; keep it well above the time NATS needs to re-elect a stream leader after losing a server |

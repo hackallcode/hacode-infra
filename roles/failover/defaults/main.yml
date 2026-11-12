@@ -27,6 +27,9 @@ failover_node: "{{ inventory_hostname }}"
 failover_nats_servers: []
 failover_nats_local: ""
 failover_nats_replicas: 3
+# While a service leads here, move the leaders of its streams to this node's NATS server, so its renewals and
+# replica writes commit locally; false on a node too loaded to host them (a stalled stream leader stalls the cluster).
+failover_place_streams: true
 # Client certificate for NATS; the nats role's server certificate on the same host serves.
 failover_nats_tls:
   ca: "/etc/nats/pki/ca.crt"
