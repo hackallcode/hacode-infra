@@ -9,6 +9,15 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Added
 
+- `nats` role: a NATS server with JetStream in a cluster from the upstream
+  release, TLS with client certificates for clients and routes signed by a CA
+  from variables. Routes ping every two seconds, so a server that died without
+  closing its connections is dropped in seconds rather than minutes.
+- `failover` role: the [failover](https://github.com/hackallcode/failover)
+  agent, one `failover@<service>` unit per service: one leader per service
+  elected in NATS JetStream, its SQLite databases replicated by Litestream.
+  The unit is `Type=notify` with a watchdog and stops the service's containers
+  whenever the agent exits.
 - `prometheus` role: `alertmanager_severity_inhibit_enabled` adds an inhibit
   rule, so a `critical` alert mutes its `warning` twin of the same name, host
   and mountpoint, and a bundled alert with both severities sends one message.

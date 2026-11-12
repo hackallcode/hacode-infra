@@ -1,0 +1,43 @@
+- name: "Verify: failover role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "The agent is up and keeps its watchdog fed"
+      ansible.builtin.command:
+        argv: ["systemctl", "show", "failover@app.service", "-p", "ActiveState", "-p", "WatchdogUSec", "-p", "Type"]
+      register: "unit"
+      changed_when: false
+      failed_when: >-
+        'ActiveState=active' not in unit.stdout or 'Type=notify' not in unit.stdout
+        or 'WatchdogUSec=30s' not in unit.stdout
+
+    - name: "Read the service config"
+      ansible.builtin.slurp:
+        src: "/etc/failover/app.json"
+      register: "config_raw"
+
+    - name: "The config carries the service, NATS TLS and the API"
+      vars:
+        config: "{{ config_raw.content | b64decode | from_json }}"
+      ansible.builtin.assert:
+        that:
+          - "config.service == 'app' and config.databases.main == '/opt/app/data/db.sqlite'"
+          - "config.nats.tls.cert == '/etc/nats/pki/server.crt'"
+          - "config.api.listen == '127.0.0.1:8480'"
+          - "config.litestream == '/opt/failover/bin/litestream'"
+          - "config.hold_file == '/var/lib/failover/app/hold'"
+        quiet: true
+
+    - name: "Stop the agent"
+      ansible.builtin.systemd:
+        name: "failover@app.service"
+        state: "stopped"
+
+    - name: "Stopping the agent stopped the service too"
+      ansible.builtin.command:
+        argv: ["cat", "/tmp/failover-stopped"]
+      register: "stopped"
+      changed_when: false
+      failed_when: "stopped.stdout != '/etc/failover/app.json'"

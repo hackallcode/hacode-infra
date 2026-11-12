@@ -1,0 +1,12 @@
+- name: "Converge: nats role"
+  hosts: "all"
+  become: true
+  gather_facts: true
+  vars:
+    ca_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/nats-ca"
+
+  roles:
+    - role: "hacode.infra.nats"
+      vars:
+        nats_ca_key: "{{ lookup('ansible.builtin.file', ca_dir ~ '/ca.key') }}"
+        nats_ca_cert: "{{ lookup('ansible.builtin.file', ca_dir ~ '/ca.crt') }}"

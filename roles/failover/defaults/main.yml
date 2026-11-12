@@ -1,0 +1,53 @@
+# ===== agent =====
+# The failover agent (github.com/hackallcode/failover): one leader per service elected in NATS JetStream KV,
+# its SQLite databases replicated by Litestream into JetStream object stores.
+failover_version: "0.1.0"
+# What pip installs into the agent's virtualenv; failover_package_file, when set, is a wheel or source tree on the
+# controller that is uploaded and installed instead.
+failover_package: "git+https://github.com/hackallcode/failover@v{{ failover_version }}"
+failover_package_file: ""
+# Litestream built against nats.go with the object store Put fix; the agent's releases carry it. A binary on the
+# controller (failover_litestream_file) is uploaded instead when set.
+failover_release: "https://github.com/hackallcode/failover/releases/download/v{{ failover_version }}"
+failover_litestream_url: "{{ failover_release }}/litestream-linux-{{ _failover_arch }}"
+failover_litestream_checksum: "sha256:{{ failover_release }}/litestream.sha256"
+failover_litestream_file: ""
+# Python 3.11+ for the virtualenv; "" picks the distribution's: python3.12 on EL 9, python3 elsewhere.
+failover_python: ""
+failover_dir: "/opt/failover"
+failover_config_dir: "/etc/failover"
+failover_state_dir: "/var/lib/failover"
+# node_exporter's textfile directory for failover_<service>.prom; "" turns the metrics off.
+failover_textfile_dir: "/var/lib/node_exporter"
+
+# ===== cluster =====
+# This node's name in elections and history.
+failover_node: "{{ inventory_hostname }}"
+# NATS servers the agent connects to, the local one first, and the one Litestream uses (its replica takes one URL).
+failover_nats_servers: []
+failover_nats_local: ""
+failover_nats_replicas: 3
+# Client certificate for NATS; the nats role's server certificate on the same host serves.
+failover_nats_tls:
+  ca: "/etc/nats/pki/ca.crt"
+  cert: "/etc/nats/pki/server.crt"
+  key: "/etc/nats/pki/server.key"
+
+# ===== services =====
+# One agent per service, failover@<name>.service:
+#   name        - the service, stable across nodes (names its KV keys and buckets)
+#   projects    - docker compose project dirs, started in order, stopped in reverse
+#   databases   - {name: path} of its SQLite files; each is replicated into bucket replica-<service>-<name>
+#   dns_zone, dns_names, dns_ip - Cloudflare A records pointed at dns_ip while this node leads
+#   candidate   - false: follow and report, never lead (default true)
+#   lease_ttl   - seconds (default failover_lease_ttl)
+#   api_listen  - host:port of the agent's HTTP API (GET /state, POST /takeover); "" for none
+#   state       - "absent" stops and removes the agent (the service's containers too)
+failover_services: []
+# The leader stops serving at 70% of it without a renewal; another node takes over after it. Keep it well above the
+# time NATS needs to re-elect a stream leader after losing a server (a few times nats_ping_interval * nats_ping_max).
+failover_lease_ttl: 15
+
+# ===== secrets =====
+failover_cloudflare_token: ""
+failover_api_token: ""

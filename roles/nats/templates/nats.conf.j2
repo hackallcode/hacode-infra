@@ -1,0 +1,22 @@
+{% set tls = {'cert_file': nats_config_dir ~ '/pki/server.crt', 'key_file': nats_config_dir ~ '/pki/server.key',
+              'ca_file': nats_config_dir ~ '/pki/ca.crt', 'verify': true} %}
+{% set locked = {
+  'server_name': nats_name,
+  'listen': nats_address ~ ':' ~ nats_client_port,
+  'http': '127.0.0.1:' ~ nats_monitor_port,
+  'ping_interval': nats_ping_interval,
+  'ping_max': nats_ping_max | int,
+  'tls': tls,
+  'jetstream': {'store_dir': nats_data_dir, 'max_file_store': nats_max_file_store | int,
+                'max_memory_store': nats_max_memory_store | int},
+} %}
+{% if nats_peers | length > 1 %}
+{%   set _ = locked.update({'cluster': {
+       'name': nats_cluster_name,
+       'listen': nats_address ~ ':' ~ nats_cluster_port,
+       'routes': nats_peers | reject('equalto', nats_address) | map('regex_replace', '^(.*)$',
+                                                                    'tls://\\1:' ~ nats_cluster_port) | list,
+       'tls': tls,
+     }}) %}
+{% endif %}
+{{ nats_config_extra | combine(locked, recursive=true) | to_nice_json }}

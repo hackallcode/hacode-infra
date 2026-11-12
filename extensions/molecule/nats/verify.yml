@@ -1,0 +1,42 @@
+- name: "Verify: nats role"
+  hosts: "all"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: "The server is healthy with JetStream on"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8222/healthz?js-enabled-only=true"
+      register: "health"
+      retries: 15
+      delay: 2
+      until: "health.status == 200"
+
+    - name: "JetStream stores under the data dir"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8222/jsz"
+        return_content: true
+      register: "jsz"
+      failed_when: "(jsz.content | from_json).config.store_dir != '/var/lib/nats/jetstream'"
+
+    - name: "Routes and pings are tight"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8222/varz"
+        return_content: true
+      register: "varz"
+      failed_when: >-
+        (varz.content | from_json).ping_max != 3
+        or (varz.content | from_json).server_name != 'molecule'
+
+    - name: "A client without a certificate is refused"
+      ansible.builtin.command:
+        argv: ["python3", "-c", "{{ probe }}"]
+      vars:
+        probe: >-
+          import socket, ssl;
+          s = socket.create_connection(('127.0.0.1', 4222), 5); s.recv(4096);
+          c = ssl.create_default_context(); c.check_hostname = False; c.verify_mode = ssl.CERT_NONE;
+          t = c.wrap_socket(s); t.sendall(b'CONNECT {}\r\nPING\r\n'); print(t.recv(4096))
+      register: "anonymous"
+      changed_when: false
+      failed_when: "anonymous.rc == 0 and 'PONG' in anonymous.stdout"

@@ -1,0 +1,9 @@
+- name: "Restart failover agents"
+  ansible.builtin.systemd:
+    name: "failover@{{ item.name }}.service"
+    state: "restarted"
+    daemon_reload: true
+  loop: "{{ _failover_active }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: "not ansible_check_mode"

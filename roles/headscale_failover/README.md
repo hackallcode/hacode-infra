@@ -1,5 +1,9 @@
 # hacode.infra.headscale_failover
 
+Superseded by [`failover`](../failover/README.md), which elects through NATS JetStream and replicates the database
+with Litestream instead of keeping copies in etcd; reach for it on new setups. This role stays until existing
+inventories move over.
+
 One headscale for a set of candidate servers, elected through etcd. An agent on each candidate:
 
 - holds an etcd lease and queues in an election; the first live entry leads (its create revision is the term);

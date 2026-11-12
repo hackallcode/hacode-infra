@@ -1,0 +1,78 @@
+- name: "Prepare: a stand-in agent package and Litestream binary"
+  hosts: "localhost"
+  gather_facts: false
+  vars:
+    dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}"
+
+  tasks:
+    - name: "Create the package dir"
+      ansible.builtin.file:
+        path: "{{ dir }}/fake-failover"
+        state: "directory"
+        mode: "0755"
+
+    - name: "Write the package"
+      ansible.builtin.copy:
+        dest: "{{ dir }}/fake-failover/{{ item.name }}"
+        content: "{{ item.content }}"
+        mode: "0644"
+      loop:
+        - name: "pyproject.toml"
+          content: |
+            [build-system]
+            requires = ["setuptools"]
+            build-backend = "setuptools.build_meta"
+
+            [project]
+            name = "failover"
+            version = "0.0.0"
+
+            [project.scripts]
+            failover = "fake_failover:main"
+        - name: "fake_failover.py"
+          content: |
+            import json
+            import os
+            import socket
+            import sys
+            import time
+
+
+            def notify(message):
+                address = os.environ.get("NOTIFY_SOCKET", "")
+                if address:
+                    address = "\0" + address[1:] if address.startswith("@") else address
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as s:
+                        s.sendto(message.encode(), address)
+
+
+            def main():
+                command, path = sys.argv[1], sys.argv[2]
+                json.load(open(path))
+                if command == "stop":
+                    with open("/tmp/failover-stopped", "w") as f:
+                        f.write(path)
+                    return
+                notify("READY=1")
+                while True:
+                    notify("WATCHDOG=1")
+                    time.sleep(5)
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: "Write a stand-in Litestream"
+      ansible.builtin.copy:
+        dest: "{{ dir }}/litestream"
+        content: "#!/bin/sh\necho stand-in\n"
+        mode: "0755"
+
+- name: "Prepare: what the failover role needs on the host"
+  hosts: "all"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: "Install pip's build backend for local packages (apt)"
+      ansible.builtin.apt:
+        update_cache: true
+      when: "ansible_facts.os_family == 'Debian'"

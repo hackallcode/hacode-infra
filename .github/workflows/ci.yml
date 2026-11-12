@@ -93,6 +93,8 @@ jobs:
           - "gost"
           - "derper"
           - "etcd"
+          - "nats"
+          - "failover"
           - "headscale"
           - "headscale_failover"
           - "nginx"
