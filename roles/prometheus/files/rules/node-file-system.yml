@@ -19,6 +19,8 @@ groups:
             and
             predict_linear(node_filesystem_avail_bytes{job="node",fstype!=""}[6h], 24*60*60) < 0
             and
+            node_filesystem_avail_bytes{job="node",fstype!=""} < avg_over_time(node_filesystem_avail_bytes{job="node",fstype!=""}[6h])
+            and
             node_filesystem_readonly{job="node",fstype!=""} == 0
           )
         for: "5m"
@@ -36,6 +38,8 @@ groups:
             node_filesystem_avail_bytes{job="node",fstype!=""} / node_filesystem_size_bytes{job="node",fstype!=""} * 100 < 20
             and
             predict_linear(node_filesystem_avail_bytes{job="node",fstype!=""}[6h], 4*60*60) < 0
+            and
+            node_filesystem_avail_bytes{job="node",fstype!=""} < avg_over_time(node_filesystem_avail_bytes{job="node",fstype!=""}[6h])
             and
             node_filesystem_readonly{job="node",fstype!=""} == 0
           )

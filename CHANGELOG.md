@@ -58,6 +58,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `prometheus` role: `NodeFilesystemSpaceFillingUp` and
+  `NodeFilesystemFilesFillingUp` resolve once space is freed. A short burst of
+  usage kept the 6-hour trend negative for hours after the cleanup; they now
+  also need less free space than the 6-hour average.
 - `prometheus` role: Alertmanager template files the role does not ship are
   removed, as a leftover one could redefine `telegram.default.message`.
 - `prometheus` role: the built-in self-scrape goes to `prometheus_web_listen_ip`

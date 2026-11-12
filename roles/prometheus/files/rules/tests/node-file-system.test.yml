@@ -60,6 +60,37 @@ tests:
         alertname: NodeFilesystemSpaceFillingUp
         exp_alerts: []
 
+  # Стабильно 34% свободно, дважды по 25 минут занято ещё 30GB, потом место
+  # вернулось. predict_linear за 6ч ещё отрицательный, но свободного места
+  # больше среднего за 6ч → warning закрывается сразу после очистки.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_size_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
+        values: "107374182400x400"
+      - series: 'node_filesystem_avail_bytes{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
+        values: "36507222016x289 4294967296x24 36507222016x24 4294967296x24 36507222016x40"
+      - series: 'node_filesystem_readonly{job="node",fstype="ext4",device="/dev/sda1",mountpoint="/",instance_name="testhost"}'
+        values: "0x400"
+
+    alert_rule_test:
+      - eval_time: 5h55m
+        alertname: NodeFilesystemSpaceFillingUp
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              category: disk
+              job: node
+              fstype: ext4
+              device: /dev/sda1
+              mountpoint: /
+              instance_name: testhost
+            exp_annotations:
+              summary: "Filesystem is predicted to run out of space within the next 24 hours."
+              description: "/ on testhost has 4% of its space free and fills up within a day."
+      - eval_time: 6h10m
+        alertname: NodeFilesystemSpaceFillingUp
+        exp_alerts: []
+
   # Стабильно 8% свободно (8GB из 100GB) → warning срабатывает, critical нет.
   - interval: 1m
     input_series:
