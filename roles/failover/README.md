@@ -28,7 +28,7 @@ the agent, so a dead or hung agent stops them.
 | `failover_dir` / `failover_config_dir` / `failover_state_dir` | `/opt/failover` / `/etc/failover` / `/var/lib/failover` | virtualenv and Litestream, configs and secrets, per-service state (`<service>/hold` is the deploy hold file) |
 | `failover_textfile_dir` | `/var/lib/node_exporter` | `failover_<service>.prom` for node_exporter; `""` turns it off |
 | `failover_node` | `inventory_hostname` | this node's name |
-| `failover_nats_servers` / `failover_nats_local` | `[]` / `""` (required) | NATS URLs, the local server first, and the one Litestream uses |
+| `failover_nats_servers` / `failover_nats_litestream_url` | `[]` / `""` (required) | NATS URLs, the local server first, and the one Litestream uses |
 | `failover_nats_replicas` | `3` | replicas of the KV and object store buckets the agent creates |
 | `failover_place_streams` | `true` | while leading, move the leaders of the service's streams to this node's NATS server; `false` on a node too loaded to host them |
 | `failover_nats_tls` | the `nats` role's server certificate | client certificate for NATS: `{ca, cert, key}` |
@@ -61,10 +61,10 @@ Deploy the service's compose projects with `restart: "no"` and without starting 
     - role: "hacode.infra.failover"
       vars:
         failover_nats_servers: >-
-          {{ ['tls://' ~ tailscale_ips[0] ~ ':4222'] + groups['nats'] | map('extract', hostvars, 'tailscale_ips')
-             | map('first') | reject('equalto', tailscale_ips[0]) | map('regex_replace', '^(.*)$', 'tls://\1:4222')
-             | list }}
-        failover_nats_local: "tls://{{ tailscale_ips[0] }}:4222"
+          {{ ["nats://" ~ tailscale_ips[0] ~ ":4222"] + groups['nats'] | map('extract', hostvars, 'tailscale_ips')
+             | map('first') | reject('equalto', tailscale_ips[0]) | map('regex_replace', '^', 'nats://')
+             | map('regex_replace', '$', ':4222') | list }}
+        failover_nats_litestream_url: "nats://{{ tailscale_ips[0] }}:4222"
         failover_cloudflare_token: "{{ vault_cloudflare_dns_token }}"
         failover_services:
           - name: "app"

@@ -1,7 +1,9 @@
 - name: "Validate failover settings"
   ansible.builtin.assert:
     that:
-      - "_failover_active | length == 0 or (failover_nats_servers | length > 0 and failover_nats_local | length > 0)"
+      - >-
+        _failover_active | length == 0
+        or (failover_nats_servers | length > 0 and failover_nats_litestream_url | length > 0)
       - "_failover_active | length == 0 or failover_cloudflare_token | length > 0"
       - >-
         _failover_active | selectattr('api_listen', 'defined') | selectattr('api_listen') | list | length == 0
@@ -12,7 +14,7 @@
         and _failover_active | rejectattr('dns_ip', 'defined') | list | length == 0
     fail_msg: >-
       every service needs projects, databases, dns_zone, dns_names and dns_ip; agents need failover_nats_servers,
-      failover_nats_local and failover_cloudflare_token, and an api_listen needs failover_api_token
+      failover_nats_litestream_url and failover_cloudflare_token, and an api_listen needs failover_api_token
     quiet: true
 
 - name: "Stop removed agents and their services"

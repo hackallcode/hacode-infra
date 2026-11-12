@@ -9,7 +9,7 @@ NotifyAccess=main
 WatchdogSec=30
 Environment=PYTHONUNBUFFERED=1
 ExecStart={{ _failover_bin }} run {{ failover_config_dir }}/%i.json
-# The service's containers outlive the agent: a dead or hung agent must not leave them writing without the lease.
+# The service's containers outlive the agent and must not write without its lease.
 ExecStopPost={{ _failover_bin }} stop {{ failover_config_dir }}/%i.json
 Restart=always
 RestartSec=2

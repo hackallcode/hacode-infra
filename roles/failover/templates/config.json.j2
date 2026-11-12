@@ -3,7 +3,7 @@
   'service': service.name,
   'node': failover_node,
   'candidate': service.candidate | default(true) | bool,
-  'nats': {'servers': failover_nats_servers, 'local': failover_nats_local,
+  'nats': {'servers': failover_nats_servers, 'litestream_url': failover_nats_litestream_url,
            'replicas': failover_nats_replicas | int, 'tls': failover_nats_tls},
   'projects': service.projects,
   'databases': service.databases,
