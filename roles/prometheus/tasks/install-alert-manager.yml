@@ -19,6 +19,12 @@
     _am_template_files: >-
       {{ ([role_path ~ '/templates/*.tmpl'] if alertmanager_bundled_templates_enabled else [])
          + alertmanager_extra_template_files }}
+    _am_inhibit_rules: >-
+      {{ ([{'source_matchers': ['severity="critical"'],
+            'target_matchers': ['severity="warning"'],
+            'equal': ['alertname', 'instance_name', 'mountpoint']}]
+          if alertmanager_severity_inhibit_enabled else [])
+         + (alertmanager_inhibit_rules | default([])) }}
 
 - name: "Install Alert Manager"
   tags: ["install"]
@@ -26,8 +32,59 @@
     alertmanager_version: "0.32.0"
     alertmanager_web_listen_address: "{{ alertmanager_web_listen_ip }}:{{ alertmanager_web_listen_port }}"
     alertmanager_template_files: "{{ _am_template_files }}"
+    alertmanager_inhibit_rules: "{{ _am_inhibit_rules }}"
   ansible.builtin.include_role:
     name: "prometheus.prometheus.alertmanager"
     apply:
       tags: ["install"]
       diff: false
+
+# Rendered on the host: the upstream role copies templates verbatim.
+- name: "Install Alertmanager instance emojis template"
+  tags: ["install"]
+  ansible.builtin.template:
+    src: "instance-emojis.tmpl.j2"
+    dest: "/etc/alertmanager/templates/instance-emojis.tmpl"
+    variable_start_string: "[["
+    variable_end_string: "]]"
+    block_start_string: "[%"
+    block_end_string: "%]"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  register: "instance_emojis_template"
+
+# Every `*.tmpl` there is loaded, so a leftover one can redefine a bundled template.
+- name: "List Alertmanager template files on host"
+  tags: ["install"]
+  ansible.builtin.find:
+    paths: "/etc/alertmanager/templates"
+    patterns: ["*.tmpl"]
+  register: "host_template_files"
+
+- name: "Remove stale Alertmanager template files"
+  tags: ["install"]
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "absent"
+  loop: >-
+    {{
+      host_template_files.files
+      | map(attribute='path')
+      | reject('in',
+          query('ansible.builtin.fileglob', *_am_template_files)
+          | map('basename')
+          | map('regex_replace', '^', '/etc/alertmanager/templates/')
+          | list
+        )
+      | reject('eq', '/etc/alertmanager/templates/instance-emojis.tmpl')
+      | list
+    }}
+  register: "stale_templates_cleanup"
+
+- name: "Restart Alertmanager after template changes"  # noqa: no-handler
+  tags: ["install"]
+  ansible.builtin.systemd:
+    name: "alertmanager"
+    state: "restarted"
+  when: "stale_templates_cleanup.changed or instance_emojis_template.changed"

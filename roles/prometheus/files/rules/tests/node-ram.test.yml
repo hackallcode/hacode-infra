@@ -18,22 +18,24 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: memory
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "Less than 100 MB available memory"
-              description: "50.00 MB of memory available on testhost."
+              summary: "Less than 100 MB of memory available."
+              description: "testhost has 50 MB of its memory available, not counting swap."
 
       - eval_time: 2m
         alertname: LowRamPercent
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: memory
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "Less than 10 percent available memory"
-              description: "0.61% of memory available on testhost."
+              summary: "Less than 10% of memory available."
+              description: "testhost has 1% of its memory available, not counting swap."
 
   # Доступно 4 GB из 8 GB → оба алерта молчат
   - interval: 30s
@@ -63,10 +65,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              category: memory
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "OOM kill detected 2 times on testhost."
+              summary: "OOM kill detected."
+              description: "The OOM killer ran 2 times on testhost in the last minute."
 
   # Хост пропал после срабатывания → LowRamPercent держится ещё 3 минуты
   - interval: 30s
@@ -82,11 +86,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: memory
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "Less than 10 percent available memory"
-              description: "0.61% of memory available on testhost."
+              summary: "Less than 10% of memory available."
+              description: "testhost has 1% of its memory available, not counting swap."
       - eval_time: 8m
         alertname: LowRamPercent
         exp_alerts: []

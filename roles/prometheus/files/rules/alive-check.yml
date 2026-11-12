@@ -8,5 +8,7 @@ groups:
           (minute(time() + vector(0)) == 0)
         labels:
           severity: "info"
+          category: "monitoring"
         annotations:
-          summary: "I'm alive!"
+          summary: "Prometheus is alive."
+          description: "{{ with $externalLabels.environment }}{{ . }}{{ else }}Prometheus{{ end }} is alive."

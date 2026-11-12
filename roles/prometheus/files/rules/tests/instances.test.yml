@@ -16,11 +16,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: host
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "Instance testhost down"
-              description: "testhost of job node has been down for more than 1 minute."
+              summary: "Instance down."
+              description: "node on testhost does not answer."
 
   # up == 1 → не срабатывает
   - interval: 30s
@@ -49,11 +50,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: host
               job: node
               instance_name: standby
             exp_annotations:
-              summary: "Instance standby down"
-              description: "standby of job node has been down for more than 1 minute."
+              summary: "Instance down."
+              description: "node on standby does not answer."
 
   # headscale остановлен на обслуживающем сервере → срабатывает
   - interval: 30s
@@ -69,8 +71,9 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: host
               job: headscale
               instance_name: leader
             exp_annotations:
-              summary: "Instance leader down"
-              description: "leader of job headscale has been down for more than 1 minute."
+              summary: "Instance down."
+              description: "headscale on leader does not answer."

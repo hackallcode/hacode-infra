@@ -16,13 +16,14 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: services
               job: node
               instance_name: testhost
               name: myservice.service
               state: failed
             exp_annotations:
-              summary: "Systemd service crashed."
-              description: "Systemd service myservice.service crashed on testhost."
+              summary: "A systemd service failed."
+              description: "myservice.service failed on testhost."
 
   # state="failed" на dnf-makecache → НЕ срабатывает (исключение в expr)
   - interval: 30s

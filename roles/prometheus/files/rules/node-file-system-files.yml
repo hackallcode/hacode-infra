@@ -8,14 +8,17 @@ groups:
             and
             predict_linear(node_filesystem_files_free{job="node",fstype!=""}[6h], 24*60*60) < 0
             and
+            node_filesystem_files_free{job="node",fstype!=""} < avg_over_time(node_filesystem_files_free{job="node",fstype!=""}[6h])
+            and
             node_filesystem_readonly{job="node",fstype!=""} == 0
           )
         for: "5m"
         labels:
           severity: "warning"
+          category: "disk"
         annotations:
           summary: 'Filesystem is predicted to run out of inodes within the next 24 hours.'
-          description: 'Filesystem on {{ $labels.device }} at {{ $labels.instance_name }} has only {{ printf "%.2f" $value }}% available inodes left and is filling up.'
+          description: '{{ $labels.mountpoint }} on {{ $labels.instance_name }} has {{ printf "%.0f" $value }}% of its inodes free and runs out within a day.'
 
       - alert: "NodeFilesystemFilesFillingUp"
         expr: >-
@@ -24,14 +27,17 @@ groups:
             and
             predict_linear(node_filesystem_files_free{job="node",fstype!=""}[6h], 4*60*60) < 0
             and
+            node_filesystem_files_free{job="node",fstype!=""} < avg_over_time(node_filesystem_files_free{job="node",fstype!=""}[6h])
+            and
             node_filesystem_readonly{job="node",fstype!=""} == 0
           )
         for: "5m"
         labels:
           severity: "critical"
+          category: "disk"
         annotations:
           summary: 'Filesystem is predicted to run out of inodes within the next 4 hours.'
-          description: 'Filesystem on {{ $labels.device }} at {{ $labels.instance_name }} has only {{ printf "%.2f" $value }}% available inodes left and is filling up fast.'
+          description: '{{ $labels.mountpoint }} on {{ $labels.instance_name }} has {{ printf "%.0f" $value }}% of its inodes free and runs out within 4 hours.'
 
       - alert: "NodeFilesystemAlmostOutOfFiles"
         expr: >-
@@ -40,9 +46,10 @@ groups:
         for: "5m"
         labels:
           severity: "warning"
+          category: "disk"
         annotations:
           summary: 'Filesystem has less than 10% inodes left.'
-          description: 'Filesystem on {{ $labels.device }} at {{ $labels.instance_name }} has only {{ printf "%.2f" $value }}% available inodes left.'
+          description: '{{ $labels.mountpoint }} on {{ $labels.instance_name }} has {{ printf "%.0f" $value }}% of its inodes free.'
 
       - alert: "NodeFilesystemAlmostOutOfFiles"
         expr: >-
@@ -51,6 +58,7 @@ groups:
         for: "5m"
         labels:
           severity: "critical"
+          category: "disk"
         annotations:
           summary: 'Filesystem has less than 5% inodes left.'
-          description: 'Filesystem on {{ $labels.device }} at {{ $labels.instance_name }} has only {{ printf "%.2f" $value }}% available inodes left.'
+          description: '{{ $labels.mountpoint }} on {{ $labels.instance_name }} has {{ printf "%.0f" $value }}% of its inodes free.'

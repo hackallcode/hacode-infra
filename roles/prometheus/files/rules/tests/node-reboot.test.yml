@@ -16,10 +16,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              category: host
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "testhost requires a reboot."
+              summary: "Reboot required."
+              description: "testhost requires a reboot."
 
   # node_reboot_required == 0 → не срабатывает
   - interval: 1m
@@ -44,11 +46,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: host
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "Reboot detected"
-              description: "Reboot detected on testhost.\nSystem started 120 seconds ago."
+              summary: "Reboot detected."
+              description: "testhost rebooted 2m 0s ago."
 
       # uptime > 300 сек → не срабатывает
       - eval_time: 10m
@@ -67,7 +70,9 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              category: host
               job: node
               instance_name: testhost
             exp_annotations:
-              summary: "Migration detected on testhost."
+              summary: "Migration detected."
+              description: "testhost changed its boot time without a reboot: the VM migrated."

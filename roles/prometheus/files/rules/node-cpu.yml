@@ -1,24 +1,26 @@
 groups:
-  - name: "node_ram"
+  - name: "node_cpu"
     # A host that stops answering has no fresh samples; without
     # keep_firing_for its alerts would resolve before InstanceDown fires.
     rules:
-      - alert: "CpuUtilizationWarning"
+      - alert: "CpuUtilizationHigh"
         expr: '100 - (avg without(cpu, mode) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80'
-        for: "1m"
+        for: "5m"
         keep_firing_for: "3m"
         labels:
           severity: "warning"
+          category: "cpu"
         annotations:
-          summary: "CPU utilization is more than 80%"
-          description: 'CPU utilization on {{ $labels.instance_name }} is {{ printf "%.2f" $value }}%'
+          summary: "CPU utilization is more than 80%."
+          description: '{{ $labels.instance_name }} uses {{ printf "%.0f" $value }}% of its CPU.'
 
-      - alert: "CpuUtilizationCritical"
+      - alert: "CpuUtilizationHigh"
         expr: '100 - (avg without(cpu, mode) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90'
-        for: "1m"
+        for: "5m"
         keep_firing_for: "3m"
         labels:
           severity: "critical"
+          category: "cpu"
         annotations:
-          summary: "CPU utilization is more than 90%"
-          description: 'CPU utilization on {{ $labels.instance_name }} is {{ printf "%.2f" $value }}%'
+          summary: "CPU utilization is more than 90%."
+          description: '{{ $labels.instance_name }} uses {{ printf "%.0f" $value }}% of its CPU.'

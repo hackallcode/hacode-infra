@@ -5,6 +5,7 @@ groups:
         expr: 'node_systemd_unit_state{state="failed", name!="dnf-makecache.service"} == 1'
         labels:
           severity: "critical"
+          category: "services"
         annotations:
-          summary: 'Systemd service crashed.'
-          description: 'Systemd service {{ $labels.name }} crashed on {{ $labels.instance_name }}.'
+          summary: 'A systemd service failed.'
+          description: '{{ $labels.name }} failed on {{ $labels.instance_name }}.'

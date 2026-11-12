@@ -71,6 +71,8 @@ provisioner:
         # list is resolved on the controller.
         alertmanager_extra_template_files:
           - "{{ lookup('env', 'MOLECULE_SCENARIO_DIRECTORY') }}/files/molecule-extra.tmpl"
+        alertmanager_instance_emojis:
+          molecule-host: "🧪"
 
 verifier:
   name: "ansible"

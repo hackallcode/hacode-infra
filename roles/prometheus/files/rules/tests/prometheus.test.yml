@@ -16,11 +16,12 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              category: monitoring
               job: prometheus
               instance_name: testhost
             exp_annotations:
-              summary: "Prometheus config reload error."
-              description: "Prometheus config reload error on testhost: 0."
+              summary: "Prometheus config reload failed."
+              description: "Prometheus failed to reload its config."
 
   # last_reload_successful == 1 → не срабатывает
   - interval: 30s

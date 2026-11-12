@@ -7,6 +7,7 @@ groups:
         for: "1m"
         labels:
           severity: "critical"
+          category: "host"
         annotations:
-          summary: 'Instance {{ $labels.instance_name }} down'
-          description: '{{ $labels.instance_name }} of job {{ $labels.job }} has been down for more than 1 minute.'
+          summary: "Instance down."
+          description: "{{ $labels.job }} on {{ $labels.instance_name }} does not answer."
