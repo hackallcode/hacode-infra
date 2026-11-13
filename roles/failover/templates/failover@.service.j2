@@ -11,8 +11,6 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart={{ _failover_bin }} run {{ failover_config_dir }}/%i.json
 # The service's containers outlive the agent and must not write without its lease.
 ExecStopPost={{ _failover_bin }} stop {{ failover_config_dir }}/%i.json
-# SIGTERM to the agent alone: it stops the service and Litestream itself before handing the lease on.
-KillMode=mixed
 Restart=always
 RestartSec=2
 
