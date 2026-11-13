@@ -17,4 +17,5 @@ galaxy_info:
     - "nats"
     - "litestream"
 
-dependencies: []
+dependencies:
+  - role: "hacode.infra.common"

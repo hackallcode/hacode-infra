@@ -10,6 +10,11 @@ agent decides, and what it guarantees, is in its README.
 - `main` (default): install the agent into a virtualenv and Litestream next to it, write one config per service and
   run `failover@<service>.service` for each. A service with `state: absent` loses its agent, config and state; its
   containers stop with the agent.
+- `backup`: on the node that leads a service, copy its databases online with SQLite's backup API, check each copy
+  and pull them to `failover_backup_local_dir` as `<stamp>_<service>.tar.gz`, with each database's path and owner.
+  A standby has nothing to back up.
+- `restore`: put the latest copies in place on a fresh host before the agents start; with no position in NATS yet,
+  the first leader starts from them and replicates them. It refuses while a service's agent runs.
 
 The unit is `Type=notify` with `WatchdogSec=30` and `ExecStopPost=failover stop`: the service's containers outlive
 the agent, so a dead or hung agent stops them.
@@ -26,6 +31,7 @@ the agent, so a dead or hung agent stops them.
 | `failover_litestream_file` | `""` | a Litestream binary on the controller, uploaded instead |
 | `failover_python` | `""` | Python 3.11+; `""` picks `python3.12` on EL 9, `python3` elsewhere |
 | `failover_dir` / `failover_config_dir` / `failover_state_dir` | `/opt/failover` / `/etc/failover` / `/var/lib/failover` | virtualenv and Litestream, configs and secrets, per-service state (`<service>/hold` is the deploy hold file) |
+| `failover_backup_local_dir` / `failover_backup_remote_dir` | `<hacode_backups_dir>/failover` / `<hacode_backups_remote_dir>/failover` | where `backup` pulls the archives to and builds them |
 | `failover_textfile_dir` | `/var/lib/node_exporter` | `failover_<service>.prom` for node_exporter; `""` turns it off |
 | `failover_node` | `inventory_hostname` | this node's name |
 | `failover_nats_servers` / `failover_nats_litestream_url` | `[]` / `""` (required) | NATS URLs, the local server first, and the one Litestream uses |

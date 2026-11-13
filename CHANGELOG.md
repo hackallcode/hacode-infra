@@ -26,7 +26,8 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   agent, one `failover@<service>` unit per service: one leader per service
   elected in NATS JetStream, its SQLite databases replicated by Litestream.
   The unit is `Type=notify` with a watchdog and stops the service's containers
-  whenever the agent exits.
+  whenever the agent exits. `backup` copies the leader's databases online and
+  pulls them; `restore` puts them in place on fresh hosts.
 - `prometheus` role: `alertmanager_severity_inhibit_enabled` adds an inhibit
   rule, so a `critical` alert mutes its `warning` twin of the same name, host
   and mountpoint, and a bundled alert with both severities sends one message.
