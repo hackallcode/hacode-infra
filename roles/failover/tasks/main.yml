@@ -98,6 +98,7 @@
         group: "root"
         mode: "0644"
       register: "_failover_wanted"
+      notify: "Restart failover agents"
 
     - name: "Check the virtualenv"
       ansible.builtin.stat:
