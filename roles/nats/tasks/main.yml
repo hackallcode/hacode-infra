@@ -156,3 +156,38 @@
     state: "started"
     daemon_reload: true
   when: "not ansible_check_mode"
+
+- name: "Check the textfile dir"
+  ansible.builtin.stat:
+    path: "{{ nats_textfile_dir }}"
+  register: "_nats_textfile_dir"
+  when: "nats_textfile_dir | length > 0"
+
+- name: "Write NATS metrics for node_exporter"
+  when: "nats_textfile_dir | length > 0 and _nats_textfile_dir.stat.isdir | default(false)"
+  block:
+    - name: "Install the metrics script"
+      ansible.builtin.copy:
+        src: "nats-metrics.py"
+        dest: "{{ nats_config_dir }}/nats-metrics.py"
+        owner: "root"
+        group: "root"
+        mode: "0755"
+
+    - name: "Install the metrics units"
+      ansible.builtin.template:
+        src: "nats-metrics.{{ item }}.j2"
+        dest: "/etc/systemd/system/nats-metrics.{{ item }}"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      loop: ["service", "timer"]
+      register: "_nats_metrics_units"
+
+    - name: "Enable the metrics timer"
+      ansible.builtin.systemd:
+        name: "nats-metrics.timer"
+        enabled: true
+        state: "started"
+        daemon_reload: "{{ _nats_metrics_units is changed }}"
+      when: "not ansible_check_mode"

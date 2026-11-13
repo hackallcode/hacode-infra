@@ -21,7 +21,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   closing its connections is dropped in seconds rather than minutes.
   `nats_cluster_address`, `nats_routes`, `nats_cluster_advertise` and
   `nats_cluster_firewall` run routes over public addresses, a server behind NAT
-  dialling out only.
+  dialling out only. A timer writes `nats.prom` for node_exporter, and the
+  `prometheus` role's `Nats*` alerts read it: a server down, a route lost, a
+  peer or stream replica behind, a stream near its limit, metrics stale.
 - `failover` role: the [failover](https://github.com/hackallcode/failover)
   agent, one `failover@<service>` unit per service: one leader per service
   elected in NATS JetStream, its SQLite databases replicated by Litestream.

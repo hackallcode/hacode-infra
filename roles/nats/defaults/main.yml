@@ -42,3 +42,7 @@ nats_config_extra: {}
 nats_ca_key: ""
 nats_ca_cert: ""
 nats_cert_days: 3650
+
+# ===== metrics =====
+# nats.prom for node_exporter, written every 15 s while this directory exists; "" turns it off.
+nats_textfile_dir: "/var/lib/node_exporter"

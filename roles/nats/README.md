@@ -6,7 +6,9 @@ Run one server of a [NATS](https://nats.io) cluster with JetStream from the upst
 ## Tasks
 
 - `main` (default): install nats-server, make this server's key on the host, sign its certificate on the controller
-  with the CA from variables, render the config and start the server. Monitoring answers on localhost.
+  with the CA from variables, render the config and start the server. Monitoring answers on localhost; where
+  `nats_textfile_dir` exists, a timer writes `nats.prom` for node_exporter every 15 s: health, routes and their
+  round trips, peers and stream replicas behind (on their leaders), stream sizes and limits.
 
 A cluster forms once a majority of `nats_peers` run; JetStream needs that majority to elect its leaders. With one
 address in `nats_peers` the server runs JetStream on its own, without a cluster. Routes require a certificate from
@@ -33,6 +35,7 @@ the same CA on both ends, so a route port open to the internet admits only the c
 | `nats_config_extra` | `{}` | deep-merged over the rendered config; the server's identity, listeners, store and TLS are locked |
 | `nats_ca_key` / `nats_ca_cert` | `""` (required) | CA that signs server certificates (PEM); the key is used on the controller only |
 | `nats_cert_days` | `3650` | server certificate lifetime |
+| `nats_textfile_dir` | `/var/lib/node_exporter` | node_exporter textfile dir for `nats.prom`, skipped when missing; `""` turns it off |
 
 Server certificates carry `clientAuth` too: clients on the same host (`pki/server.crt`, `pki/server.key`, readable
 by the `nats` group and root) can use them.
