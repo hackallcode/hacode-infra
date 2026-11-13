@@ -1,0 +1,25 @@
+rule_files:
+  - ../probes.yml
+
+evaluation_interval: 1m
+
+tests:
+  # проверка не проходит дольше 2 мин → ProbeFailed; разовый сбой - тишина
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="probe",instance="https://mesh.example.com/version"}'
+        values: "1 0 0 0 0"
+      - series: 'probe_success{job="probe",instance="https://other.example.com/"}'
+        values: "1 0 1 0 1"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ProbeFailed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: services
+              job: probe
+              instance: https://mesh.example.com/version
+            exp_annotations:
+              summary: "A probed endpoint does not answer."
+              description: "https://mesh.example.com/version does not answer."
