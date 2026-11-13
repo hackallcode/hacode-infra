@@ -1,0 +1,39 @@
+groups:
+  - name: "failover"
+    rules:
+      - alert: "FailoverNoLeader"
+        expr: "max by (service) (failover_leader) == 0"
+        for: "2m"
+        labels:
+          severity: "critical"
+          category: "services"
+        annotations:
+          summary: "No node serves a failover service."
+          description: "No node serves {{ $labels.service }}: see the agents' journals and `failover state`."
+
+      - alert: "FailoverLeaderChanged"
+        expr: "failover_leader == 1 and changes(failover_leader[5m]) > 0"
+        labels:
+          severity: "info"
+          category: "services"
+        annotations:
+          summary: "Failover leadership moved."
+          description: "{{ $labels.service }} moved to {{ $labels.instance_name }}."
+
+      - alert: "FailoverError"
+        expr: "min_over_time(failover_error[5m]) > 0"
+        labels:
+          severity: "warning"
+          category: "services"
+        annotations:
+          summary: "A failover agent keeps failing."
+          description: "The {{ $labels.service }} failover agent on {{ $labels.instance_name }} keeps failing; see its journal."
+
+      - alert: "FailoverStale"
+        expr: "time() - failover_last_tick_timestamp_seconds > 120"
+        labels:
+          severity: "warning"
+          category: "services"
+        annotations:
+          summary: "A failover agent stopped running."
+          description: "The {{ $labels.service }} failover agent on {{ $labels.instance_name }} has not run for {{ $value | humanizeDuration }}."

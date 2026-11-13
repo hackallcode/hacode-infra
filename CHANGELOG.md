@@ -40,6 +40,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Changed
 
+- `prometheus` role: the `headscale_failover` alerts give way to `failover`
+  ones on the agent's `failover_*` metrics, per service: `FailoverNoLeader`
+  when no node serves it, `FailoverLeaderChanged`, `FailoverError` and
+  `FailoverStale`. `InstanceDown` skips headscale on a node whose
+  `failover_leader{service="headscale"}` is 0.
 - `prometheus` role: `CpuUtilizationWarning` and `CpuUtilizationCritical` are
   one `CpuUtilizationHigh` alert with `warning` and `critical` severities,
   which wait 5 minutes instead of 1.
