@@ -16,7 +16,8 @@ agent decides, and what it guarantees, is in its README.
 - `restore`: put the latest copies in place on a fresh host before the agents start; with no position in NATS yet,
   the first leader starts from them and replicates them. It refuses while a service's agent runs.
 
-The unit is `Type=notify` with `WatchdogSec=30` and `ExecStopPost=failover stop`: the service's containers outlive
+The unit is `Type=notify` with `WatchdogSec=30`, `KillMode=mixed` (a stopping leader hands the lease on) and
+`ExecStopPost=failover stop`: the service's containers outlive
 the agent, so a dead or hung agent stops them.
 
 ## Variables
