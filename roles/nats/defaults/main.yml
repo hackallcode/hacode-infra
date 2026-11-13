@@ -8,6 +8,17 @@ nats_peers: []
 nats_cluster_name: "nats"
 nats_client_port: 4222
 nats_cluster_port: 6222
+# The address peers dial for routes, e.g. a public one, so the cluster does not ride a network it fails over.
+# Set: routes listen on all interfaces (nats_address keeps working while peers move), this address is advertised
+# and goes into the certificate. "": routes listen on and advertise nats_address.
+nats_cluster_address: ""
+# Cluster addresses this server dials; []: every other address in nats_peers.
+nats_routes: []
+# false: peers do not learn this server's route address, so none dials it - for a server behind NAT that only
+# dials out.
+nats_cluster_advertise: true
+# Opens nats_cluster_port in firewalld (when active), for routes over a public address.
+nats_cluster_firewall: false
 # Localhost only.
 nats_monitor_port: 8222
 nats_data_dir: "/var/lib/nats"

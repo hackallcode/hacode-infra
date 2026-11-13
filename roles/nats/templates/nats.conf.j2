@@ -11,12 +11,19 @@
                 'max_memory_store': nats_max_memory_store | int},
 } %}
 {% if nats_peers | length > 1 %}
-{%   set _ = locked.update({'cluster': {
+{%   set routes = nats_routes or nats_peers | reject('equalto', nats_address) | list %}
+{%   set cluster = {
        'name': nats_cluster_name,
-       'listen': nats_address ~ ':' ~ nats_cluster_port,
-       'routes': nats_peers | reject('equalto', nats_address) | map('regex_replace', '^(.*)$',
-                                                                    'tls://\\1:' ~ nats_cluster_port) | list,
+       'listen': ('0.0.0.0' if nats_cluster_address else nats_address) ~ ':' ~ nats_cluster_port,
+       'routes': routes | map('regex_replace', '^(.*)$', 'tls://\\1:' ~ nats_cluster_port) | list,
        'tls': tls,
-     }}) %}
+     } %}
+{%   if nats_cluster_address %}
+{%     set _ = cluster.update({'advertise': nats_cluster_address ~ ':' ~ nats_cluster_port}) %}
+{%   endif %}
+{%   if not nats_cluster_advertise %}
+{%     set _ = cluster.update({'no_advertise': true}) %}
+{%   endif %}
+{%   set _ = locked.update({'cluster': cluster}) %}
 {% endif %}
 {{ nats_config_extra | combine(locked, recursive=true) | to_nice_json }}

@@ -80,7 +80,9 @@
   community.crypto.openssl_csr_pipe:
     privatekey_path: "{{ nats_config_dir }}/pki/server.key"
     common_name: "{{ nats_name }}"
-    subject_alt_name: ["DNS:{{ nats_name }}", "IP:{{ nats_address }}", "IP:127.0.0.1"]
+    subject_alt_name: >-
+      {{ ["DNS:" ~ nats_name, "IP:" ~ nats_address, "IP:127.0.0.1"]
+         + (["IP:" ~ nats_cluster_address] if nats_cluster_address else []) }}
     extended_key_usage: ["serverAuth", "clientAuth"]
   register: "_nats_csr"
   changed_when: false
@@ -130,6 +132,22 @@
     group: "root"
     mode: "0644"
   notify: "Restart nats"
+
+- name: "Check firewalld"
+  ansible.builtin.systemd:
+    name: "firewalld"
+  register: "_nats_firewalld"
+  failed_when: false
+  changed_when: false
+  when: "nats_cluster_firewall"
+
+- name: "Open the route port"
+  ansible.posix.firewalld:
+    port: "{{ nats_cluster_port }}/tcp"
+    state: "enabled"
+    permanent: true
+    immediate: true
+  when: "nats_cluster_firewall and _nats_firewalld.status.ActiveState | default('inactive') == 'active'"
 
 - name: "Enable nats"
   ansible.builtin.systemd:

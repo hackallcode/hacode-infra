@@ -19,6 +19,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   release, TLS with client certificates for clients and routes signed by a CA
   from variables. Routes ping every two seconds, so a server that died without
   closing its connections is dropped in seconds rather than minutes.
+  `nats_cluster_address`, `nats_routes`, `nats_cluster_advertise` and
+  `nats_cluster_firewall` run routes over public addresses, a server behind NAT
+  dialling out only.
 - `failover` role: the [failover](https://github.com/hackallcode/failover)
   agent, one `failover@<service>` unit per service: one leader per service
   elected in NATS JetStream, its SQLite databases replicated by Litestream.

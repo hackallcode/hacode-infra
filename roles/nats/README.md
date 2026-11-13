@@ -9,7 +9,8 @@ Run one server of a [NATS](https://nats.io) cluster with JetStream from the upst
   with the CA from variables, render the config and start the server. Monitoring answers on localhost.
 
 A cluster forms once a majority of `nats_peers` run; JetStream needs that majority to elect its leaders. With one
-address in `nats_peers` the server runs JetStream on its own, without a cluster.
+address in `nats_peers` the server runs JetStream on its own, without a cluster. Routes require a certificate from
+the same CA on both ends, so a route port open to the internet admits only the cluster's servers.
 
 ## Variables
 
@@ -21,6 +22,10 @@ address in `nats_peers` the server runs JetStream on its own, without a cluster.
 | `nats_peers` | `[]` | addresses of every server, this one included, the same list everywhere |
 | `nats_cluster_name` | `nats` | cluster name |
 | `nats_client_port` / `nats_cluster_port` / `nats_monitor_port` | `4222` / `6222` / `8222` | client, route and localhost monitoring ports |
+| `nats_cluster_address` | `""` | address peers dial for routes, e.g. a public one so the cluster does not ride a network it fails over; set, routes listen on all interfaces (the old address keeps working while peers move), it is advertised and goes into the certificate |
+| `nats_routes` | `[]` | route addresses this server dials; empty: every other address in `nats_peers` |
+| `nats_cluster_advertise` | `true` | `false`: peers do not learn this server's route address, for a server behind NAT that only dials out |
+| `nats_cluster_firewall` | `false` | open `nats_cluster_port` in firewalld (when active) |
 | `nats_data_dir` | `/var/lib/nats` | JetStream store, owned by the `nats` user |
 | `nats_config_dir` | `/etc/nats` | config and the `pki/` certificates |
 | `nats_ping_interval` / `nats_ping_max` | `2s` / `3` | a server that died without closing connections is dropped after their product; the NATS default leaves requests routed to it hanging for minutes |
