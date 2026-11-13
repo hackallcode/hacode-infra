@@ -2,7 +2,7 @@ galaxy_info:
   role_name: "failover"
   namespace: "hacode"
   author: "Vladimir Severov"
-  description: "Run the failover agent: one leader per service over NATS JetStream, SQLite replicated by Litestream."
+  description: "Run the failover agent: one leader per service over NATS JetStream, SQLite replicated as snapshots in NATS KV."
   license: "Apache-2.0"
   min_ansible_version: "2.16"
   platforms:
@@ -15,7 +15,6 @@ galaxy_info:
   galaxy_tags:
     - "failover"
     - "nats"
-    - "litestream"
 
 dependencies:
   - role: "hacode.infra.common"

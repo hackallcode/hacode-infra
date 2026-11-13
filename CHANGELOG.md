@@ -29,7 +29,8 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   peer or stream replica behind, a stream near its limit, metrics stale.
 - `failover` role: the [failover](https://github.com/hackallcode/failover)
   agent, one `failover@<service>` unit per service: one leader per service
-  elected in NATS JetStream, its SQLite databases replicated by Litestream.
+  elected in NATS JetStream, its SQLite databases replicated as compressed
+  snapshots in a KV bucket.
   The unit is `Type=notify` with a watchdog and stops the service's containers
   whenever the agent exits. `backup` copies the leader's databases online and
   pulls them; `restore` puts them in place on fresh hosts.

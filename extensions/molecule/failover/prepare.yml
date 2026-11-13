@@ -1,4 +1,4 @@
-- name: "Prepare: a stand-in agent package and Litestream binary"
+- name: "Prepare: a stand-in agent package"
   hosts: "localhost"
   gather_facts: false
   vars:
@@ -59,12 +59,6 @@
                     time.sleep(5)
       loop_control:
         label: "{{ item.name }}"
-
-    - name: "Write a stand-in Litestream"
-      ansible.builtin.copy:
-        dest: "{{ dir }}/litestream"
-        content: "#!/bin/sh\necho stand-in\n"
-        mode: "0755"
 
 - name: "Prepare: what the failover role needs on the host"
   hosts: "all"

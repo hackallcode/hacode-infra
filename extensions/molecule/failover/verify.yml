@@ -26,7 +26,6 @@
           - "config.service == 'app' and config.databases.main == '/opt/app/data/db.sqlite'"
           - "config.nats.tls.cert == '/etc/nats/pki/server.crt'"
           - "config.api.listen == '127.0.0.1:8480'"
-          - "config.litestream == '/opt/failover/bin/litestream'"
           - "config.hold_file == '/var/lib/failover/app/hold'"
         quiet: true
 

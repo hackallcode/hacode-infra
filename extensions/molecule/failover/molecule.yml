@@ -48,10 +48,8 @@ provisioner:
     group_vars:
       all:
         failover_package_file: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/fake-failover"
-        failover_litestream_file: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/litestream"
         failover_textfile_dir: ""
         failover_nats_servers: ["nats://127.0.0.1:4222"]
-        failover_nats_litestream_url: "nats://127.0.0.1:4222"
         failover_cloudflare_token: "token"
         failover_api_token: "api"
         failover_services:

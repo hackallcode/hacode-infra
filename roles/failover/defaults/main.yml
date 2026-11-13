@@ -1,14 +1,8 @@
 # ===== agent =====
-failover_version: "0.1.0"
+failover_version: "0.1.0-2"
 failover_package: "git+https://github.com/hackallcode/failover@v{{ failover_version }}"
 # A wheel or source tree on the controller, installed instead of failover_package.
 failover_package_file: ""
-# The agent's releases carry Litestream built against nats.go with the object store Put fix.
-failover_release: "https://github.com/hackallcode/failover/releases/download/v{{ failover_version }}"
-failover_litestream_url: "{{ failover_release }}/litestream-linux-{{ _failover_arch }}"
-failover_litestream_checksum: "sha256:{{ failover_release }}/litestream.sha256"
-# A binary on the controller, uploaded instead of failover_litestream_url.
-failover_litestream_file: ""
 # Python 3.11+; "" picks python3.12 on EL 9, python3 elsewhere.
 failover_python: ""
 failover_dir: "/opt/failover"
@@ -25,8 +19,6 @@ failover_backup_remote_dir: "{{ hacode_backups_remote_dir }}/failover"
 failover_node: "{{ inventory_hostname }}"
 # The local server first.
 failover_nats_servers: []
-# Litestream's NATS replica takes a single URL.
-failover_nats_litestream_url: ""
 # The local NATS server's name, where the leader pulls its streams.
 failover_nats_server_name: "{{ failover_node }}"
 failover_nats_replicas: 3

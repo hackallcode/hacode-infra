@@ -3,7 +3,7 @@
   'service': service.name,
   'node': failover_node,
   'candidate': service.candidate | default(true) | bool,
-  'nats': {'servers': failover_nats_servers, 'litestream_url': failover_nats_litestream_url,
+  'nats': {'servers': failover_nats_servers,
            'server_name': failover_nats_server_name, 'replicas': failover_nats_replicas | int,
            'tls': failover_nats_tls},
   'projects': service.projects,
@@ -13,7 +13,6 @@
   'state_dir': failover_state_dir ~ '/' ~ service.name,
   'hold_file': failover_state_dir ~ '/' ~ service.name ~ '/hold',
   'lease_ttl': service.lease_ttl | default(failover_lease_ttl) | int,
-  'litestream': failover_dir ~ '/bin/litestream',
   'place_streams': failover_place_streams | bool,
   'metrics_dir': failover_textfile_dir or None,
 } | combine({'api': {'listen': service.api_listen, 'token_file': failover_config_dir ~ '/api-token'}}

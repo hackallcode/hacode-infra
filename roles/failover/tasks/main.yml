@@ -2,8 +2,7 @@
   ansible.builtin.assert:
     that:
       - >-
-        _failover_active | length == 0
-        or (failover_nats_servers | length > 0 and failover_nats_litestream_url | length > 0)
+        _failover_active | length == 0 or failover_nats_servers | length > 0
       - "_failover_active | length == 0 or failover_cloudflare_token | length > 0"
       - >-
         _failover_active | selectattr('api_listen', 'defined') | selectattr('api_listen') | list | length == 0
@@ -16,7 +15,7 @@
         and _failover_active | rejectattr('dns_ip', 'defined') | list | length == 0
     fail_msg: >-
       every service needs projects, databases, dns_zone, dns_names and dns_ip; agents need failover_nats_servers,
-      failover_nats_litestream_url and failover_cloudflare_token, and an api_listen needs failover_api_token
+      failover_cloudflare_token, and an api_listen needs failover_api_token
     quiet: true
 
 - name: "Stop removed agents and their services"
@@ -75,7 +74,7 @@
         owner: "root"
         group: "root"
         mode: "0700"
-      loop: ["{{ failover_dir }}", "{{ failover_dir }}/bin", "{{ failover_config_dir }}", "{{ failover_state_dir }}"]
+      loop: ["{{ failover_dir }}", "{{ failover_config_dir }}", "{{ failover_state_dir }}"]
 
     - name: "Upload the agent package"
       ansible.builtin.copy:
@@ -114,28 +113,6 @@
         virtualenv_command: "{{ _failover_python }} -m venv"
         state: "forcereinstall"
       when: "_failover_wanted is changed or _failover_upload is changed or not _failover_venv.stat.exists"
-      notify: "Restart failover agents"
-
-    - name: "Download Litestream"
-      ansible.builtin.get_url:
-        url: "{{ failover_litestream_url }}"
-        dest: "{{ failover_dir }}/bin/litestream"
-        checksum: "{{ failover_litestream_checksum }}"
-        owner: "root"
-        group: "root"
-        mode: "0755"
-        timeout: 60
-      when: "failover_litestream_file | length == 0"
-      notify: "Restart failover agents"
-
-    - name: "Upload Litestream"
-      ansible.builtin.copy:
-        src: "{{ failover_litestream_file }}"
-        dest: "{{ failover_dir }}/bin/litestream"
-        owner: "root"
-        group: "root"
-        mode: "0755"
-      when: "failover_litestream_file | length > 0"
       notify: "Restart failover agents"
 
     - name: "Write agent secrets"
