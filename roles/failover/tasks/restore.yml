@@ -1,0 +1,6 @@
+- name: "Restore the databases of each service"
+  ansible.builtin.include_tasks: "restore-service.yml"
+  loop: "{{ _failover_active }}"
+  loop_control:
+    loop_var: "_failover_service"
+    label: "{{ _failover_service.name }}"

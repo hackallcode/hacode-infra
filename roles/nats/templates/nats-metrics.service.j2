@@ -1,0 +1,6 @@
+[Unit]
+Description=NATS metrics for node_exporter
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 {{ nats_config_dir }}/nats-metrics.py {{ nats_monitor_port }} {{ nats_textfile_dir }}/nats.prom {{ [nats_peers | length - 1, 0] | max }}

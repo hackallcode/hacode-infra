@@ -1,0 +1,62 @@
+# failover scenario: the role around a stand-in agent package (same command line; it reports READY and
+# WATCHDOG to systemd, and records `stop`), since the real agent needs a NATS cluster. Verify checks the unit,
+# the rendered config and that stopping the agent runs `failover stop`.
+
+driver:
+  name: "docker"
+
+platforms:
+  - name: "almalinux10"
+    image: "almalinux:10"
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "rocky10"
+    image: "geerlingguy/docker-rockylinux10-ansible:latest"
+    pre_build_image: true
+    command: "/usr/sbin/init"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2204"
+    image: "geerlingguy/docker-ubuntu2204-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+  - name: "ubuntu2404"
+    image: "geerlingguy/docker-ubuntu2404-ansible:latest"
+    pre_build_image: true
+    command: "/lib/systemd/systemd"
+    privileged: true
+    cgroupns_mode: "host"
+    volumes: ["/sys/fs/cgroup:/sys/fs/cgroup:rw"]
+    tmpfs: ["/tmp"]
+    capabilities: ["SYS_ADMIN"]
+
+provisioner:
+  name: "ansible"
+  inventory:
+    group_vars:
+      all:
+        failover_package_file: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/fake-failover"
+        failover_textfile_dir: ""
+        failover_nats_servers: ["nats://127.0.0.1:4222"]
+        failover_cloudflare_token: "token"
+        failover_api_token: "api"
+        failover_services:
+          - name: "app"
+            projects: ["/opt/app"]
+            databases: {main: "/opt/app/data/db.sqlite"}
+            dns_zone: "example.com"
+            dns_names: ["app.example.com"]
+            dns_ip: "192.0.2.1"
+            api_listen: "127.0.0.1:8480"

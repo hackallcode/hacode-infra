@@ -1,0 +1,70 @@
+- name: "Read the leader of {{ _failover_service.name }}"
+  ansible.builtin.command:
+    argv: ["{{ _failover_bin }}", "state", "{{ failover_config_dir }}/{{ _failover_service.name }}.json"]
+  register: "_failover_backup_state"
+  changed_when: false
+  check_mode: false
+
+- name: "Refuse a backup of {{ _failover_service.name }} without a leader"
+  ansible.builtin.assert:
+    that: "(_failover_backup_state.stdout | from_json).leader"
+    fail_msg: "{{ _failover_service.name }} has no leader: there is nothing consistent to back up"
+    quiet: true
+  run_once: true
+
+- name: "Copy and archive the databases of {{ _failover_service.name }}"
+  when: "(_failover_backup_state.stdout | from_json).leader == failover_node"
+  vars:
+    _dir: "{{ failover_backup_remote_dir }}/{{ _failover_service.name }}"
+  block:
+    - name: "Create the copy dir"
+      ansible.builtin.file:
+        path: "{{ _dir }}"
+        state: "directory"
+        mode: "0700"
+
+    - name: "Copy each database online and check the copy"
+      ansible.builtin.command:
+        argv:
+          - "python3"
+          - "-c"
+          - |
+            import json, os, sqlite3, sys
+            src, dst = sys.argv[1], sys.argv[2]
+            with sqlite3.connect(f"file:{src}?mode=ro", uri=True) as s, sqlite3.connect(dst) as d:
+                s.backup(d)
+                assert d.execute("PRAGMA integrity_check").fetchone()[0] == "ok", src
+            st = os.stat(src)
+            print(json.dumps({"path": src, "uid": st.st_uid, "gid": st.st_gid, "mode": "0%o" % (st.st_mode & 0o7777)}))
+          - "{{ item.value }}"
+          - "{{ _dir }}/{{ item.key }}.sqlite"
+      loop: "{{ _failover_service.databases | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: "_failover_backup_copies"
+      changed_when: true
+
+    - name: "Record where each copy goes back and its owner"
+      ansible.builtin.copy:
+        dest: "{{ _dir }}/databases.json"
+        content: >-
+          {{ dict(_failover_backup_copies.results | map(attribute='item.key')
+                  | zip(_failover_backup_copies.results | map(attribute='stdout') | map('from_json')))
+             | to_nice_json }}
+        mode: "0600"
+
+    - name: "Archive and pull the copies"
+      ansible.builtin.include_role:
+        name: "hacode.infra.common"
+        tasks_from: "backup"
+      vars:
+        hacode_backup_paths: ["{{ _dir }}"]
+        hacode_backup_name: "{{ _failover_service.name }}"
+        hacode_backup_local_dir: "{{ failover_backup_local_dir }}"
+        hacode_backup_remote_dir: "{{ failover_backup_remote_dir }}"
+
+  always:
+    - name: "Remove the copies"
+      ansible.builtin.file:
+        path: "{{ _dir }}"
+        state: "absent"

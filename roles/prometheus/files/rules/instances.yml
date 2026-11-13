@@ -2,8 +2,8 @@ groups:
   - name: "instances"
     rules:
       - alert: "InstanceDown"
-        # A headscale_failover standby keeps headscale stopped, so its scrape target is down by design.
-        expr: 'up == 0 unless on(job, instance_name) (up{job="headscale"} and on(instance_name) headscale_failover_serving == 0)'
+        # A failover standby keeps headscale stopped, so its scrape target is down by design.
+        expr: 'up == 0 unless on(job, instance_name) (up{job="headscale"} and on(instance_name) failover_leader{service="headscale"} == 0)'
         for: "1m"
         labels:
           severity: "critical"

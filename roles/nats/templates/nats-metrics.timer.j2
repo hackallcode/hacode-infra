@@ -1,0 +1,10 @@
+[Unit]
+Description=NATS metrics for node_exporter every 15 s
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=15s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

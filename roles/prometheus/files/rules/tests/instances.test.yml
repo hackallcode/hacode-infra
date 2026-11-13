@@ -41,7 +41,7 @@ tests:
         values: "0x20"
       - series: 'up{job="node",instance_name="standby"}'
         values: "0x20"
-      - series: 'headscale_failover_serving{job="node",instance_name="standby"}'
+      - series: 'failover_leader{job="node",instance_name="standby",service="headscale"}'
         values: "0x20"
 
     alert_rule_test:
@@ -62,7 +62,7 @@ tests:
     input_series:
       - series: 'up{job="headscale",instance_name="leader"}'
         values: "0x20"
-      - series: 'headscale_failover_serving{job="node",instance_name="leader"}'
+      - series: 'failover_leader{job="node",instance_name="leader",service="headscale"}'
         values: "1x20"
 
     alert_rule_test:

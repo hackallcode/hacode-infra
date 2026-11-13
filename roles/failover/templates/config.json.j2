@@ -1,0 +1,17 @@
+{{ {
+  'service': item.name,
+  'node': failover_node,
+  'candidate': item.candidate | default(true) | bool,
+  'nats': {'servers': failover_nats_servers,
+           'server_name': failover_nats_server_name, 'replicas': failover_nats_replicas | int,
+           'tls': failover_nats_tls},
+  'projects': item.projects,
+  'databases': item.databases,
+  'dns': {'provider': 'cloudflare', 'zone': item.dns_zone, 'names': item.dns_names, 'ip': item.dns_ip,
+          'token_file': failover_config_dir ~ '/cloudflare-token'},
+  'hold_file': failover_state_dir ~ '/' ~ item.name ~ '/hold',
+  'lease_ttl': item.lease_ttl | default(failover_lease_ttl) | int,
+  'place_streams': failover_place_streams | bool,
+  'metrics_dir': failover_textfile_dir or None,
+} | combine({'api': {'listen': item.api_listen, 'token_file': failover_config_dir ~ '/api-token'}}
+            if item.api_listen | default('') else {}) | to_nice_json }}

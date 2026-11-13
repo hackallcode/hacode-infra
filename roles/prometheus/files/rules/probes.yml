@@ -1,0 +1,12 @@
+groups:
+  - name: "probes"
+    rules:
+      - alert: "ProbeFailed"
+        expr: "probe_success == 0"
+        for: "2m"
+        labels:
+          severity: "critical"
+          category: "services"
+        annotations:
+          summary: "A probed endpoint does not answer."
+          description: "{{ $labels.instance }} does not answer."

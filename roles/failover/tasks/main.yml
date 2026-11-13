@@ -1,0 +1,190 @@
+- name: "Validate failover settings"
+  ansible.builtin.assert:
+    that:
+      - >-
+        _failover_active | length == 0 or failover_nats_servers | length > 0
+      - "_failover_active | length == 0 or failover_cloudflare_token | length > 0"
+      - >-
+        _failover_active | selectattr('api_listen', 'defined') | selectattr('api_listen') | list | length == 0
+        or failover_api_token | length > 0
+      - >-
+        _failover_active | rejectattr('projects', 'defined') | list | length == 0
+        and _failover_active | rejectattr('databases', 'defined') | list | length == 0
+        and _failover_active | rejectattr('dns_zone', 'defined') | list | length == 0
+        and _failover_active | rejectattr('dns_names', 'defined') | list | length == 0
+        and _failover_active | rejectattr('dns_ip', 'defined') | list | length == 0
+    fail_msg: >-
+      every service needs projects, databases, dns_zone, dns_names and dns_ip; agents need failover_nats_servers,
+      failover_cloudflare_token, and an api_listen needs failover_api_token
+    quiet: true
+
+- name: "Stop removed agents and their services"
+  ansible.builtin.systemd:
+    name: "failover@{{ item.name }}.service"
+    state: "stopped"
+    enabled: false
+  loop: "{{ _failover_absent }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: "_failover_stop"
+  failed_when:
+    - "_failover_stop is failed"
+    - "'Could not find' not in _failover_stop.msg | default('')"
+
+- name: "Remove the configs of removed agents"
+  ansible.builtin.file:
+    path: "{{ failover_config_dir }}/{{ item.name }}.json"
+    state: "absent"
+  loop: "{{ _failover_absent }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Remove the state of removed agents"
+  ansible.builtin.file:
+    path: "{{ failover_state_dir }}/{{ item.name }}"
+    state: "absent"
+  loop: "{{ _failover_absent }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Remove the metrics of removed agents"
+  ansible.builtin.file:
+    path: "{{ failover_textfile_dir }}/failover_{{ item.name }}.prom"
+    state: "absent"
+  loop: "{{ _failover_absent }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: "failover_textfile_dir | length > 0"
+
+- name: "Install the agent"
+  when: "_failover_active | length > 0"
+  block:
+    # The pip module needs packaging in the Python Ansible runs on; minimal EL 10 lacks it.
+    - name: "Install Python and git"
+      ansible.builtin.package:
+        name: >-
+          {{ [_failover_python, 'python3-packaging']
+             + ([_failover_python ~ '-venv'] if ansible_os_family == 'Debian' else [])
+             + ([] if failover_package_file else ['git']) }}
+        state: "present"
+
+    - name: "Create agent dirs"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: "directory"
+        owner: "root"
+        group: "root"
+        mode: "0700"
+      loop: ["{{ failover_dir }}", "{{ failover_config_dir }}", "{{ failover_state_dir }}"]
+
+    - name: "Upload the agent package"
+      ansible.builtin.copy:
+        src: "{{ failover_package_file }}"
+        dest: "{{ failover_dir }}/package/"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      register: "_failover_upload"
+      when: "failover_package_file | length > 0"
+
+    - name: "Record what the virtualenv should hold"
+      ansible.builtin.copy:
+        content: >-
+          {{ (failover_dir ~ '/package/' ~ (failover_package_file | basename) ~ ' '
+              ~ (_failover_upload.checksum | default(''))) if failover_package_file | length > 0
+             else failover_package }}
+        dest: "{{ failover_dir }}/installed"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      register: "_failover_wanted"
+
+    - name: "Check the virtualenv"
+      ansible.builtin.stat:
+        path: "{{ _failover_bin }}"
+      register: "_failover_venv"
+
+    - name: "Install the agent into its virtualenv"
+      ansible.builtin.pip:
+        name: >-
+          {{ failover_dir ~ '/package/' ~ (failover_package_file | basename) if failover_package_file | length > 0
+             else failover_package }}
+        virtualenv: "{{ failover_dir }}/venv"
+        virtualenv_command: "{{ _failover_python }} -m venv"
+        state: "forcereinstall"
+      when: "_failover_wanted is changed or _failover_upload is changed or not _failover_venv.stat.exists"
+      register: "_failover_pip"
+
+    - name: "Write agent secrets"
+      ansible.builtin.copy:
+        content: "{{ item.value }}"
+        dest: "{{ failover_config_dir }}/{{ item.file }}"
+        owner: "root"
+        group: "root"
+        mode: "0600"
+      loop:
+        - {file: "cloudflare-token", value: "{{ failover_cloudflare_token }}"}
+        - {file: "api-token", value: "{{ failover_api_token }}"}
+      loop_control:
+        label: "{{ item.file }}"
+      when: "item.value | length > 0"
+      no_log: true
+      register: "_failover_secrets"
+
+    - name: "Create service state dirs"
+      ansible.builtin.file:
+        path: "{{ failover_state_dir }}/{{ item.name }}"
+        state: "directory"
+        owner: "root"
+        group: "root"
+        mode: "0700"
+      loop: "{{ _failover_active }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: "Write service configs"
+      ansible.builtin.template:
+        src: "config.json.j2"
+        dest: "{{ failover_config_dir }}/{{ item.name }}.json"
+        owner: "root"
+        group: "root"
+        mode: "0600"
+      loop: "{{ _failover_active }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: "_failover_configs"
+
+    - name: "Install the agent unit"
+      ansible.builtin.template:
+        src: "failover@.service.j2"
+        dest: "/etc/systemd/system/failover@.service"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      register: "_failover_unit"
+
+    # Restarting a leading agent stops its service for a moment: only agents whose own config changed restart,
+    # unless what they all share did. A stopped agent starts here once, not again in "Enable agents".
+    - name: "Restart changed agents"
+      ansible.builtin.systemd:
+        name: "failover@{{ item.name }}.service"
+        state: "restarted"
+        daemon_reload: true
+      loop: >-
+        {{ _failover_active
+           if [_failover_wanted, _failover_pip, _failover_secrets, _failover_unit] | select('changed') | list
+           else _failover_configs.results | select('changed') | map(attribute='item') | list }}
+      loop_control:
+        label: "{{ item.name }}"
+      when: "not ansible_check_mode"
+
+    - name: "Enable agents"
+      ansible.builtin.systemd:
+        name: "failover@{{ item.name }}.service"
+        enabled: true
+        state: "started"
+        daemon_reload: true
+      loop: "{{ _failover_active }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: "not ansible_check_mode"

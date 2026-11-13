@@ -1,0 +1,9 @@
+_failover_python: >-
+  {{ failover_python or ('python3.12' if ansible_os_family == 'RedHat' and ansible_distribution_major_version == '9'
+     else 'python3.11' if ansible_distribution_release == 'jammy' else 'python3') }}
+_failover_bin: "{{ failover_dir }}/venv/bin/failover"
+_failover_active: >-
+  {{ failover_services | rejectattr('state', 'defined') | list
+     + failover_services | selectattr('state', 'defined') | rejectattr('state', 'equalto', 'absent') | list }}
+_failover_absent: >-
+  {{ failover_services | selectattr('state', 'defined') | selectattr('state', 'equalto', 'absent') | list }}

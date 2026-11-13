@@ -1,0 +1,127 @@
+rule_files:
+  - ../failover.yml
+
+evaluation_interval: 1m
+
+tests:
+  # агент не видит держателя lease дольше 2 мин → FailoverNoLeader; агент, видящий лидера, - тишина
+  - interval: 1m
+    input_series:
+      - series: 'failover_has_leader{job="node",instance_name="a",service="headscale"}'
+        values: "1 0x10"
+      - series: 'failover_has_leader{job="node",instance_name="b",service="headscale"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: FailoverNoLeader
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: FailoverNoLeader
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: services
+              job: node
+              instance_name: a
+              service: headscale
+            exp_annotations:
+              summary: "No node holds a failover service's lease."
+              description: "The headscale failover agent on a sees no leader: see the agents' journals and `failover state`."
+
+  # записи лидера не доходят до реплики дольше 2 мин → FailoverReplicationLag; короткий лаг - тишина
+  - interval: 1m
+    input_series:
+      - series: 'failover_replication_lag_seconds{job="node",instance_name="a",service="headscale"}'
+        values: "0 60 120 180 240 300 360"
+      - series: 'failover_replication_lag_seconds{job="node",instance_name="b",service="headscale"}'
+        values: "0 30 0 30 0 30 0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: FailoverReplicationLag
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: FailoverReplicationLag
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: services
+              job: node
+              instance_name: a
+              service: headscale
+            exp_annotations:
+              summary: "A failover leader's writes do not reach the replica."
+              description: "headscale on a has not replicated its writes for 5m 0s: a failover now loses them."
+
+  # лидерство переехало на b после долгой работы a → срабатывает у b и гаснет через 2 мин
+  - interval: 1m
+    input_series:
+      - series: 'failover_leader{job="node",instance_name="a",service="headscale"}'
+        values: "1x15 0x30"
+      - series: 'failover_leader{job="node",instance_name="b",service="headscale"}'
+        values: "0x15 1x30"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: FailoverLeaderChanged
+        exp_alerts:
+          - exp_labels:
+              severity: info
+              category: services
+              job: node
+              instance_name: b
+              service: headscale
+            exp_annotations:
+              summary: "Failover leadership moved."
+              description: "headscale moved to b."
+      - eval_time: 20m
+        alertname: FailoverLeaderChanged
+        exp_alerts: []
+
+  # перезапуск или фенсинг лидера на минуту-две без смены узла → тишина
+  - interval: 1m
+    input_series:
+      - series: 'failover_leader{job="node",instance_name="a",service="headscale"}'
+        values: "1x15 0 0 1x20"
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: FailoverLeaderChanged
+        exp_alerts: []
+
+  # ошибка 5 мин подряд → FailoverError; мигающая ошибка - тишина
+  - interval: 1m
+    input_series:
+      - series: 'failover_error{job="node",instance_name="a",service="headscale"}'
+        values: "1x10"
+      - series: 'failover_error{job="node",instance_name="b",service="headscale"}'
+        values: "1 0 1 0 1 0 1 0 1 0"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: FailoverError
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              category: services
+              job: node
+              instance_name: a
+              service: headscale
+            exp_annotations:
+              summary: "A failover agent keeps failing."
+              description: "The headscale failover agent on a keeps failing; see its journal."
+
+  # агент перестал писать метрики → FailoverStale
+  - interval: 1m
+    input_series:
+      - series: 'failover_last_tick_timestamp_seconds{job="node",instance_name="a",service="headscale"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: FailoverStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              category: services
+              job: node
+              instance_name: a
+              service: headscale
+            exp_annotations:
+              summary: "A failover agent stopped running."
+              description: "The headscale failover agent on a has not run for 5m 0s."

@@ -1,0 +1,16 @@
+[Unit]
+Description=NATS server {{ nats_name }}
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nats
+ExecStart=/usr/local/bin/nats-server -c {{ nats_config_dir }}/nats.conf
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

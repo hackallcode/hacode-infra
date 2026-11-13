@@ -1,0 +1,45 @@
+# ===== member =====
+nats_version: "2.15.2"
+nats_name: "{{ inventory_hostname }}"
+# The unit orders after tailscaled.service, so a tailnet address exists before nats binds to it.
+nats_address: ""
+# Every server's address, this one included, the same list everywhere.
+nats_peers: []
+nats_cluster_name: "nats"
+nats_client_port: 4222
+nats_cluster_port: 6222
+# Set: routes listen on all interfaces and advertise this address; "": nats_address.
+nats_cluster_address: ""
+# []: every other address in nats_peers.
+nats_routes: []
+# false for a server behind NAT that only dials out.
+nats_cluster_advertise: true
+nats_cluster_firewall: false
+# Localhost only.
+nats_monitor_port: 8222
+nats_data_dir: "/var/lib/nats"
+nats_config_dir: "/etc/nats"
+
+# A server that dies without closing its connections is dropped after ping_interval * ping_max; the NATS default
+# of two minutes leaves requests routed to it hanging that long.
+nats_ping_interval: "2s"
+nats_ping_max: 3
+
+# Bytes; streams fail writes beyond them.
+nats_max_file_store: 2147483648
+nats_max_memory_store: 67108864
+
+# Deep-merged over the rendered config; server_name, listen, http, ping_interval, ping_max, the cluster keys the
+# role renders, jetstream store_dir and limits, and tls are locked.
+nats_config_extra: {}
+
+# ===== tls =====
+# The CA key signs server certificates on the controller; server keys never leave the servers. The server
+# certificate carries clientAuth, so clients on the same host can use it.
+nats_ca_key: ""
+nats_ca_cert: ""
+nats_cert_days: 3650
+
+# ===== metrics =====
+# "" turns it off.
+nats_textfile_dir: "/var/lib/node_exporter"

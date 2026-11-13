@@ -1,0 +1,126 @@
+rule_files:
+  - ../nats.yml
+
+evaluation_interval: 1m
+
+tests:
+  # сервер не отвечает дольше минуты → NatsDown
+  - interval: 1m
+    input_series:
+      - series: 'nats_up{job="node",instance_name="a"}'
+        values: "1 0x5"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: NatsDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: services
+              job: node
+              instance_name: a
+            exp_annotations:
+              summary: "A NATS server is down or has no JetStream."
+              description: "NATS on a is down or has no JetStream: see `journalctl -u nats` there."
+
+  # маршрутов меньше ожидаемого дольше 2 мин → NatsRouteMissing
+  - interval: 1m
+    input_series:
+      - series: 'nats_routes{job="node",instance_name="a"}'
+        values: "2 1x5"
+      - series: 'nats_routes_expected{job="node",instance_name="a"}'
+        values: "2x5"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: NatsRouteMissing
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: NatsRouteMissing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              category: services
+              job: node
+              instance_name: a
+            exp_annotations:
+              summary: "A NATS server lost a route to a peer."
+              description: "NATS on a reaches 1 of its peers: one more lost and JetStream has no quorum."
+
+  # мета-лидер видит отставшего пира → NatsPeerBehind
+  - interval: 1m
+    input_series:
+      - series: 'nats_jetstream_peer_current{job="node",instance_name="a",peer="c"}'
+        values: "0x5"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: NatsPeerBehind
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              category: services
+              job: node
+              instance_name: a
+              peer: c
+            exp_annotations:
+              summary: "A NATS server is not current with the cluster."
+              description: "NATS meta leader a sees c offline or behind."
+
+  # реплика потока отстаёт 5 мин → NatsStreamReplicaBehind
+  - interval: 1m
+    input_series:
+      - series: 'nats_stream_replica_current{job="node",instance_name="a",stream="KV_x",peer="c"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: NatsStreamReplicaBehind
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              category: services
+              job: node
+              instance_name: a
+              stream: KV_x
+              peer: c
+            exp_annotations:
+              summary: "A NATS stream replica is behind."
+              description: "The KV_x replica on c is offline or behind its leader a."
+
+  # поток заполнен на 90% → NatsStreamFilling; поток без лимита - тишина
+  - interval: 1m
+    input_series:
+      - series: 'nats_stream_bytes{job="node",instance_name="a",stream="OBJ_x"}'
+        values: "90x10"
+      - series: 'nats_stream_max_bytes{job="node",instance_name="a",stream="OBJ_x"}'
+        values: "100x10"
+      - series: 'nats_stream_bytes{job="node",instance_name="a",stream="KV_y"}'
+        values: "1000x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: NatsStreamFilling
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              category: services
+              job: node
+              instance_name: a
+              stream: OBJ_x
+            exp_annotations:
+              summary: "A NATS stream nears its size limit."
+              description: "OBJ_x on a is 90% full: at the limit its writes fail."
+
+  # метрики не обновляются → NatsMetricsStale
+  - interval: 1m
+    input_series:
+      - series: 'nats_metrics_timestamp_seconds{job="node",instance_name="a"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: NatsMetricsStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              category: services
+              job: node
+              instance_name: a
+            exp_annotations:
+              summary: "NATS metrics stopped."
+              description: "NATS metrics on a are 5m 0s old: see `systemctl status nats-metrics.timer` there."

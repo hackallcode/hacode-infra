@@ -1,0 +1,43 @@
+# ===== agent =====
+failover_version: "0.2.0"
+failover_package: "git+https://github.com/hackallcode/failover@v{{ failover_version }}"
+# A wheel or source tree on the controller, installed instead of failover_package.
+failover_package_file: ""
+# Python 3.11+; "" picks python3.12 on EL 9, python3.11 on Ubuntu jammy, python3 elsewhere.
+failover_python: ""
+failover_dir: "/opt/failover"
+failover_config_dir: "/etc/failover"
+failover_state_dir: "/var/lib/failover"
+# "" turns the metrics off.
+failover_textfile_dir: "/var/lib/node_exporter"
+
+# ===== backup =====
+failover_backup_local_dir: "{{ hacode_backups_dir }}/failover"
+failover_backup_remote_dir: "{{ hacode_backups_remote_dir }}/failover"
+
+# ===== cluster =====
+failover_node: "{{ inventory_hostname }}"
+# The local server first.
+failover_nats_servers: []
+# The local NATS server's name, where the leader pulls its streams.
+failover_nats_server_name: "{{ failover_node }}"
+failover_nats_replicas: 3
+# false on a node too loaded to lead the agents' stream: a stalled stream leader stalls renewals everywhere. Every
+# service shares that stream, so with services led on different nodes they pull it back and forth.
+failover_place_streams: true
+# The nats role's server certificate on the same host carries clientAuth.
+failover_nats_tls:
+  ca: "/etc/nats/pki/ca.crt"
+  cert: "/etc/nats/pki/server.crt"
+  key: "/etc/nats/pki/server.key"
+
+# ===== services =====
+# [{name, projects, databases, dns_zone, dns_names, dns_ip, candidate, lease_ttl, api_listen, state}], see README.
+failover_services: []
+# The leader fences at 70% of it without a renewal. Keep it well above the time NATS needs to re-elect a stream
+# leader after losing a server (a few times nats_ping_interval * nats_ping_max) and above the stalls a deploy causes.
+failover_lease_ttl: 15
+
+# ===== secrets =====
+failover_cloudflare_token: ""
+failover_api_token: ""

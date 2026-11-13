@@ -1,0 +1,69 @@
+- name: "See whether the agent of {{ _failover_service.name }} runs"
+  ansible.builtin.command:
+    argv: ["systemctl", "is-active", "failover@{{ _failover_service.name }}.service"]
+  register: "_failover_restore_agent"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: "Refuse to replace the databases of a running service"
+  ansible.builtin.assert:
+    that: "_failover_restore_agent.stdout != 'active'"
+    fail_msg: >-
+      failover@{{ _failover_service.name }} runs here: a restore would replace the databases under it. Restore
+      onto fresh hosts, before the agents start.
+    quiet: true
+
+- name: "Put the copies of {{ _failover_service.name }} back"
+  vars:
+    _dir: "{{ failover_backup_remote_dir }}/{{ _failover_service.name }}"
+  block:
+    - name: "Unpack the latest archive"
+      ansible.builtin.include_role:
+        name: "hacode.infra.common"
+        tasks_from: "restore"
+      vars:
+        hacode_backup_paths: ["{{ _dir }}"]
+        hacode_backup_name: "{{ _failover_service.name }}"
+        hacode_backup_local_dir: "{{ failover_backup_local_dir }}"
+
+    - name: "Read where each copy goes"
+      ansible.builtin.slurp:
+        src: "{{ _dir }}/databases.json"
+      register: "_failover_restore_index"
+
+    - name: "Create the database dirs"
+      ansible.builtin.file:
+        path: "{{ item.value.path | dirname }}"
+        state: "directory"
+        mode: "0755"
+      loop: "{{ _failover_restore_index.content | b64decode | from_json | dict2items }}"
+      loop_control:
+        label: "{{ item.value.path | dirname }}"
+
+    - name: "Remove the journals of the replaced databases"
+      ansible.builtin.file:
+        path: "{{ item.0.value.path }}-{{ item.1 }}"
+        state: "absent"
+      loop: >-
+        {{ _failover_restore_index.content | b64decode | from_json | dict2items | product(['wal', 'shm']) | list }}
+      loop_control:
+        label: "{{ item.0.value.path }}-{{ item.1 }}"
+
+    - name: "Put each database in place"
+      ansible.builtin.copy:
+        src: "{{ _dir }}/{{ item.key }}.sqlite"
+        dest: "{{ item.value.path }}"
+        remote_src: true
+        owner: "{{ item.value.uid }}"
+        group: "{{ item.value.gid }}"
+        mode: "{{ item.value.mode }}"
+      loop: "{{ _failover_restore_index.content | b64decode | from_json | dict2items }}"
+      loop_control:
+        label: "{{ item.value.path }}"
+
+  always:
+    - name: "Remove the unpacked copies"
+      ansible.builtin.file:
+        path: "{{ _dir }}"
+        state: "absent"

@@ -1,0 +1,193 @@
+- name: "Validate nats settings"
+  ansible.builtin.assert:
+    that:
+      - "nats_address | length > 0"
+      - "nats_address in nats_peers"
+      - "nats_ca_key | length > 0 and nats_ca_cert | length > 0"
+    fail_msg: "nats needs nats_address, nats_peers with this address, nats_ca_key and nats_ca_cert"
+    quiet: true
+
+- name: "Create the nats user"
+  ansible.builtin.user:
+    name: "nats"
+    system: true
+    shell: "/sbin/nologin"
+    home: "{{ nats_data_dir }}"
+    create_home: false
+
+- name: "Create nats dirs"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: "directory"
+    owner: "{{ item.owner }}"
+    group: "{{ item.owner }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ nats_data_dir }}", owner: "nats", mode: "0700"}
+    - {path: "{{ nats_config_dir }}", owner: "root", mode: "0755"}
+    - {path: "{{ nats_config_dir }}/pki", owner: "nats", mode: "0750"}
+    - {path: "/opt/nats-server-v{{ nats_version }}", owner: "root", mode: "0755"}
+
+- name: "Check for the unpacked release"
+  ansible.builtin.stat:
+    path: "/opt/nats-server-v{{ nats_version }}/nats-server"
+  register: "_nats_unpacked"
+
+- name: "Download nats-server, checked against the release checksums"
+  ansible.builtin.get_url:
+    url: "{{ _nats_release }}/nats-server-v{{ nats_version }}-linux-{{ _nats_arch }}.tar.gz"
+    dest: "/opt/nats-server-v{{ nats_version }}/release.tar.gz"
+    checksum: "sha256:{{ _nats_release }}/SHA256SUMS"
+    mode: "0644"
+    timeout: 60
+  when: "not _nats_unpacked.stat.exists"
+
+- name: "Unpack nats-server"
+  ansible.builtin.unarchive:
+    src: "/opt/nats-server-v{{ nats_version }}/release.tar.gz"
+    dest: "/opt/nats-server-v{{ nats_version }}"
+    remote_src: true
+    extra_opts: ["--strip-components=1"]
+    creates: "/opt/nats-server-v{{ nats_version }}/nats-server"
+
+- name: "Link nats-server"
+  ansible.builtin.file:
+    src: "/opt/nats-server-v{{ nats_version }}/nats-server"
+    dest: "/usr/local/bin/nats-server"
+    state: "link"
+    force: true
+  notify: "Restart nats"
+
+- name: "Write the CA certificate"
+  ansible.builtin.copy:
+    content: "{{ nats_ca_cert | trim }}\n"
+    dest: "{{ nats_config_dir }}/pki/ca.crt"
+    owner: "nats"
+    group: "nats"
+    mode: "0644"
+  notify: "Restart nats"
+
+- name: "Make this server's key"
+  community.crypto.openssl_privatekey:
+    path: "{{ nats_config_dir }}/pki/server.key"
+    type: "ECC"
+    curve: "secp256r1"
+    owner: "nats"
+    group: "nats"
+    mode: "0640"
+
+- name: "Make this server's certificate request"
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ nats_config_dir }}/pki/server.key"
+    common_name: "{{ nats_name }}"
+    subject_alt_name: >-
+      {{ ["DNS:" ~ nats_name, "IP:" ~ nats_address, "IP:127.0.0.1"]
+         + (["IP:" ~ nats_cluster_address] if nats_cluster_address else []) }}
+    extended_key_usage: ["serverAuth", "clientAuth"]
+  register: "_nats_csr"
+  changed_when: false
+
+- name: "Read the current server certificate"
+  ansible.builtin.slurp:
+    src: "{{ nats_config_dir }}/pki/server.crt"
+  register: "_nats_cert_current"
+  failed_when: false
+
+- name: "Sign the server certificate with the CA"
+  community.crypto.x509_certificate_pipe:
+    content: "{{ (_nats_cert_current.content | b64decode) if _nats_cert_current.content is defined else omit }}"
+    csr_content: "{{ _nats_csr.csr }}"
+    provider: "ownca"
+    ownca_content: "{{ nats_ca_cert }}"
+    ownca_privatekey_content: "{{ nats_ca_key }}"
+    ownca_not_after: "+{{ nats_cert_days }}d"
+  delegate_to: "localhost"
+  become: false
+  register: "_nats_cert"
+  no_log: true
+
+- name: "Write the server certificate"
+  ansible.builtin.copy:
+    content: "{{ _nats_cert.certificate }}"
+    dest: "{{ nats_config_dir }}/pki/server.crt"
+    owner: "nats"
+    group: "nats"
+    mode: "0644"
+  notify: "Restart nats"
+
+- name: "Render the nats config"
+  ansible.builtin.template:
+    src: "nats.conf.j2"
+    dest: "{{ nats_config_dir }}/nats.conf"
+    owner: "root"
+    group: "nats"
+    mode: "0640"
+  notify: "Restart nats"
+
+- name: "Install the nats unit"
+  ansible.builtin.template:
+    src: "nats.service.j2"
+    dest: "/etc/systemd/system/nats.service"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify: "Restart nats"
+
+- name: "Check firewalld"
+  ansible.builtin.systemd:
+    name: "firewalld"
+  register: "_nats_firewalld"
+  failed_when: false
+  changed_when: false
+  when: "nats_cluster_firewall"
+
+- name: "Open the route port"
+  ansible.posix.firewalld:
+    port: "{{ nats_cluster_port }}/tcp"
+    state: "enabled"
+    permanent: true
+    immediate: true
+  when: "nats_cluster_firewall and _nats_firewalld.status.ActiveState | default('inactive') == 'active'"
+
+- name: "Enable nats"
+  ansible.builtin.systemd:
+    name: "nats"
+    enabled: true
+    state: "started"
+    daemon_reload: true
+  when: "not ansible_check_mode"
+
+- name: "Check the textfile dir"
+  ansible.builtin.stat:
+    path: "{{ nats_textfile_dir }}"
+  register: "_nats_textfile_dir"
+  when: "nats_textfile_dir | length > 0"
+
+- name: "Write NATS metrics for node_exporter"
+  when: "nats_textfile_dir | length > 0 and _nats_textfile_dir.stat.isdir | default(false)"
+  block:
+    - name: "Install the metrics script"
+      ansible.builtin.copy:
+        src: "nats-metrics.py"
+        dest: "{{ nats_config_dir }}/nats-metrics.py"
+        owner: "root"
+        group: "root"
+        mode: "0755"
+
+    - name: "Install the metrics units"
+      ansible.builtin.template:
+        src: "nats-metrics.{{ item }}.j2"
+        dest: "/etc/systemd/system/nats-metrics.{{ item }}"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      loop: ["service", "timer"]
+      register: "_nats_metrics_units"
+
+    - name: "Enable the metrics timer"
+      ansible.builtin.systemd:
+        name: "nats-metrics.timer"
+        enabled: true
+        state: "started"
+        daemon_reload: "{{ _nats_metrics_units is changed }}"
+      when: "not ansible_check_mode"

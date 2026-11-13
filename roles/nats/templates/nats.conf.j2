@@ -1,0 +1,29 @@
+{% set tls = {'cert_file': nats_config_dir ~ '/pki/server.crt', 'key_file': nats_config_dir ~ '/pki/server.key',
+              'ca_file': nats_config_dir ~ '/pki/ca.crt', 'verify': true} %}
+{% set locked = {
+  'server_name': nats_name,
+  'listen': nats_address ~ ':' ~ nats_client_port,
+  'http': '127.0.0.1:' ~ nats_monitor_port,
+  'ping_interval': nats_ping_interval,
+  'ping_max': nats_ping_max | int,
+  'tls': tls,
+  'jetstream': {'store_dir': nats_data_dir, 'max_file_store': nats_max_file_store | int,
+                'max_memory_store': nats_max_memory_store | int},
+} %}
+{% if nats_peers | length > 1 %}
+{%   set routes = nats_routes or nats_peers | reject('equalto', nats_address) | list %}
+{%   set cluster = {
+       'name': nats_cluster_name,
+       'listen': ('0.0.0.0' if nats_cluster_address else nats_address) ~ ':' ~ nats_cluster_port,
+       'routes': routes | map('regex_replace', '^(.*)$', 'tls://\\1:' ~ nats_cluster_port) | list,
+       'tls': tls,
+     } %}
+{%   if nats_cluster_address %}
+{%     set _ = cluster.update({'advertise': nats_cluster_address ~ ':' ~ nats_cluster_port}) %}
+{%   endif %}
+{%   if not nats_cluster_advertise %}
+{%     set _ = cluster.update({'no_advertise': true}) %}
+{%   endif %}
+{%   set _ = locked.update({'cluster': cluster}) %}
+{% endif %}
+{{ nats_config_extra | combine(locked, recursive=true) | to_nice_json }}

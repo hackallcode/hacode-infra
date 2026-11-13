@@ -1,0 +1,6 @@
+- name: "Back up the databases this node leads"
+  ansible.builtin.include_tasks: "backup-service.yml"
+  loop: "{{ _failover_active }}"
+  loop_control:
+    loop_var: "_failover_service"
+    label: "{{ _failover_service.name }}"

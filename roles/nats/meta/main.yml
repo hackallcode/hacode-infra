@@ -1,0 +1,19 @@
+galaxy_info:
+  role_name: "nats"
+  namespace: "hacode"
+  author: "Vladimir Severov"
+  description: "Run a NATS server with JetStream in a cluster from the upstream release, TLS for clients and routes."
+  license: "Apache-2.0"
+  min_ansible_version: "2.16"
+  platforms:
+    - name: "EL"
+      versions: ["9", "10"]
+    - name: "Ubuntu"
+      versions: ["jammy", "noble"]
+    - name: "Debian"
+      versions: ["bookworm", "trixie"]
+  galaxy_tags:
+    - "nats"
+    - "jetstream"
+
+dependencies: []
