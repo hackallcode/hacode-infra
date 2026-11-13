@@ -1,15 +1,16 @@
 groups:
   - name: "failover"
     rules:
+      # Per agent: a Prometheus may scrape only some of the nodes, and the leader's own metrics may be missing.
       - alert: "FailoverNoLeader"
-        expr: "max by (service) (failover_leader) == 0"
+        expr: "failover_has_leader == 0"
         for: "2m"
         labels:
           severity: "critical"
           category: "services"
         annotations:
-          summary: "No node serves a failover service."
-          description: "No node serves {{ $labels.service }}: see the agents' journals and `failover state`."
+          summary: "No node holds a failover service's lease."
+          description: "The {{ $labels.service }} failover agent on {{ $labels.instance_name }} sees no leader: see the agents' journals and `failover state`."
 
       - alert: "FailoverLeaderChanged"
         expr: "failover_leader == 1 and changes(failover_leader[5m]) > 0"

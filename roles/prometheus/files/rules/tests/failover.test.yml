@@ -4,15 +4,15 @@ rule_files:
 evaluation_interval: 1m
 
 tests:
-  # ни один узел не обслуживает сервис дольше 2 мин → FailoverNoLeader; ведомый с 0 при живом лидере - тишина
+  # агент не видит держателя lease дольше 2 мин → FailoverNoLeader; агент, видящий лидера, - тишина
   - interval: 1m
     input_series:
-      - series: 'failover_leader{job="node",instance_name="a",service="headscale"}'
+      - series: 'failover_has_leader{job="node",instance_name="a",service="headscale"}'
         values: "1 0x10"
-      - series: 'failover_leader{job="node",instance_name="b",service="headscale"}'
-        values: "0x10"
+      - series: 'failover_has_leader{job="node",instance_name="b",service="headscale"}'
+        values: "1x10"
     alert_rule_test:
-      - eval_time: 0m
+      - eval_time: 1m
         alertname: FailoverNoLeader
         exp_alerts: []
       - eval_time: 4m
@@ -21,10 +21,12 @@ tests:
           - exp_labels:
               severity: critical
               category: services
+              job: node
+              instance_name: a
               service: headscale
             exp_annotations:
-              summary: "No node serves a failover service."
-              description: "No node serves headscale: see the agents' journals and `failover state`."
+              summary: "No node holds a failover service's lease."
+              description: "The headscale failover agent on a sees no leader: see the agents' journals and `failover state`."
 
   # лидерство переехало на b → срабатывает у b, через 5 мин тишина
   - interval: 1m

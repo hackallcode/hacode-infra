@@ -1,3 +1,0 @@
-{% set typed = {'heartbeat-interval': etcd_heartbeat_interval | int, 'election-timeout': etcd_election_timeout | int,
-                'snapshot-count': etcd_snapshot_count | int, 'quota-backend-bytes': etcd_quota_backend_bytes | int} %}
-{{ _etcd_config | combine(typed, etcd_config_extra, _etcd_config_locked, recursive=true) | to_nice_yaml(indent=2) }}
