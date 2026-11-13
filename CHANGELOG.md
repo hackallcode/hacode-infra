@@ -7,6 +7,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ## [Unreleased]
 
+### Breaking changes
+
+- `etcd` and `headscale_failover` roles are removed: `nats` and `failover`
+  replace them. Move the service to `failover` and take etcd off the hosts
+  before upgrading, as the removed roles no longer clean up after themselves.
+
 ### Added
 
 - `nats` role: a NATS server with JetStream in a cluster from the upstream
@@ -26,14 +32,6 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   Jinja, so it can use vault values.
 - `certbot` role: `certbot_deploy_hook` is also installed into
   `renewal-hooks/deploy`, so it reaches certificates issued before it was set.
-- `headscale_failover` role: `headscale_failover_headplane_dir` runs Headplane
-  on the leader only and moves its database through etcd with Headscale's, so
-  users, roles, links and sessions survive a handover. Independent panels need
-  merging first, as the role README describes.
-- `headscale_failover` role: the serving agent moves etcd's Raft leadership to
-  its own member, named by `headscale_failover_etcd_member` (`""` turns it
-  off), so its renewals and snapshots commit without a round trip to another
-  server.
 - `tailscale` role: `tailscale_metrics_enabled` has tailscaled serve its client
   metrics, including traffic by path (direct, peer relay or DERP), for
   Prometheus at `<tailnet IP>:5252/metrics`.
@@ -42,7 +40,7 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 - `prometheus` role: the `headscale_failover` alerts give way to `failover`
   ones on the agent's `failover_*` metrics, per service: `FailoverNoLeader`
-  when no node serves it, `FailoverLeaderChanged`, `FailoverError` and
+  when an agent sees no lease holder, `FailoverLeaderChanged`, `FailoverError` and
   `FailoverStale`. `InstanceDown` skips headscale on a node whose
   `failover_leader{service="headscale"}` is 0.
 - `prometheus` role: `CpuUtilizationWarning` and `CpuUtilizationCritical` are
@@ -51,8 +49,6 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `prometheus` role: `NodeTrafficUsage1Day` is gone, as its 35 GB threshold is
   one hosting plan's; a project ships such a rule through
   `prometheus_extra_rule_dirs`.
-- `prometheus` role: `HeadscaleLeaderChanged` fires once per handover, on the
-  new leader only, as `info` for 5 minutes instead of a 15-minute `warning`.
 - `prometheus` role: the Telegram message is a bold header of severity,
   category and how long the alert has fired or lasted, over one line per alert
   from its `description`. `alertmanager_instance_emojis` adds an emoji of each
@@ -63,17 +59,6 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   the `http2` parameter of `listen` is deprecated since nginx 1.25.1. The
   directive needs that version or newer; on an older nginx, move `http2` back
   to the `listen` lines of a newly scaffolded config.
-- `headscale_failover` role: the agent starts Headscale without waiting for its
-  Docker healthcheck, as readiness can outlast the election lease, and gives a
-  stopping container one second before Docker kills it.
-- `headscale_failover` role: the election lease renews in its own thread, so a
-  slow tick (Docker, Cloudflare, etcd reads through a distant Raft leader) no
-  longer fences a healthy leader; a tick stuck for over a minute still lets
-  another server take over. `headscale_failover_etcd_timeout` (2 s) replaces
-  the fixed 1 s etcd request timeout.
-- `prometheus` role: `InstanceDown` skips a `headscale` scrape job target on a
-  server whose `headscale_failover_serving` is 0, as a standby keeps Headscale
-  stopped.
 
 ### Fixed
 
