@@ -8,16 +8,12 @@ nats_peers: []
 nats_cluster_name: "nats"
 nats_client_port: 4222
 nats_cluster_port: 6222
-# The address peers dial for routes, e.g. a public one, so the cluster does not ride a network it fails over.
-# Set: routes listen on all interfaces (nats_address keeps working while peers move), this address is advertised
-# and goes into the certificate. "": routes listen on and advertise nats_address.
+# Set: routes listen on all interfaces and advertise this address; "": nats_address.
 nats_cluster_address: ""
-# Cluster addresses this server dials; []: every other address in nats_peers.
+# []: every other address in nats_peers.
 nats_routes: []
-# false: peers do not learn this server's route address, so none dials it - for a server behind NAT that only
-# dials out.
+# false for a server behind NAT that only dials out.
 nats_cluster_advertise: true
-# Opens nats_cluster_port in firewalld (when active), for routes over a public address.
 nats_cluster_firewall: false
 # Localhost only.
 nats_monitor_port: 8222
@@ -44,5 +40,5 @@ nats_ca_cert: ""
 nats_cert_days: 3650
 
 # ===== metrics =====
-# nats.prom for node_exporter, written every 15 s while this directory exists; "" turns it off.
+# "" turns it off.
 nats_textfile_dir: "/var/lib/node_exporter"

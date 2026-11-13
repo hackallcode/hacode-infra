@@ -1,5 +1,3 @@
-# The leader's databases of every service, copied online and checked, pulled to the controller as
-# `<failover_backup_local_dir>/<stamp>_<service>.tar.gz`; a standby has nothing to back up.
 - name: "Back up the databases this node leads"
   ansible.builtin.include_tasks: "backup-service.yml"
   loop: "{{ _failover_active }}"

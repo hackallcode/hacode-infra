@@ -41,7 +41,6 @@
       loop_control:
         label: "{{ item.value.path | dirname }}"
 
-    # A journal left beside the old file would be replayed into the restored one.
     - name: "Remove the journals of the replaced databases"
       ansible.builtin.file:
         path: "{{ item.0.value.path }}-{{ item.1 }}"

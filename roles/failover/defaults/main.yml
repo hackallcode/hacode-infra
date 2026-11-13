@@ -18,7 +18,6 @@ failover_state_dir: "/var/lib/failover"
 failover_textfile_dir: "/var/lib/node_exporter"
 
 # ===== backup =====
-# `backup` pulls the leader's databases here as <stamp>_<service>.tar.gz; `restore` takes the latest of them.
 failover_backup_local_dir: "{{ hacode_backups_dir }}/failover"
 failover_backup_remote_dir: "{{ hacode_backups_remote_dir }}/failover"
 

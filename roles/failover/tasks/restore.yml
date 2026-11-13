@@ -1,5 +1,3 @@
-# The latest backup of every service's databases, put in place for a first start on fresh hosts: with no position
-# in NATS yet, the first leader starts from them and replicates them. Refuses while a service's agent runs.
 - name: "Restore the databases of each service"
   ansible.builtin.include_tasks: "restore-service.yml"
   loop: "{{ _failover_active }}"

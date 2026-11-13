@@ -1,7 +1,6 @@
 groups:
   - name: "failover"
     rules:
-      # Per agent: a Prometheus may scrape only some of the nodes, and the leader's own metrics may be missing.
       - alert: "FailoverNoLeader"
         expr: "failover_has_leader == 0"
         for: "2m"

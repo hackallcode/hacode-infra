@@ -16,8 +16,7 @@
         state: "directory"
         mode: "0700"
 
-    # The backup API copies a consistent state under a live writer; a read-only connection never checkpoints.
-    - name: "Copy each database and check the copy"
+    - name: "Copy each database online and check the copy"
       ansible.builtin.command:
         argv:
           - "python3"
