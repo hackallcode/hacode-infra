@@ -52,15 +52,15 @@ tests:
               summary: "A failover leader's writes do not reach the replica."
               description: "headscale on a has not replicated its writes for 5m 0s: a failover now loses them."
 
-  # лидерство переехало на b → срабатывает у b, через 5 мин тишина
+  # лидерство переехало на b после долгой работы a → срабатывает у b и гаснет через 2 мин
   - interval: 1m
     input_series:
       - series: 'failover_leader{job="node",instance_name="a",service="headscale"}'
-        values: "1 0x30"
+        values: "1x15 0x30"
       - series: 'failover_leader{job="node",instance_name="b",service="headscale"}'
-        values: "0 1x30"
+        values: "0x15 1x30"
     alert_rule_test:
-      - eval_time: 3m
+      - eval_time: 16m
         alertname: FailoverLeaderChanged
         exp_alerts:
           - exp_labels:
@@ -72,7 +72,17 @@ tests:
             exp_annotations:
               summary: "Failover leadership moved."
               description: "headscale moved to b."
-      - eval_time: 10m
+      - eval_time: 20m
+        alertname: FailoverLeaderChanged
+        exp_alerts: []
+
+  # перезапуск или фенсинг лидера на минуту-две без смены узла → тишина
+  - interval: 1m
+    input_series:
+      - series: 'failover_leader{job="node",instance_name="a",service="headscale"}'
+        values: "1x15 0 0 1x20"
+    alert_rule_test:
+      - eval_time: 18m
         alertname: FailoverLeaderChanged
         exp_alerts: []
 

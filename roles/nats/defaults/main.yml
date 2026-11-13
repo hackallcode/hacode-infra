@@ -1,7 +1,7 @@
 # ===== member =====
 nats_version: "2.15.2"
-# The unit orders after tailscaled.service, so a tailnet address exists before nats binds to it.
 nats_name: "{{ inventory_hostname }}"
+# The unit orders after tailscaled.service, so a tailnet address exists before nats binds to it.
 nats_address: ""
 # Every server's address, this one included, the same list everywhere.
 nats_peers: []

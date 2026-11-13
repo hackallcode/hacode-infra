@@ -72,7 +72,7 @@
   gather_facts: true
 
   tasks:
-    - name: "Install pip's build backend for local packages (apt)"
+    - name: "Refresh apt cache (Debian)"
       ansible.builtin.apt:
         update_cache: true
       when: "ansible_facts.os_family == 'Debian'"

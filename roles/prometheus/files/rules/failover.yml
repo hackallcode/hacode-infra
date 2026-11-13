@@ -22,7 +22,7 @@ groups:
           description: "{{ $labels.service }} on {{ $labels.instance_name }} has not replicated its writes for {{ $value | humanizeDuration }}: a failover now loses them."
 
       - alert: "FailoverLeaderChanged"
-        expr: "failover_leader == 1 and changes(failover_leader[5m]) > 0"
+        expr: "failover_leader == 1 and max_over_time(failover_leader[10m] offset 2m) == 0"
         labels:
           severity: "info"
           category: "services"
