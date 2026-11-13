@@ -1,9 +1,9 @@
 # ===== agent =====
-failover_version: "0.1.0-4"
+failover_version: "0.2.0"
 failover_package: "git+https://github.com/hackallcode/failover@v{{ failover_version }}"
 # A wheel or source tree on the controller, installed instead of failover_package.
 failover_package_file: ""
-# Python 3.11+; "" picks python3.12 on EL 9, python3 elsewhere.
+# Python 3.11+; "" picks python3.12 on EL 9, python3.11 on Ubuntu jammy, python3 elsewhere.
 failover_python: ""
 failover_dir: "/opt/failover"
 failover_config_dir: "/etc/failover"
@@ -22,7 +22,8 @@ failover_nats_servers: []
 # The local NATS server's name, where the leader pulls its streams.
 failover_nats_server_name: "{{ failover_node }}"
 failover_nats_replicas: 3
-# false on a node too loaded to lead the service's streams: a stalled stream leader stalls renewals everywhere.
+# false on a node too loaded to lead the agents' stream: a stalled stream leader stalls renewals everywhere. Every
+# service shares that stream, so with services led on different nodes they pull it back and forth.
 failover_place_streams: true
 # The nats role's server certificate on the same host carries clientAuth.
 failover_nats_tls:

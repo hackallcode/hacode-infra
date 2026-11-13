@@ -29,7 +29,8 @@ nats_ping_max: 3
 nats_max_file_store: 2147483648
 nats_max_memory_store: 67108864
 
-# Deep-merged over the rendered config; server_name, listen, cluster, jetstream store_dir and tls are locked.
+# Deep-merged over the rendered config; server_name, listen, http, ping_interval, ping_max, the cluster keys the
+# role renders, jetstream store_dir and limits, and tls are locked.
 nats_config_extra: {}
 
 # ===== tls =====

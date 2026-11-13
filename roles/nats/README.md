@@ -32,7 +32,7 @@ the same CA on both ends, so a route port open to the internet admits only the c
 | `nats_config_dir` | `/etc/nats` | config and the `pki/` certificates |
 | `nats_ping_interval` / `nats_ping_max` | `2s` / `3` | a server that died without closing connections is dropped after their product; the NATS default leaves requests routed to it hanging for minutes |
 | `nats_max_file_store` / `nats_max_memory_store` | `2147483648` / `67108864` | JetStream limits of this server, bytes |
-| `nats_config_extra` | `{}` | deep-merged over the rendered config; the server's identity, listeners, store and TLS are locked |
+| `nats_config_extra` | `{}` | deep-merged over the rendered config; the server's identity, listeners, monitoring port, pings, store and its limits, cluster settings the role renders and TLS are locked |
 | `nats_ca_key` / `nats_ca_cert` | `""` (required) | CA that signs server certificates (PEM); the key is used on the controller only |
 | `nats_cert_days` | `3650` | server certificate lifetime |
 | `nats_textfile_dir` | `/var/lib/node_exporter` | node_exporter textfile dir for `nats.prom`, skipped when missing; `""` turns it off |
@@ -45,6 +45,7 @@ by the `nats` group and root) can use them.
 ```yaml
 - hosts: "nats"  # nats-1, nats-2, nats-3
   become: true
+  serial: 1  # a config change restarts the server: one at a time keeps the JetStream quorum
   roles:
     - role: "hacode.infra.nats"
       vars:

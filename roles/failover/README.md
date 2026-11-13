@@ -23,7 +23,7 @@ the agent, so a dead or hung agent stops them.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `failover_version` | `0.1.0-4` | agent tag |
+| `failover_version` | `0.2.0` | agent tag |
 | `failover_package` | `git+https://github.com/hackallcode/failover@v<version>` | what pip installs |
 | `failover_package_file` | `""` | a wheel or source tree on the controller, installed instead |
 | `failover_python` | `""` | Python 3.11+; `""` picks `python3.12` on EL 9, `python3` elsewhere |
@@ -34,7 +34,7 @@ the agent, so a dead or hung agent stops them.
 | `failover_nats_servers` | `[]` (required) | NATS URLs, the local server first |
 | `failover_nats_server_name` | `failover_node` | the local NATS server's name (`nats_name` of the nats role), where the leader pulls its streams |
 | `failover_nats_replicas` | `3` | replicas of the KV bucket the agent creates |
-| `failover_place_streams` | `true` | while leading, move the leaders of the service's streams to this node's NATS server; `false` on a node too loaded to host them |
+| `failover_place_streams` | `true` | while leading, move the leader of the agents' stream (the `failover` bucket, shared by every service) to this node's NATS server; `false` on a node too loaded to host it |
 | `failover_nats_tls` | the `nats` role's server certificate | client certificate for NATS: `{ca, cert, key}` |
 | `failover_services` | `[]` | services, see below |
 | `failover_lease_ttl` | `15` | lease TTL in seconds; keep it well above the time NATS needs to re-elect a stream leader after losing a server |

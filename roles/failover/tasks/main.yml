@@ -63,7 +63,8 @@
     - name: "Install Python and git"
       ansible.builtin.package:
         name: >-
-          {{ [_failover_python, 'python3-packaging'] + (['python3-venv'] if ansible_os_family == 'Debian' else [])
+          {{ [_failover_python, 'python3-packaging']
+             + ([_failover_python ~ '-venv'] if ansible_os_family == 'Debian' else [])
              + ([] if failover_package_file else ['git']) }}
         state: "present"
 
@@ -97,7 +98,6 @@
         group: "root"
         mode: "0644"
       register: "_failover_wanted"
-      notify: "Restart failover agents"
 
     - name: "Check the virtualenv"
       ansible.builtin.stat:
@@ -113,7 +113,7 @@
         virtualenv_command: "{{ _failover_python }} -m venv"
         state: "forcereinstall"
       when: "_failover_wanted is changed or _failover_upload is changed or not _failover_venv.stat.exists"
-      notify: "Restart failover agents"
+      register: "_failover_pip"
 
     - name: "Write agent secrets"
       ansible.builtin.copy:
@@ -129,7 +129,7 @@
         label: "{{ item.file }}"
       when: "item.value | length > 0"
       no_log: true
-      notify: "Restart failover agents"
+      register: "_failover_secrets"
 
     - name: "Create service state dirs"
       ansible.builtin.file:
@@ -152,7 +152,7 @@
       loop: "{{ _failover_active }}"
       loop_control:
         label: "{{ item.name }}"
-      notify: "Restart failover agents"
+      register: "_failover_configs"
 
     - name: "Install the agent unit"
       ansible.builtin.template:
@@ -161,7 +161,22 @@
         owner: "root"
         group: "root"
         mode: "0644"
-      notify: "Restart failover agents"
+      register: "_failover_unit"
+
+    # Restarting a leading agent stops its service for a moment: only agents whose own config changed restart,
+    # unless what they all share did. A stopped agent starts here once, not again in "Enable agents".
+    - name: "Restart changed agents"
+      ansible.builtin.systemd:
+        name: "failover@{{ item.name }}.service"
+        state: "restarted"
+        daemon_reload: true
+      loop: >-
+        {{ _failover_active
+           if [_failover_wanted, _failover_pip, _failover_secrets, _failover_unit] | select('changed') | list
+           else _failover_configs.results | select('changed') | map(attribute='item') | list }}
+      loop_control:
+        label: "{{ item.name }}"
+      when: "not ansible_check_mode"
 
     - name: "Enable agents"
       ansible.builtin.systemd:
