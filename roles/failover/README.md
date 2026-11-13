@@ -12,7 +12,7 @@ agent decides, and what it guarantees, is in its README.
   containers stop with the agent.
 - `backup`: on the node that leads a service, copy its databases online with SQLite's backup API, check each copy
   and pull them to `failover_backup_local_dir` as `<stamp>_<service>.tar.gz`, with each database's path and owner.
-  A standby has nothing to back up.
+  A standby has nothing to back up; a service without a leader fails the run.
 - `restore`: put the latest copies in place on a fresh host before the agents start; with no position in NATS yet,
   the first leader starts from them and replicates them. It refuses while a service's agent runs.
 
@@ -35,6 +35,7 @@ the agent, so a dead or hung agent stops them.
 | `failover_textfile_dir` | `/var/lib/node_exporter` | `failover_<service>.prom` for node_exporter; `""` turns it off |
 | `failover_node` | `inventory_hostname` | this node's name |
 | `failover_nats_servers` / `failover_nats_litestream_url` | `[]` / `""` (required) | NATS URLs, the local server first, and the one Litestream uses |
+| `failover_nats_server_name` | `failover_node` | the local NATS server's name (`nats_name` of the nats role), where the leader pulls its streams |
 | `failover_nats_replicas` | `3` | replicas of the KV and object store buckets the agent creates |
 | `failover_place_streams` | `true` | while leading, move the leaders of the service's streams to this node's NATS server; `false` on a node too loaded to host them |
 | `failover_nats_tls` | the `nats` role's server certificate | client certificate for NATS: `{ca, cert, key}` |

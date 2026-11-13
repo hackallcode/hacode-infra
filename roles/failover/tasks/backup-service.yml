@@ -5,6 +5,13 @@
   changed_when: false
   check_mode: false
 
+- name: "Refuse a backup of {{ _failover_service.name }} without a leader"
+  ansible.builtin.assert:
+    that: "(_failover_backup_state.stdout | from_json).leader"
+    fail_msg: "{{ _failover_service.name }} has no leader: there is nothing consistent to back up"
+    quiet: true
+  run_once: true
+
 - name: "Copy and archive the databases of {{ _failover_service.name }}"
   when: "(_failover_backup_state.stdout | from_json).leader == failover_node"
   vars:

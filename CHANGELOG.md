@@ -10,8 +10,11 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 ### Breaking changes
 
 - `etcd` and `headscale_failover` roles are removed: `nats` and `failover`
-  replace them. Move the service to `failover` and take etcd off the hosts
-  before upgrading, as the removed roles no longer clean up after themselves.
+  replace them. Before upgrading, with this collection's previous release:
+  run `headscale_failover` with `headscale_failover_state: absent` on every
+  candidate (its unit, state and `headscale_failover.prom` go), move the
+  service to `failover`, then stop etcd and delete its unit, binaries, config
+  and data dir on every member; the removed roles cannot do it afterwards.
 
 ### Added
 

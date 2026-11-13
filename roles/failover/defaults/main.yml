@@ -27,6 +27,8 @@ failover_node: "{{ inventory_hostname }}"
 failover_nats_servers: []
 # Litestream's NATS replica takes a single URL.
 failover_nats_litestream_url: ""
+# The local NATS server's name, where the leader pulls its streams.
+failover_nats_server_name: "{{ failover_node }}"
 failover_nats_replicas: 3
 # false on a node too loaded to lead the service's streams: a stalled stream leader stalls renewals everywhere.
 failover_place_streams: true
