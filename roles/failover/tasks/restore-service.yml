@@ -36,6 +36,7 @@
       ansible.builtin.file:
         path: "{{ item.value.path | dirname }}"
         state: "directory"
+        mode: "0755"
       loop: "{{ _failover_restore_index.content | b64decode | from_json | dict2items }}"
       loop_control:
         label: "{{ item.value.path | dirname }}"
@@ -45,7 +46,8 @@
       ansible.builtin.file:
         path: "{{ item.0.value.path }}-{{ item.1 }}"
         state: "absent"
-      loop: "{{ _failover_restore_index.content | b64decode | from_json | dict2items | product(['wal', 'shm']) | list }}"
+      loop: >-
+        {{ _failover_restore_index.content | b64decode | from_json | dict2items | product(['wal', 'shm']) | list }}
       loop_control:
         label: "{{ item.0.value.path }}-{{ item.1 }}"
 
