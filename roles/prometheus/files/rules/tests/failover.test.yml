@@ -28,6 +28,30 @@ tests:
               summary: "No node holds a failover service's lease."
               description: "The headscale failover agent on a sees no leader: see the agents' journals and `failover state`."
 
+  # записи лидера не доходят до реплики дольше 2 мин → FailoverReplicationLag; короткий лаг - тишина
+  - interval: 1m
+    input_series:
+      - series: 'failover_replication_lag_seconds{job="node",instance_name="a",service="headscale"}'
+        values: "0 60 120 180 240 300 360"
+      - series: 'failover_replication_lag_seconds{job="node",instance_name="b",service="headscale"}'
+        values: "0 30 0 30 0 30 0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: FailoverReplicationLag
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: FailoverReplicationLag
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: services
+              job: node
+              instance_name: a
+              service: headscale
+            exp_annotations:
+              summary: "A failover leader's writes do not reach the replica."
+              description: "headscale on a has not replicated its writes for 5m 0s: a failover now loses them."
+
   # лидерство переехало на b → срабатывает у b, через 5 мин тишина
   - interval: 1m
     input_series:

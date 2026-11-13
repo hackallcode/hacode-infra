@@ -11,6 +11,16 @@ groups:
           summary: "No node holds a failover service's lease."
           description: "The {{ $labels.service }} failover agent on {{ $labels.instance_name }} sees no leader: see the agents' journals and `failover state`."
 
+      - alert: "FailoverReplicationLag"
+        expr: "failover_replication_lag_seconds > 120"
+        for: "1m"
+        labels:
+          severity: "critical"
+          category: "services"
+        annotations:
+          summary: "A failover leader's writes do not reach the replica."
+          description: "{{ $labels.service }} on {{ $labels.instance_name }} has not replicated its writes for {{ $value | humanizeDuration }}: a failover now loses them."
+
       - alert: "FailoverLeaderChanged"
         expr: "failover_leader == 1 and changes(failover_leader[5m]) > 0"
         labels:

@@ -61,10 +61,11 @@
   when: "_failover_active | length > 0"
   block:
     # The pip module needs packaging in the Python Ansible runs on; minimal EL 10 lacks it.
-    - name: "Install Python"
+    - name: "Install Python and git"
       ansible.builtin.package:
         name: >-
-          {{ [_failover_python, 'python3-packaging'] + (['python3-venv'] if ansible_os_family == 'Debian' else []) }}
+          {{ [_failover_python, 'python3-packaging'] + (['python3-venv'] if ansible_os_family == 'Debian' else [])
+             + ([] if failover_package_file else ['git']) }}
         state: "present"
 
     - name: "Create agent dirs"
