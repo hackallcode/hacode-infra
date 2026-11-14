@@ -38,6 +38,8 @@ DERP relay and STUN, in docker compose with host networking. TLS is terminated i
 | `headscale_policy` | `{}` | ACL policy as a dict, rewritten on every deploy; `{}` - allow all |
 | `headscale_initial_policy` | `{}` | instead of `headscale_policy`: the policy lives in headscale's database (editable over the API), this one goes only into an empty database |
 | `headscale_oidc` | `{}` | OIDC login for user devices: `issuer`, `client_id`, `client_secret` and any other `oidc` keys; PKCE on; headscale starts without the provider |
+| `headscale_oidc_wait` | `0` | seconds headscale's start waits for the provider's discovery document; a headscale started without the provider has CLI login only until restarted. Under `failover`, keep the service's `start_timeout` above it |
+| `headscale_oidc_wait_image` | `curlimages/curl:8.23.0` | image of that wait |
 | `headscale_users` | `[]` | user names to create |
 | `headscale_node_ips` | `{}` | fixed addresses by given name or, failing that, the hostname a node reports (a rename does not touch it), `{"<name>": ["<ipv4>", "<ipv6>"]}`; the database is edited with headscale stopped, nodes not registered yet are skipped |
 | `headscale_hold_file` | `""` | under the `failover` role: `<failover_state_dir>/<service>/hold`, the agent leaves headscale alone while it exists |

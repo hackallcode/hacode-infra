@@ -44,6 +44,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   Jinja, so it can use vault values.
 - `certbot` role: `certbot_deploy_hook` is also installed into
   `renewal-hooks/deploy`, so it reaches certificates issued before it was set.
+- `headscale` role: `headscale_oidc_wait` holds headscale's start until the
+  OIDC provider answers, for that long at most: headscale started without the
+  provider has CLI login only until restarted, and a provider failing over
+  together with it needs a moment to come up.
+- `failover` role: `start_timeout` on a service lets `docker compose up` run
+  past the agent's 120 s, e.g. while such a wait runs.
 - `tailscale` role: `tailscale_metrics_enabled` has tailscaled serve its client
   metrics, including traffic by path (direct, peer relay or DERP), for
   Prometheus at `<tailnet IP>:5252/metrics`.

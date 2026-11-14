@@ -32,7 +32,8 @@ failover_nats_tls:
   key: "/etc/nats/pki/server.key"
 
 # ===== services =====
-# [{name, projects, databases, dns_zone, dns_names, dns_ip, candidate, lease_ttl, api_listen, state}], see README.
+# [{name, projects, databases, dns_zone, dns_names, dns_ip, candidate, start_timeout, lease_ttl, api_listen, state}],
+# see README.
 failover_services: []
 # The leader fences at 70% of it without a renewal. Keep it well above the time NATS needs to re-elect a stream
 # leader after losing a server (a few times nats_ping_interval * nats_ping_max) and above the stalls a deploy causes.

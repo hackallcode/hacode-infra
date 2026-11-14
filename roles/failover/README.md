@@ -50,6 +50,7 @@ A service in `failover_services`:
 | `databases` | `{name: path}` of its SQLite files |
 | `dns_zone` / `dns_names` / `dns_ip` | Cloudflare A records pointed at `dns_ip` while this node leads |
 | `candidate` | `false`: follow and report, never lead (default `true`) |
+| `start_timeout` | seconds `docker compose up` of one project may take (agent default 120), e.g. while a one-shot service waits |
 | `lease_ttl` | overrides `failover_lease_ttl` |
 | `api_listen` | `host:port` of the agent's API (`GET /state`, `POST /takeover`); unset for none |
 | `state` | `absent` removes the agent |
