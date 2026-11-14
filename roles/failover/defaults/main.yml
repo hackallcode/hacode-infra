@@ -1,5 +1,5 @@
 # ===== agent =====
-failover_version: "0.2.0"
+failover_version: "0.3.0"
 failover_package: "git+https://github.com/hackallcode/failover@v{{ failover_version }}"
 # A wheel or source tree on the controller, installed instead of failover_package.
 failover_package_file: ""

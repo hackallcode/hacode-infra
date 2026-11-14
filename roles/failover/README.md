@@ -23,7 +23,7 @@ the agent, so a dead or hung agent stops them.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `failover_version` | `0.2.0` | agent tag |
+| `failover_version` | `0.3.0` | agent tag |
 | `failover_package` | `git+https://github.com/hackallcode/failover@v<version>` | what pip installs |
 | `failover_package_file` | `""` | a wheel or source tree on the controller, installed instead |
 | `failover_python` | `""` | Python 3.11+; `""` picks `python3.12` on EL 9, `python3` elsewhere |
