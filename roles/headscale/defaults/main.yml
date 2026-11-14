@@ -34,11 +34,11 @@ headscale_policy: {}
 headscale_initial_policy: {}
 
 # OIDC login for users' devices: {issuer, client_id, client_secret} plus any other `oidc` config keys; {} turns it off.
-# headscale starts without the provider, so a standby still comes up while the provider is down.
+# headscale starts without the provider, so a standby still comes up while the provider is down, but then has CLI
+# login only until restarted.
 headscale_oidc: {}
-# Seconds headscale's start waits for the provider's discovery document; 0: no wait. headscale started while the
-# provider is down falls back to CLI login until restarted, so a provider that fails over together with headscale
-# needs time to come up first. Under the failover role keep the service's start_timeout above it.
+# Seconds headscale's start waits for the provider's discovery document, e.g. for a provider failing over together
+# with headscale to come up; 0: no wait. Under the failover role keep the service's start_timeout above it.
 headscale_oidc_wait: 0
 headscale_oidc_wait_image: "curlimages/curl:8.23.0"
 

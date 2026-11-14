@@ -1,5 +1,6 @@
+{% set oidc_wait = headscale_oidc and headscale_oidc_wait | int > 0 %}
 services:
-{% if headscale_oidc and headscale_oidc_wait | int > 0 %}
+{% if oidc_wait %}
   oidc-wait:
     image: "{{ headscale_oidc_wait_image }}"
     network_mode: "host"
@@ -8,7 +9,7 @@ services:
       - >-
         curl -fsS -o /dev/null --connect-timeout 5 --max-time 10
         --retry 1000 --retry-delay 5 --retry-all-errors --retry-max-time {{ headscale_oidc_wait | int }}
-        {{ headscale_oidc.issuer | regex_replace('/$', '') }}/.well-known/openid-configuration
+        '{{ headscale_oidc.issuer | regex_replace('/$', '') }}/.well-known/openid-configuration'
         || echo "the OIDC provider is down: headscale starts with CLI login only"
     restart: "no"
 {% endif %}
@@ -21,7 +22,7 @@ services:
       - "./config/:/etc/headscale/:ro"
       - "./data/:/var/lib/headscale/"
     restart: "unless-stopped"
-{% if headscale_oidc and headscale_oidc_wait | int > 0 %}
+{% if oidc_wait %}
     depends_on:
       oidc-wait:
         condition: "service_completed_successfully"
