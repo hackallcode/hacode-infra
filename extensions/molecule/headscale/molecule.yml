@@ -69,8 +69,9 @@ provisioner:
             "tag:server": ["molecule@"]
           acls:
             - {action: "accept", src: ["*"], dst: ["*:*"]}
-        # Nothing listens there: headscale has to start without its provider.
+        # Nothing listens there: headscale has to start without its provider once the wait runs out.
         headscale_oidc:
           issuer: "http://127.0.0.1:9/oidc"
           client_id: "headscale"
           client_secret: "molecule"
+        headscale_oidc_wait: 10

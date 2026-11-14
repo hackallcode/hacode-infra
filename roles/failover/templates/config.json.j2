@@ -13,5 +13,6 @@
   'lease_ttl': item.lease_ttl | default(failover_lease_ttl) | int,
   'place_streams': failover_place_streams | bool,
   'metrics_dir': failover_textfile_dir or None,
-} | combine({'api': {'listen': item.api_listen, 'token_file': failover_config_dir ~ '/api-token'}}
+} | combine({'start_timeout': item.start_timeout | int} if item.start_timeout is defined else {})
+  | combine({'api': {'listen': item.api_listen, 'token_file': failover_config_dir ~ '/api-token'}}
             if item.api_listen | default('') else {}) | to_nice_json }}

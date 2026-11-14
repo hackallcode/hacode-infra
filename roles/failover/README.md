@@ -23,7 +23,7 @@ the agent, so a dead or hung agent stops them.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `failover_version` | `0.2.0` | agent tag |
+| `failover_version` | `0.3.0` | agent tag |
 | `failover_package` | `git+https://github.com/hackallcode/failover@v<version>` | what pip installs |
 | `failover_package_file` | `""` | a wheel or source tree on the controller, installed instead |
 | `failover_python` | `""` | Python 3.11+; `""` picks `python3.12` on EL 9, `python3` elsewhere |
@@ -50,6 +50,7 @@ A service in `failover_services`:
 | `databases` | `{name: path}` of its SQLite files |
 | `dns_zone` / `dns_names` / `dns_ip` | Cloudflare A records pointed at `dns_ip` while this node leads |
 | `candidate` | `false`: follow and report, never lead (default `true`) |
+| `start_timeout` | seconds `docker compose up` of one project may take (agent default 120), e.g. while a one-shot service waits |
 | `lease_ttl` | overrides `failover_lease_ttl` |
 | `api_listen` | `host:port` of the agent's API (`GET /state`, `POST /takeover`); unset for none |
 | `state` | `absent` removes the agent |

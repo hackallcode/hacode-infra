@@ -117,6 +117,9 @@
     project_name: "headscale"
     state: "{{ 'present' if _headscale_active else 'stopped' }}"
     remove_orphans: true
+  register: "_headscale_up"
+  # compose up runs the exited OIDC wait again every time, which by itself changes nothing.
+  changed_when: "_headscale_up.actions | rejectattr('id', 'search', 'oidc-wait') | list | length > 0"
   when: "not ansible_check_mode"
 
 - name: "Apply pending headscale restart"

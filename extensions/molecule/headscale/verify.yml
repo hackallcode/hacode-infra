@@ -11,6 +11,12 @@
       register: "health"
       failed_when: "health.json.status != 'pass'"
 
+    - name: "The wait for the provider ran out and let headscale start"
+      ansible.builtin.command: "docker logs headscale-oidc-wait-1"
+      register: "oidc_wait"
+      changed_when: false
+      failed_when: "'starts with CLI login only' not in oidc_wait.stdout"
+
     - name: "User exists"
       ansible.builtin.command: "docker exec headscale headscale users list -o json"
       register: "users"
