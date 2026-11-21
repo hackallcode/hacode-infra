@@ -47,14 +47,22 @@
       changed_when: false
       failed_when: "'tag:edited' not in policy_after.stdout"
 
-    - name: "The DERP probe found 901a down and kept the whole map"
+    - name: "Read the DERP probe state"
       ansible.builtin.slurp:
-        src: "{{ item }}"
-      loop: ["/opt/headscale/derp-probe.json", "/opt/headscale/config/derp.yml"]
-      register: "derp_probe"
-      failed_when: >-
-        (derp_probe.results[0].content | b64decode | from_json)['901a'].up
-        or 901 not in (derp_probe.results[1].content | b64decode | from_yaml).regions
+        src: "/opt/headscale/derp-probe.json"
+      register: "derp_probe_state"
+
+    - name: "Read the DERP map"
+      ansible.builtin.slurp:
+        src: "/opt/headscale/config/derp.yml"
+      register: "derp_probe_map"
+
+    - name: "The DERP probe found 901a down and kept the whole map"
+      ansible.builtin.assert:
+        that:
+          - "not (derp_probe_state.content | b64decode | from_json)['901a'].up"
+          - "901 in (derp_probe_map.content | b64decode | from_yaml).regions"
+        quiet: true
 
     - name: "The DERP probe timer runs"
       ansible.builtin.systemd:
