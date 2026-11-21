@@ -1,0 +1,29 @@
+- name: "{{ _cloudflare_worker_call.name }}"
+  ansible.builtin.uri:
+    url: "{{ _cloudflare_worker_api }}{{ _cloudflare_worker_call.path }}"
+    method: "{{ _cloudflare_worker_call.method | default('GET') }}"
+    headers: "{{ _cloudflare_worker_headers }}"
+    body_format: "{{ _cloudflare_worker_call.body_format | default(omit) }}"
+    body: "{{ _cloudflare_worker_call.body | default(omit) }}"
+    status_code: "{{ _cloudflare_worker_call.ok | default([200]) }}"
+  register: "_cloudflare_worker_response"
+  check_mode: false
+  changed_when: "_cloudflare_worker_write and _cloudflare_worker_response.status != 404"
+  failed_when: false
+  no_log: true
+  when: "not (_cloudflare_worker_write and ansible_check_mode)"
+
+- name: "Show why Cloudflare refused: {{ _cloudflare_worker_call.name }}"
+  ansible.builtin.assert:
+    that: "_cloudflare_worker_response.status in _cloudflare_worker_call.ok | default([200])"
+    fail_msg: >-
+      {{ _cloudflare_worker_response.status }}
+      {{ _cloudflare_worker_response.json.errors | default(_cloudflare_worker_response.msg) }}
+    quiet: true
+  when: "_cloudflare_worker_response is not skipped"
+
+- name: "Would {{ _cloudflare_worker_call.name | lower }}"
+  ansible.builtin.debug:
+    msg: "{{ _cloudflare_worker_call.method }} {{ _cloudflare_worker_call.path }}"
+  changed_when: true
+  when: "_cloudflare_worker_write and ansible_check_mode"

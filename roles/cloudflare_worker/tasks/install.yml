@@ -1,0 +1,91 @@
+- name: "Validate cloudflare_worker settings"
+  ansible.builtin.assert:
+    that:
+      - "cloudflare_worker_token | length > 0"
+      - "cloudflare_worker_account_id | length > 0"
+      - "cloudflare_worker_zone_id | length > 0"
+      - "cloudflare_worker_hostname | length > 0"
+      - "cloudflare_worker_name | length > 0"
+    fail_msg: >-
+      cloudflare_worker needs cloudflare_worker_token, cloudflare_worker_account_id, cloudflare_worker_zone_id,
+      cloudflare_worker_hostname and cloudflare_worker_name
+    quiet: true
+
+- name: "Validate the upstreams"
+  ansible.builtin.assert:
+    that:
+      - "cloudflare_worker_upstreams is mapping"
+      - "cloudflare_worker_upstreams | length > 0"
+      - "cloudflare_worker_upstreams.keys() | reject('match', '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$') | list | length == 0"
+      - "cloudflare_worker_upstreams.values() | reject('sequence') | list | length == 0"
+      - "cloudflare_worker_upstreams.values() | select('string') | list | length == 0"
+      - "cloudflare_worker_upstreams.values() | map('length') | select('equalto', 0) | list | length == 0"
+      - "cloudflare_worker_upstreams.values() | flatten | map('string') | reject('match', '^/') | list | length == 0"
+    fail_msg: "cloudflare_worker_upstreams needs to be {lowercase host name: [path prefixes starting with /]}"
+    quiet: true
+
+- name: "Read the deployed script"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Read the deployed script"
+      path: "/scripts/{{ cloudflare_worker_name }}/script-settings"
+      ok: [200, 404]
+
+- name: "Upload the script"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Upload the script"
+      path: "/scripts/{{ cloudflare_worker_name }}"
+      method: "PUT"
+      body_format: "form-multipart"
+      body:
+        metadata:
+          content: "{{ _cloudflare_worker_metadata | combine({'tags': [_cloudflare_worker_tag]}) | to_json }}"
+          mime_type: "application/json"
+        worker.js:
+          content: "{{ _cloudflare_worker_script }}"
+          filename: "worker.js"
+          mime_type: "application/javascript+module"
+  when: >-
+    _cloudflare_worker_response.status == 404
+    or _cloudflare_worker_tag not in (_cloudflare_worker_response.json.result.tags | default([], true))
+
+- name: "Read the hostnames the script serves"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Read the hostnames the script serves"
+      path: "/domains?service={{ cloudflare_worker_name }}"
+
+- name: "Keep the hostnames found"
+  ansible.builtin.set_fact:
+    _cloudflare_worker_domains: "{{ _cloudflare_worker_response.json.result }}"
+
+- name: "Serve the script on its hostname"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Serve the script on {{ cloudflare_worker_hostname }}"
+      path: "/domains"
+      method: "PUT"
+      body_format: "json"
+      body:
+        hostname: "{{ cloudflare_worker_hostname }}"
+        zone_id: "{{ cloudflare_worker_zone_id }}"
+        service: "{{ cloudflare_worker_name }}"
+        environment: "production"
+  when: "cloudflare_worker_hostname not in _cloudflare_worker_domains | map(attribute='hostname')"
+
+- name: "Detach the hostnames it no longer serves"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Detach {{ item.hostname }}"
+      path: "/domains/{{ item.id }}"
+      method: "DELETE"
+      ok: [200, 204]
+  loop: "{{ _cloudflare_worker_domains | rejectattr('hostname', 'equalto', cloudflare_worker_hostname) }}"
+  loop_control:
+    label: "{{ item.hostname }}"

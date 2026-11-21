@@ -64,10 +64,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `prometheus` role: `uninstall` takes Prometheus, Alertmanager and
   blackbox_exporter off a host that no longer watches the others, with their
   data; node_exporter stays for the Prometheus servers left.
-- `telegram_relay` role: a Cloudflare Worker that passes the Telegram Bot API
-  calls of listed bots and answers every other path with 404, on a hostname of
-  a Cloudflare zone, for hosts that reach Cloudflare but not
-  `api.telegram.org`.
+- `cloudflare_worker` role: a Cloudflare Worker on a hostname of a Cloudflare
+  zone, for hosts that reach Cloudflare but not an upstream. It passes
+  `/<host>/<path>` to `https://<host>/<path>` for the hosts and path prefixes
+  in `cloudflare_worker_upstreams` and answers every other call with 404, so
+  many upstreams share one hostname and the Worker is no open proxy; the
+  Telegram Bot API of listed bots is one such upstream. The upload is tagged
+  with a hash of what went up, so a rerun with nothing changed writes nothing.
 
 ### Changed
 

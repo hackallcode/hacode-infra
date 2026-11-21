@@ -1,0 +1,19 @@
+# A Worker that relays calls to listed upstreams, served on a hostname of a Cloudflare zone, for hosts that reach
+# Cloudflare but not the upstreams. The tasks call the Cloudflare API only, so run the role on the controller.
+
+# Cloudflare API token: Workers Scripts:Edit on the account (the legacy permission; Workers:Editor alone cannot
+# upload) and Workers Routes:Edit on the zone of cloudflare_worker_hostname.
+cloudflare_worker_token: ""
+cloudflare_worker_account_id: ""
+cloudflare_worker_zone_id: ""
+
+# Name in cloudflare_worker_zone_id the Worker answers on; Cloudflare creates its DNS record and certificate.
+cloudflare_worker_hostname: ""
+cloudflare_worker_name: ""
+
+# {upstream host: [path prefixes]}: /<host>/<path> goes to https://<host>/<path> when <path> starts with one of the
+# host's prefixes, "/" for all of them; any other call gets 404, so the Worker is no open proxy. Upstreams share one
+# hostname, so no DNS record names them. Host names are matched as written, in lower case.
+cloudflare_worker_upstreams: {}
+
+cloudflare_worker_compatibility_date: "2026-11-01"

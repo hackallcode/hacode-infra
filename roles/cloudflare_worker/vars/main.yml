@@ -1,0 +1,15 @@
+_cloudflare_worker_api: "https://api.cloudflare.com/client/v4/accounts/{{ cloudflare_worker_account_id }}/workers"
+_cloudflare_worker_headers:
+  Authorization: "Bearer {{ cloudflare_worker_token }}"
+
+_cloudflare_worker_script: "{{ lookup('ansible.builtin.file', 'relay.mjs') }}"
+_cloudflare_worker_metadata:
+  main_module: "worker.js"
+  compatibility_date: "{{ cloudflare_worker_compatibility_date }}"
+  bindings:
+    - {type: "plain_text", name: "ROUTES", text: "{{ cloudflare_worker_upstreams | to_json }}"}
+# A tag names what was uploaded, so a rerun reads it back instead of uploading a new version each time.
+_cloudflare_worker_tag: >-
+  deploy-{{ (_cloudflare_worker_script ~ (_cloudflare_worker_metadata | to_json)) | hash('sha256')
+            | truncate(16, true, '') }}
+_cloudflare_worker_write: "{{ (_cloudflare_worker_call.method | default('GET')) != 'GET' }}"
