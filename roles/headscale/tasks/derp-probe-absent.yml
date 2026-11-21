@@ -1,0 +1,22 @@
+- name: "Stat the DERP probe timer"
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/headscale-derp-probe.timer"
+  register: "_headscale_derp_timer"
+
+- name: "Stop the DERP probe timer"
+  ansible.builtin.systemd:
+    name: "headscale-derp-probe.timer"
+    enabled: false
+    state: "stopped"
+  when: "_headscale_derp_timer.stat.exists"
+
+- name: "Remove the DERP probe files"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "absent"
+  loop:
+    - "/etc/systemd/system/headscale-derp-probe.service"
+    - "/etc/systemd/system/headscale-derp-probe.timer"
+    - "{{ headscale_dir }}/derp-probe.py"
+    - "{{ headscale_dir }}/derp-regions.json"
+    - "{{ headscale_dir }}/derp-probe.json"

@@ -85,8 +85,69 @@
     owner: "root"
     group: "root"
     mode: "0640"
-  when: "headscale_derp_regions | length > 0"
+  when:
+    - "headscale_derp_regions | length > 0"
+    - "headscale_derp_probe_interval | int == 0"
   notify: "Restart headscale"
+
+- name: "Probe the DERP relays"
+  when:
+    - "headscale_derp_regions | length > 0"
+    - "headscale_derp_probe_interval | int > 0"
+  block:
+    - name: "Install the DERP probe"
+      ansible.builtin.copy:
+        src: "derp-probe.py"
+        dest: "{{ headscale_dir }}/derp-probe.py"
+        owner: "root"
+        group: "root"
+        mode: "0755"
+
+    - name: "Write the full DERP map"
+      ansible.builtin.copy:
+        content: "{{ headscale_derp_regions | to_nice_json(indent=2) }}\n"
+        dest: "{{ headscale_dir }}/derp-regions.json"
+        owner: "root"
+        group: "root"
+        mode: "0640"
+      register: "_headscale_derp_regions"
+
+    - name: "Install the DERP probe units"
+      ansible.builtin.template:
+        src: "derp-probe.{{ item }}.j2"
+        dest: "/etc/systemd/system/headscale-derp-probe.{{ item }}"
+        owner: "root"
+        group: "root"
+        mode: "0644"
+      loop: ["service", "timer"]
+      register: "_headscale_derp_units"
+
+    - name: "Stat the DERP map"
+      ansible.builtin.stat:
+        path: "{{ headscale_dir }}/config/derp.yml"
+      register: "_headscale_derp_map"
+
+    # headscale reloads the map on its own, but needs one to start with.
+    - name: "Write the DERP map now"
+      ansible.builtin.systemd:
+        name: "headscale-derp-probe.service"
+        state: "started"
+        daemon_reload: "{{ _headscale_derp_units is changed }}"
+      when:
+        - "not ansible_check_mode"
+        - "_headscale_derp_regions is changed or not _headscale_derp_map.stat.exists"
+
+    - name: "Enable the DERP probe timer"
+      ansible.builtin.systemd:
+        name: "headscale-derp-probe.timer"
+        enabled: true
+        state: "started"
+        daemon_reload: "{{ _headscale_derp_units is changed }}"
+      when: "not ansible_check_mode"
+
+- name: "Remove the DERP probe"
+  when: "headscale_derp_regions | length == 0 or headscale_derp_probe_interval | int == 0"
+  ansible.builtin.import_tasks: "derp-probe-absent.yml"
 
 - name: "Remove unused optional config files"
   ansible.builtin.file:

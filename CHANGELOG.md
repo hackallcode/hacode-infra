@@ -55,6 +55,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `tailscale` role: `tailscale_metrics_enabled` has tailscaled serve its client
   metrics, including traffic by path (direct, peer relay or DERP), for
   Prometheus at `<tailnet IP>:5252/metrics`.
+- `headscale` role: `headscale_derp_probe_interval` checks the relays of
+  `headscale_derp_regions` from the control host on a timer and leaves out of
+  the DERP map a region none of whose relays answers, with headscale reloading
+  the map as often. A client relays to a peer through the peer's home region,
+  so a relay that only some nodes reach, picked as home by the others, cut
+  them off from each other.
 
 ### Changed
 

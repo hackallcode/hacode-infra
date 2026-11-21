@@ -18,7 +18,8 @@ _headscale_config:
       private_key_path: "/var/lib/headscale/derp_server_private.key"
       automatically_add_embedded_derp_region: true
     urls: "{{ headscale_derp_urls }}"
-    auto_update_enabled: false
+    auto_update_enabled: "{{ headscale_derp_probe_interval | int > 0 }}"
+    update_frequency: "{{ [headscale_derp_probe_interval | int, 1] | max }}s"
   disable_check_updates: true
   node:
     expiry: 0
