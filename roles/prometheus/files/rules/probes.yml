@@ -2,7 +2,8 @@ groups:
   - name: "probes"
     rules:
       - alert: "ProbeFailed"
-        expr: "probe_success == 0"
+        # A Prometheus cut off from every host it watches fails its probes too; PrometheusIsolated covers it.
+        expr: 'probe_success == 0 unless on() max(up{instance_name!=""}) == 0'
         for: "2m"
         labels:
           severity: "critical"
