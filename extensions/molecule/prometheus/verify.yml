@@ -127,3 +127,34 @@
       register: "am_extra_template"
       failed_when: >-
         'molecule.extra.message' not in (am_extra_template.content | b64decode)
+
+    - name: "Uninstall"
+      ansible.builtin.include_role:
+        name: "hacode.infra.prometheus"
+        tasks_from: "uninstall"
+
+    - name: "Prometheus, Alertmanager and their data are gone"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "/etc/systemd/system/prometheus.service"
+        - "/etc/systemd/system/alertmanager.service"
+        - "/usr/local/bin/prometheus"
+        - "/usr/local/bin/alertmanager"
+        - "/etc/prometheus"
+        - "/etc/alertmanager"
+        - "/var/lib/prometheus"
+        - "/var/lib/alertmanager"
+      register: "uninstalled"
+      failed_when: "uninstalled.stat.exists"
+
+    - name: "Node_exporter keeps running"  # noqa: command-instead-of-module
+      ansible.builtin.command: "systemctl is-active node_exporter.service"
+      register: "ne_active"
+      changed_when: false
+      failed_when: "ne_active.stdout.strip() != 'active'"
+
+    - name: "Uninstall from a host without them"
+      ansible.builtin.include_role:
+        name: "hacode.infra.prometheus"
+        tasks_from: "uninstall"

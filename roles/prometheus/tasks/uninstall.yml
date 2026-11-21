@@ -1,0 +1,56 @@
+# node_exporter stays: other Prometheus servers keep scraping the host. Paths and users follow the upstream roles'
+# defaults, which are not loaded here.
+- name: "Read the installed units"
+  ansible.builtin.service_facts:
+
+- name: "Stop Prometheus, Alertmanager and blackbox_exporter"
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: "stopped"
+    enabled: false
+  loop: ["prometheus", "alertmanager", "blackbox_exporter"]
+  when: "(item ~ '.service') in ansible_facts.services"
+
+- name: "Remove their units, binaries, configs and data"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: "absent"
+  loop:
+    - "/etc/systemd/system/prometheus.service"
+    - "/etc/systemd/system/prometheus.service.d"
+    - "/etc/systemd/system/alertmanager.service"
+    - "/etc/systemd/system/alertmanager.service.d"
+    - "/etc/systemd/system/blackbox_exporter.service"
+    - "/etc/systemd/system/blackbox_exporter.service.d"
+    - "{{ prometheus_binary_install_dir | default('/usr/local/bin') }}/prometheus"
+    - "{{ prometheus_binary_install_dir | default('/usr/local/bin') }}/promtool"
+    - "{{ alertmanager_binary_install_dir | default('/usr/local/bin') }}/alertmanager"
+    - "{{ alertmanager_binary_install_dir | default('/usr/local/bin') }}/amtool"
+    - "{{ blackbox_exporter_binary_install_dir | default('/usr/local/bin') }}/blackbox_exporter"
+    - "{{ prometheus_config_dir | default('/etc/prometheus') }}"
+    - "{{ alertmanager_config_dir | default('/etc/alertmanager') }}"
+    - "{{ blackbox_exporter_config_dir | default('/etc/blackbox_exporter') }}"
+    - "{{ prometheus_db_dir | default('/var/lib/prometheus') }}"
+    - "{{ alertmanager_db_dir | default('/var/lib/alertmanager') }}"
+
+- name: "Reload systemd"
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: "Remove their system users"
+  ansible.builtin.user:
+    name: "{{ item }}"
+    state: "absent"
+  loop:
+    - "{{ prometheus_system_user | default('prometheus') }}"
+    - "{{ alertmanager_system_user | default('alertmanager') }}"
+    - "{{ blackbox_exporter_system_user | default('blackbox-exp') }}"
+
+- name: "Remove their system groups"
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: "absent"
+  loop:
+    - "{{ prometheus_system_group | default('prometheus') }}"
+    - "{{ alertmanager_system_group | default('alertmanager') }}"
+    - "{{ blackbox_exporter_system_group | default('blackbox-exp') }}"
