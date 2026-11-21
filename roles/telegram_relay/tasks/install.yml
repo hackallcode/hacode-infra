@@ -5,75 +5,75 @@
       - "telegram_relay_account_id | length > 0"
       - "telegram_relay_zone_id | length > 0"
       - "telegram_relay_hostname | length > 0"
+      - "telegram_relay_bot_ids is sequence and telegram_relay_bot_ids is not string"
       - "telegram_relay_bot_ids | length > 0"
       - "telegram_relay_bot_ids | map('string') | reject('match', '^[0-9]+$') | list | length == 0"
     fail_msg: >-
       telegram_relay needs telegram_relay_cloudflare_token, telegram_relay_account_id, telegram_relay_zone_id,
-      telegram_relay_hostname and numeric telegram_relay_bot_ids
+      telegram_relay_hostname and a list of numeric telegram_relay_bot_ids
     quiet: true
 
-- name: "Read the deployed scripts"
-  ansible.builtin.uri:
-    url: "{{ _telegram_relay_api }}/scripts"
-    headers: "{{ _telegram_relay_headers }}"
-  register: "_telegram_relay_scripts"
-  check_mode: false
-  no_log: true
+- name: "Read the deployed script"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _telegram_relay_call:
+      name: "Read the deployed script"
+      path: "/scripts/{{ telegram_relay_name }}/script-settings"
+      ok: [200, 404]
 
 - name: "Upload the script"
-  ansible.builtin.uri:
-    url: "{{ _telegram_relay_api }}/scripts/{{ telegram_relay_name }}"
-    method: "PUT"
-    headers: "{{ _telegram_relay_headers }}"
-    body_format: "form-multipart"
-    body:
-      metadata:
-        content: >-
-          {{ {'main_module': 'worker.js', 'compatibility_date': telegram_relay_compatibility_date,
-              'bindings': [{'type': 'plain_text', 'name': 'BOT_IDS',
-                            'text': telegram_relay_bot_ids | map('string') | list | to_json}]} | to_json }}
-        mime_type: "application/json"
-      worker.js:
-        content: "{{ lookup('ansible.builtin.file', 'worker.mjs') }}"
-        filename: "worker.js"
-        mime_type: "application/javascript+module"
-  register: "_telegram_relay_upload"
-  no_log: true
-  failed_when: false
-  changed_when: >-
-    _telegram_relay_upload.status == 200 and _telegram_relay_upload.json.result.etag not in
-    (_telegram_relay_scripts.json.result | selectattr('id', 'equalto', telegram_relay_name)
-     | map(attribute='etag') | list)
-  when: "not ansible_check_mode"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _telegram_relay_call:
+      name: "Upload the script"
+      path: "/scripts/{{ telegram_relay_name }}"
+      method: "PUT"
+      body_format: "form-multipart"
+      body:
+        metadata:
+          content: "{{ _telegram_relay_metadata | combine({'tags': [_telegram_relay_tag]}) | to_json }}"
+          mime_type: "application/json"
+        worker.js:
+          content: "{{ _telegram_relay_script }}"
+          filename: "worker.js"
+          mime_type: "application/javascript+module"
+  when: >-
+    _telegram_relay_response.status == 404
+    or _telegram_relay_tag not in (_telegram_relay_response.json.result.tags | default([], true))
 
-- name: "Show why Cloudflare refused the upload"
-  ansible.builtin.assert:
-    that: "_telegram_relay_upload.status == 200"
-    fail_msg: >-
-      {{ _telegram_relay_upload.status }} {{ _telegram_relay_upload.json.errors | default(_telegram_relay_upload.msg) }}
-    quiet: true
-  when: "not ansible_check_mode"
+- name: "Read the hostnames the script serves"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _telegram_relay_call:
+      name: "Read the hostnames the script serves"
+      path: "/domains?service={{ telegram_relay_name }}"
 
-- name: "Read the custom domains"
-  ansible.builtin.uri:
-    url: "{{ _telegram_relay_api }}/domains?hostname={{ telegram_relay_hostname }}"
-    headers: "{{ _telegram_relay_headers }}"
-  register: "_telegram_relay_domains"
-  check_mode: false
-  no_log: true
+- name: "Keep the hostnames found"
+  ansible.builtin.set_fact:
+    _telegram_relay_domains: "{{ _telegram_relay_response.json.result }}"
 
 - name: "Serve the script on its hostname"
-  ansible.builtin.uri:
-    url: "{{ _telegram_relay_api }}/domains"
-    method: "PUT"
-    headers: "{{ _telegram_relay_headers }}"
-    body_format: "json"
-    body:
-      hostname: "{{ telegram_relay_hostname }}"
-      zone_id: "{{ telegram_relay_zone_id }}"
-      service: "{{ telegram_relay_name }}"
-      environment: "production"
-  no_log: true
-  changed_when: true
-  when: >-
-    _telegram_relay_domains.json.result | selectattr('service', 'equalto', telegram_relay_name) | list | length == 0
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _telegram_relay_call:
+      name: "Serve the script on {{ telegram_relay_hostname }}"
+      path: "/domains"
+      method: "PUT"
+      body_format: "json"
+      body:
+        hostname: "{{ telegram_relay_hostname }}"
+        zone_id: "{{ telegram_relay_zone_id }}"
+        service: "{{ telegram_relay_name }}"
+        environment: "production"
+  when: "telegram_relay_hostname not in _telegram_relay_domains | map(attribute='hostname')"
+
+- name: "Detach the hostnames it no longer serves"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _telegram_relay_call:
+      name: "Detach {{ item.hostname }}"
+      path: "/domains/{{ item.id }}"
+      method: "DELETE"
+  loop: "{{ _telegram_relay_domains | rejectattr('hostname', 'equalto', telegram_relay_hostname) }}"
+  loop_control:
+    label: "{{ item.hostname }}"

@@ -17,12 +17,17 @@ beforeEach(() => {
 const call = (path, init) => worker.fetch(new Request(`https://relay.example${path}`, init), env);
 
 test("a listed bot's call goes to api.telegram.org as it came", async () => {
-  const response = await call("/bot111:secret/sendMessage?x=1", { method: "POST", body: "chat_id=1" });
+  const response = await call("/bot111:secret/sendMessage?x=1", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: '{"chat_id":1}',
+  });
   assert.equal(await response.text(), "from telegram");
   assert.equal(forwarded.length, 1);
   assert.equal(forwarded[0].url, "https://api.telegram.org/bot111:secret/sendMessage?x=1");
   assert.equal(forwarded[0].method, "POST");
-  assert.equal(await forwarded[0].text(), "chat_id=1");
+  assert.equal(forwarded[0].headers.get("content-type"), "application/json");
+  assert.equal(await forwarded[0].text(), '{"chat_id":1}');
 });
 
 test("a listed bot downloads its files and long-polls with GET", async () => {

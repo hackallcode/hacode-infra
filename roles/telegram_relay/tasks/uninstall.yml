@@ -1,27 +1,34 @@
-- name: "Read the custom domains"
-  ansible.builtin.uri:
-    url: "{{ _telegram_relay_api }}/domains?hostname={{ telegram_relay_hostname }}"
-    headers: "{{ _telegram_relay_headers }}"
-  register: "_telegram_relay_domains"
-  check_mode: false
-  no_log: true
+- name: "Validate telegram_relay settings"
+  ansible.builtin.assert:
+    that:
+      - "telegram_relay_cloudflare_token | length > 0"
+      - "telegram_relay_account_id | length > 0"
+    fail_msg: "telegram_relay uninstall needs telegram_relay_cloudflare_token and telegram_relay_account_id"
+    quiet: true
 
-- name: "Detach the script from its hostname"
-  ansible.builtin.uri:
-    url: "{{ _telegram_relay_api }}/domains/{{ item }}"
-    method: "DELETE"
-    headers: "{{ _telegram_relay_headers }}"
-  loop: "{{ _telegram_relay_domains.json.result | selectattr('service', 'equalto', telegram_relay_name)
-            | map(attribute='id') | list }}"
-  no_log: true
-  changed_when: true
+- name: "Read the hostnames the script serves"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _telegram_relay_call:
+      name: "Read the hostnames the script serves"
+      path: "/domains?service={{ telegram_relay_name }}"
+
+- name: "Detach them"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _telegram_relay_call:
+      name: "Detach {{ item.hostname }}"
+      path: "/domains/{{ item.id }}"
+      method: "DELETE"
+  loop: "{{ _telegram_relay_response.json.result }}"
+  loop_control:
+    label: "{{ item.hostname }}"
 
 - name: "Delete the script"
-  ansible.builtin.uri:
-    url: "{{ _telegram_relay_api }}/scripts/{{ telegram_relay_name }}"
-    method: "DELETE"
-    headers: "{{ _telegram_relay_headers }}"
-    status_code: [200, 404]
-  register: "_telegram_relay_delete"
-  no_log: true
-  changed_when: "_telegram_relay_delete.status == 200"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _telegram_relay_call:
+      name: "Delete the script"
+      path: "/scripts/{{ telegram_relay_name }}"
+      method: "DELETE"
+      ok: [200, 404]

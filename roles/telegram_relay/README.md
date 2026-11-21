@@ -9,9 +9,12 @@ query and body, and answers everything else with 404.
 
 ## Tasks
 
-- `install` (default): upload the Worker and attach it to `telegram_relay_hostname`; an unchanged script and an
-  attached hostname change nothing.
-- `uninstall`: detach the hostname and delete the Worker.
+- `install` (default): upload the Worker when its code, bots or compatibility date differ from the `deploy-<hash>` tag
+  of the deployed one, attach it to `telegram_relay_hostname` and detach the other hostnames it serves. A rerun with
+  nothing changed makes no call that writes; `--check` reports the writes it would make.
+- `uninstall`: detach every hostname the Worker serves and delete it.
+
+A refused call fails with Cloudflare's status and errors; the token stays out of the output.
 
 ## Variables
 
