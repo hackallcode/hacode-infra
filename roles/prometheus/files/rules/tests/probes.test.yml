@@ -11,6 +11,8 @@ tests:
         values: "1 0 0 0 0"
       - series: 'probe_success{job="probe",instance="https://other.example.com/"}'
         values: "1 0 1 0 1"
+      - series: 'up{job="node",instance_name="testhost"}'
+        values: "1 1 1 1 1"
     alert_rule_test:
       - eval_time: 4m
         alertname: ProbeFailed
@@ -23,3 +25,15 @@ tests:
             exp_annotations:
               summary: "A probed endpoint does not answer."
               description: "https://mesh.example.com/version does not answer."
+
+  # Prometheus не достаёт ни до одного хоста → его пробы молчат
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="probe",instance="https://mesh.example.com/version"}'
+        values: "1 0 0 0 0"
+      - series: 'up{job="node",instance_name="testhost"}'
+        values: "1 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ProbeFailed
+        exp_alerts: []

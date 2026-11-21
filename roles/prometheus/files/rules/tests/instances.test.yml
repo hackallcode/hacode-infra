@@ -9,6 +9,8 @@ tests:
     input_series:
       - series: 'up{job="node",instance_name="testhost"}'
         values: "0x20"
+      - series: 'up{job="node",instance_name="other"}'
+        values: "1x20"
 
     alert_rule_test:
       - eval_time: 2m
@@ -22,6 +24,9 @@ tests:
             exp_annotations:
               summary: "Instance down."
               description: "node on testhost does not answer."
+      - eval_time: 2m
+        alertname: PrometheusIsolated
+        exp_alerts: []
 
   # up == 1 → не срабатывает
   - interval: 30s
@@ -43,6 +48,8 @@ tests:
         values: "0x20"
       - series: 'failover_leader{job="node",instance_name="standby",service="headscale"}'
         values: "0x20"
+      - series: 'up{job="node",instance_name="other"}'
+        values: "1x20"
 
     alert_rule_test:
       - eval_time: 2m
@@ -64,6 +71,8 @@ tests:
         values: "0x20"
       - series: 'failover_leader{job="node",instance_name="leader",service="headscale"}'
         values: "1x20"
+      - series: 'up{job="node",instance_name="leader"}'
+        values: "1x20"
 
     alert_rule_test:
       - eval_time: 2m
@@ -77,3 +86,68 @@ tests:
             exp_annotations:
               summary: "Instance down."
               description: "headscale on leader does not answer."
+
+  # ни один наблюдаемый хост не отвечает → один PrometheusIsolated вместо InstanceDown по каждому
+  - interval: 30s
+    external_labels:
+      environment: "observer"
+    input_series:
+      - series: 'up{job="node",instance_name="a"}'
+        values: "0x20"
+      - series: 'up{job="tailscale",instance_name="a"}'
+        values: "0x20"
+      - series: 'up{job="node",instance_name="b"}'
+        values: "0x20"
+      - series: 'up{job="prometheus"}'
+        values: "1x20"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: InstanceDown
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: PrometheusIsolated
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: monitoring
+            exp_annotations:
+              summary: "Prometheus reaches none of the hosts it watches."
+              description: >-
+                observer reaches none of the hosts it watches: it is cut off itself, or they are all down. Its
+                alerts about them and its probes are held back.
+
+  # хост снова отвечает → InstanceDown по остальным возвращается, PrometheusIsolated гаснет
+  - interval: 30s
+    input_series:
+      - series: 'up{job="node",instance_name="a"}'
+        values: "0x4 1x16"
+      - series: 'up{job="node",instance_name="b"}'
+        values: "0x20"
+
+    alert_rule_test:
+      - eval_time: 1m30s
+        alertname: PrometheusIsolated
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: monitoring
+            exp_annotations:
+              summary: "Prometheus reaches none of the hosts it watches."
+              description: >-
+                Prometheus reaches none of the hosts it watches: it is cut off itself, or they are all down. Its
+                alerts about them and its probes are held back.
+      - eval_time: 5m
+        alertname: PrometheusIsolated
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: host
+              job: node
+              instance_name: b
+            exp_annotations:
+              summary: "Instance down."
+              description: "node on b does not answer."

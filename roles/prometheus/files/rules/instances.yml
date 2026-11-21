@@ -2,8 +2,12 @@ groups:
   - name: "instances"
     rules:
       - alert: "InstanceDown"
-        # A failover standby keeps headscale stopped, so its scrape target is down by design.
-        expr: 'up == 0 unless on(job, instance_name) (up{job="headscale"} and on(instance_name) failover_leader{service="headscale"} == 0)'
+        # A failover standby keeps headscale stopped, so its scrape target is down by design. A Prometheus that
+        # reaches no host it watches is the one cut off: PrometheusIsolated says so instead.
+        expr: >-
+          up == 0
+          unless on(job, instance_name) (up{job="headscale"} and on(instance_name) failover_leader{service="headscale"} == 0)
+          unless on() max(up{instance_name!=""}) == 0
         for: "1m"
         labels:
           severity: "critical"
@@ -11,3 +15,15 @@ groups:
         annotations:
           summary: "Instance down."
           description: "{{ $labels.job }} on {{ $labels.instance_name }} does not answer."
+
+      - alert: "PrometheusIsolated"
+        expr: 'max(up{instance_name!=""}) == 0'
+        for: "1m"
+        labels:
+          severity: "critical"
+          category: "monitoring"
+        annotations:
+          summary: "Prometheus reaches none of the hosts it watches."
+          description: >-
+            {{ with $externalLabels.environment }}{{ . }}{{ else }}Prometheus{{ end }} reaches none of the hosts it
+            watches: it is cut off itself, or they are all down. Its alerts about them and its probes are held back.
