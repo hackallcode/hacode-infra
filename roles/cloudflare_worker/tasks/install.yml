@@ -1,0 +1,101 @@
+- name: "Validate cloudflare_worker settings"
+  ansible.builtin.assert:
+    that:
+      - "cloudflare_worker_token | length > 0"
+      - "cloudflare_worker_account_id | length > 0"
+      - "cloudflare_worker_zone_id | length > 0"
+      - "cloudflare_worker_hostname | length > 0"
+      - "cloudflare_worker_name | length > 0"
+      - "cloudflare_worker_mode in ['relay', 'telegram']"
+    fail_msg: >-
+      cloudflare_worker needs cloudflare_worker_token, cloudflare_worker_account_id, cloudflare_worker_zone_id,
+      cloudflare_worker_hostname, cloudflare_worker_name and cloudflare_worker_mode relay or telegram
+    quiet: true
+
+- name: "Validate the relay settings"
+  ansible.builtin.assert:
+    that:
+      - "cloudflare_worker_upstream is match('^https?://[^/]+$')"
+      - "cloudflare_worker_paths is sequence and cloudflare_worker_paths is not string"
+      - "cloudflare_worker_paths | length > 0"
+      - "cloudflare_worker_paths | map('string') | reject('match', '^/') | list | length == 0"
+    fail_msg: >-
+      relay mode needs cloudflare_worker_upstream as an origin without a path and a list of cloudflare_worker_paths
+      starting with /
+    quiet: true
+  when: "cloudflare_worker_mode == 'relay'"
+
+- name: "Validate the telegram settings"
+  ansible.builtin.assert:
+    that:
+      - "cloudflare_worker_telegram_bot_ids is sequence and cloudflare_worker_telegram_bot_ids is not string"
+      - "cloudflare_worker_telegram_bot_ids | length > 0"
+      - "_cloudflare_worker_telegram_ids | reject('match', '^[0-9]+$') | list | length == 0"
+    fail_msg: "telegram mode needs a list of numeric cloudflare_worker_telegram_bot_ids"
+    quiet: true
+  when: "cloudflare_worker_mode == 'telegram'"
+
+- name: "Read the deployed script"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Read the deployed script"
+      path: "/scripts/{{ cloudflare_worker_name }}/script-settings"
+      ok: [200, 404]
+
+- name: "Upload the script"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Upload the script"
+      path: "/scripts/{{ cloudflare_worker_name }}"
+      method: "PUT"
+      body_format: "form-multipart"
+      body:
+        metadata:
+          content: "{{ _cloudflare_worker_metadata | combine({'tags': [_cloudflare_worker_tag]}) | to_json }}"
+          mime_type: "application/json"
+        worker.js:
+          content: "{{ _cloudflare_worker_script }}"
+          filename: "worker.js"
+          mime_type: "application/javascript+module"
+  when: >-
+    _cloudflare_worker_response.status == 404
+    or _cloudflare_worker_tag not in (_cloudflare_worker_response.json.result.tags | default([], true))
+
+- name: "Read the hostnames the script serves"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Read the hostnames the script serves"
+      path: "/domains?service={{ cloudflare_worker_name }}"
+
+- name: "Keep the hostnames found"
+  ansible.builtin.set_fact:
+    _cloudflare_worker_domains: "{{ _cloudflare_worker_response.json.result }}"
+
+- name: "Serve the script on its hostname"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Serve the script on {{ cloudflare_worker_hostname }}"
+      path: "/domains"
+      method: "PUT"
+      body_format: "json"
+      body:
+        hostname: "{{ cloudflare_worker_hostname }}"
+        zone_id: "{{ cloudflare_worker_zone_id }}"
+        service: "{{ cloudflare_worker_name }}"
+        environment: "production"
+  when: "cloudflare_worker_hostname not in _cloudflare_worker_domains | map(attribute='hostname')"
+
+- name: "Detach the hostnames it no longer serves"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Detach {{ item.hostname }}"
+      path: "/domains/{{ item.id }}"
+      method: "DELETE"
+  loop: "{{ _cloudflare_worker_domains | rejectattr('hostname', 'equalto', cloudflare_worker_hostname) }}"
+  loop_control:
+    label: "{{ item.hostname }}"

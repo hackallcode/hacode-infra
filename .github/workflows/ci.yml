@@ -69,9 +69,9 @@ jobs:
         working-directory: "ansible_collections/hacode/infra"
         run: "make test/prometheus-rules"
 
-      - name: "node: unit-test the telegram_relay Worker"
+      - name: "node: unit-test the cloudflare_worker Worker"
         working-directory: "ansible_collections/hacode/infra"
-        run: "make test/telegram-relay"
+        run: "make test/cloudflare-worker"
 
       - name: "Build collection artifact"
         working-directory: "ansible_collections/hacode/infra"

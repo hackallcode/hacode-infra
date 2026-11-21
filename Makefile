@@ -19,13 +19,13 @@ SCENARIOS := app certbot certificate docker derper failover gitlab_runner gost \
 PROMETHEUS_IMAGE := prom/prometheus:latest
 PROMETHEUS_RULES_DIR := $(CURDIR)/roles/prometheus/files/rules
 NODE_IMAGE := node:22-alpine
-TELEGRAM_RELAY_DIR := $(CURDIR)/roles/telegram_relay
+CLOUDFLARE_WORKER_DIR := $(CURDIR)/roles/cloudflare_worker
 MARKDOWNLINT_IMAGE := davidanson/markdownlint-cli2:latest
 
 .PHONY: help \
         install install/python install/collections \
         lint lint/yaml lint/ansible lint/markdown \
-        test test/molecule test/prometheus-rules test/telegram-relay \
+        test test/molecule test/prometheus-rules test/cloudflare-worker \
         build build/collection \
         clean clean/molecule clean/cache
 
@@ -68,7 +68,7 @@ lint/markdown:  ## Run markdownlint-cli2 over every Markdown file
 
 ## ───── test ─────────────────────────────────────────────────────────────
 
-test: lint test/molecule test/prometheus-rules test/telegram-relay  ## Lint + molecule + prometheus alert rule + telegram_relay Worker tests
+test: lint test/molecule test/prometheus-rules test/cloudflare-worker  ## Lint + molecule + prometheus alert rule + cloudflare_worker Worker tests
 
 test/molecule: $(addprefix test/molecule/,$(SCENARIOS))  ## Run every molecule scenario sequentially
 
@@ -90,8 +90,8 @@ test/prometheus-rules:  ## promtool check rules + unit tests for prometheus role
 	          promtool test rules "$$f"; \
 	        done'
 
-test/telegram-relay:  ## node --test for the telegram_relay role's Worker
-	@docker run --rm -v "$(TELEGRAM_RELAY_DIR):/role:ro" $(NODE_IMAGE) node --test /role/tests/worker.test.mjs
+test/cloudflare-worker:  ## node --test for the cloudflare_worker role's Worker
+	@docker run --rm -v "$(CLOUDFLARE_WORKER_DIR):/role:ro" $(NODE_IMAGE) node --test /role/tests/relay.test.mjs
 
 ## ───── build ────────────────────────────────────────────────────────────
 

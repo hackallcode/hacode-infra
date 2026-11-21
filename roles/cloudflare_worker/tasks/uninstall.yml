@@ -1,0 +1,37 @@
+- name: "Validate cloudflare_worker settings"
+  ansible.builtin.assert:
+    that:
+      - "cloudflare_worker_token | length > 0"
+      - "cloudflare_worker_account_id | length > 0"
+      - "cloudflare_worker_name | length > 0"
+    fail_msg: >-
+      cloudflare_worker uninstall needs cloudflare_worker_token, cloudflare_worker_account_id and
+      cloudflare_worker_name
+    quiet: true
+
+- name: "Read the hostnames the script serves"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Read the hostnames the script serves"
+      path: "/domains?service={{ cloudflare_worker_name }}"
+
+- name: "Detach them"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Detach {{ item.hostname }}"
+      path: "/domains/{{ item.id }}"
+      method: "DELETE"
+  loop: "{{ _cloudflare_worker_response.json.result }}"
+  loop_control:
+    label: "{{ item.hostname }}"
+
+- name: "Delete the script"
+  ansible.builtin.include_tasks: "_call.yml"
+  vars:
+    _cloudflare_worker_call:
+      name: "Delete the script"
+      path: "/scripts/{{ cloudflare_worker_name }}"
+      method: "DELETE"
+      ok: [200, 404]

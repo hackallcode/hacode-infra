@@ -1,16 +1,17 @@
 galaxy_info:
-  role_name: "telegram_relay"
+  role_name: "cloudflare_worker"
   namespace: "hacode"
   author: "Vladimir Severov"
-  description: "Cloudflare Worker relaying the Telegram Bot API for listed bots, on a hostname of a Cloudflare zone."
+  description: "Cloudflare Worker relaying listed paths to one upstream, or the Telegram Bot API of listed bots."
   license: "Apache-2.0"
   min_ansible_version: "2.16"
   platforms:
     - name: "GenericLinux"
       versions: ["all"]
   galaxy_tags:
-    - "telegram"
     - "cloudflare"
+    - "workers"
+    - "telegram"
     - "proxy"
 
 dependencies: []
