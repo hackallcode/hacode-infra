@@ -1,5 +1,5 @@
 # headscale scenario: prepare installs docker (vfs storage for DinD), converge runs
-# headscale with a policy, a user and an extra DERP region; verify checks health,
+# headscale with a policy, a user and an extra DERP region it probes; verify checks health,
 # the user, preauth keys and pinning a node address.
 
 driver:
@@ -63,6 +63,8 @@ provisioner:
                 regionid: 901
                 hostname: "derp.example.com"
                 stunport: 3478
+        # Nothing answers for 901a: with no relay up the whole map stays.
+        headscale_derp_probe_interval: 30
         headscale_users: ["molecule"]
         headscale_initial_policy:
           tagOwners:

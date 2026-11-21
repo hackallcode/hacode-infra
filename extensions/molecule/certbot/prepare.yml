@@ -15,6 +15,25 @@
         state: "present"
       when: "ansible_os_family == 'RedHat'"
 
+    # The base repos serve the newest minor while the image may ship an older release package, and the pin
+    # below takes the minor from that package.
+    - name: "Bring the release package to the minor of the base repos"
+      ansible.builtin.dnf:
+        name: "{{ ansible_distribution | lower }}-release"
+        state: "latest"
+        update_only: true
+      when:
+        - "ansible_os_family == 'RedHat'"
+        - "ansible_distribution_major_version == '10'"
+
+    - name: "Read the minor release again"
+      ansible.builtin.setup:
+        gather_subset: ["min"]
+        filter: ["ansible_distribution_version"]
+      when:
+        - "ansible_os_family == 'RedHat'"
+        - "ansible_distribution_major_version == '10'"
+
     # Alma and Rocky leave releasever_minor unset, so EPEL 10 resolves to its newest minor, whose certbot
     # deps need a python3-cryptography the older base OS doesn't ship yet.
     - name: "Pin EPEL to the minor release of the base OS"

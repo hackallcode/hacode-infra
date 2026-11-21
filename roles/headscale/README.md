@@ -15,7 +15,7 @@ DERP relay and STUN, in docker compose with host networking. TLS is terminated i
   when missing or rejected, created on `headscale_api_key_control_host`; sets `headscale_api_key_changed`. The key
   lives in the database, so it moves with the database and is replaced after a fresh one.
 - `preauth-key`: create a preauth key and set it as the `headscale_preauth_key` fact - nothing is stored.
-- `uninstall`: stop the stack, close the STUN port, delete `headscale_dir` with its database.
+- `uninstall`: stop the stack and the DERP probe, close the STUN port, delete `headscale_dir` with its database.
 
 ## Variables
 
@@ -35,6 +35,7 @@ DERP relay and STUN, in docker compose with host networking. TLS is terminated i
 | `headscale_derp_ipv4` | `""` | public IPv4 announced for the embedded region |
 | `headscale_derp_regions` | `{}` | extra regions in Tailscale `DERPMap.Regions` shape, keyed by id |
 | `headscale_derp_urls` | `[]` | remote DERP maps; Tailscale's public one is off |
+| `headscale_derp_probe_interval` | `0` | seconds between checks of `headscale_derp_regions` from this host (`headscale-derp-probe.timer`) and between headscale's map reloads; a region none of whose relays answers `/derp/probe` here three checks in a row is left out of the map until it answers three in a row (a relay's first check counts at once); `0` - the map as is |
 | `headscale_policy` | `{}` | ACL policy as a dict, rewritten on every deploy; `{}` - allow all |
 | `headscale_initial_policy` | `{}` | instead of `headscale_policy`: the policy lives in headscale's database (editable over the API), this one goes only into an empty database |
 | `headscale_oidc` | `{}` | OIDC login for user devices: `issuer`, `client_id`, `client_secret` and any other `oidc` keys; PKCE on; headscale starts without the provider, with CLI login only until restarted |

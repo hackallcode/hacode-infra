@@ -25,6 +25,9 @@
     immediate: true
   when: "_headscale_firewalld.status.ActiveState | default('inactive') == 'active'"
 
+- name: "Remove the DERP probe"
+  ansible.builtin.import_tasks: "derp-probe-absent.yml"
+
 - name: "Remove headscale dir"
   ansible.builtin.file:
     path: "{{ headscale_dir }}"

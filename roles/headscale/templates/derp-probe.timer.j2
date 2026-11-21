@@ -1,0 +1,10 @@
+[Unit]
+Description=DERP map of the relays this host reaches every {{ headscale_derp_probe_interval }} s
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec={{ headscale_derp_probe_interval }}s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

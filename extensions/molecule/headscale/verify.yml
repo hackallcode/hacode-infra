@@ -47,6 +47,29 @@
       changed_when: false
       failed_when: "'tag:edited' not in policy_after.stdout"
 
+    - name: "Read the DERP probe state"
+      ansible.builtin.slurp:
+        src: "/opt/headscale/derp-probe.json"
+      register: "derp_probe_state"
+
+    - name: "Read the DERP map"
+      ansible.builtin.slurp:
+        src: "/opt/headscale/config/derp.yml"
+      register: "derp_probe_map"
+
+    - name: "The DERP probe found 901a down and kept the whole map"
+      ansible.builtin.assert:
+        that:
+          - "not (derp_probe_state.content | b64decode | from_json)['901a'].up"
+          - "901 in (derp_probe_map.content | b64decode | from_yaml).regions"
+        quiet: true
+
+    - name: "The DERP probe timer runs"
+      ansible.builtin.systemd:
+        name: "headscale-derp-probe.timer"
+      register: "derp_timer"
+      failed_when: "derp_timer.status.ActiveState != 'active'"
+
     - name: "Embedded DERP answers"
       ansible.builtin.uri:
         url: "http://127.0.0.1:8090/derp/probe"

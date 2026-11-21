@@ -1,0 +1,6 @@
+[Unit]
+Description=DERP map of the relays this host reaches
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 {{ headscale_dir }}/derp-probe.py {{ headscale_dir }}/derp-regions.json {{ headscale_dir }}/config/derp.yml {{ headscale_dir }}/derp-probe.json

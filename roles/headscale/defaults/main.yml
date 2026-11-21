@@ -27,6 +27,13 @@ headscale_derp_ipv4: ""
 headscale_derp_regions: {}
 # Tailscale's public DERP map is off: [] keeps relays to the ones above.
 headscale_derp_urls: []
+# Seconds between checks of the headscale_derp_regions relays from this host, and between headscale's reloads of the
+# map; 0: off, the map is served as is. A client relays to a peer through the peer's home region, so a region some
+# nodes cannot reach cuts them off from the peers homed there. Checked, a region is left out while none of its relays
+# answers `/derp/probe` over TLS from here; a relay changes state after three checks in a row, its first check counts
+# at once. With no relay answering, the whole map stays. headscale shuffles a region's nodes, so their order does not
+# pick a fallback relay.
+headscale_derp_probe_interval: 0
 
 # Policy as a dict, written as JSON. {}: allow all.
 headscale_policy: {}
