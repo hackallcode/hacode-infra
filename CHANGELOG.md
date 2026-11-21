@@ -65,13 +65,12 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   blackbox_exporter off a host that no longer watches the others, with their
   data; node_exporter stays for the Prometheus servers left.
 - `cloudflare_worker` role: a Cloudflare Worker on a hostname of a Cloudflare
-  zone, for hosts that reach Cloudflare but not an upstream. In `relay` mode
-  it passes `/<host>/<path>` to `https://<host>/<path>` for the hosts and path
-  prefixes in `cloudflare_worker_upstreams`, so many upstreams share one
-  hostname; in `telegram` mode the Bot API calls and file downloads of
-  `cloudflare_worker_telegram_bot_ids` to `api.telegram.org`. Every other call
-  gets 404. The upload is tagged with a hash of what went up, so a rerun with
-  nothing changed writes nothing.
+  zone, for hosts that reach Cloudflare but not an upstream. It passes
+  `/<host>/<path>` to `https://<host>/<path>` for the hosts and path prefixes
+  in `cloudflare_worker_upstreams` and answers every other call with 404, so
+  many upstreams share one hostname and the Worker is no open proxy; the
+  Telegram Bot API of listed bots is one such upstream. The upload is tagged
+  with a hash of what went up, so a rerun with nothing changed writes nothing.
 
 ### Changed
 

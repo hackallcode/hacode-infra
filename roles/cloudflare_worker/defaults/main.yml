@@ -11,17 +11,9 @@ cloudflare_worker_zone_id: ""
 cloudflare_worker_hostname: ""
 cloudflare_worker_name: ""
 
-# What the Worker relays; any other call gets 404, so the Worker is no open proxy:
-#   relay    -> /<host>/<path> to https://<host>/<path> for a host and path prefix in cloudflare_worker_upstreams
-#   telegram -> the Bot API calls and file downloads of cloudflare_worker_telegram_bot_ids to api.telegram.org, with
-#               the Worker's origin in place of the API's
-cloudflare_worker_mode: "relay"
-
-# relay: {upstream host: [path prefixes]}, "/" for all of a host's paths. Upstreams share one hostname, so no DNS
-# record names them.
+# {upstream host: [path prefixes]}: /<host>/<path> goes to https://<host>/<path> when <path> starts with one of the
+# host's prefixes, "/" for all of them; any other call gets 404, so the Worker is no open proxy. Upstreams share one
+# hostname, so no DNS record names them. Host names are matched as written, in lower case.
 cloudflare_worker_upstreams: {}
-
-# telegram: numeric bot ids, the part of a token before `:`.
-cloudflare_worker_telegram_bot_ids: []
 
 cloudflare_worker_compatibility_date: "2026-11-01"

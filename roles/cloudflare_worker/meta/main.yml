@@ -2,7 +2,7 @@ galaxy_info:
   role_name: "cloudflare_worker"
   namespace: "hacode"
   author: "Vladimir Severov"
-  description: "Cloudflare Worker relaying listed hosts and paths behind one hostname, or the Telegram Bot API."
+  description: "Cloudflare Worker relaying listed hosts and path prefixes behind one hostname."
   license: "Apache-2.0"
   min_ansible_version: "2.16"
   platforms:
@@ -11,7 +11,6 @@ galaxy_info:
   galaxy_tags:
     - "cloudflare"
     - "workers"
-    - "telegram"
     - "proxy"
 
 dependencies: []
