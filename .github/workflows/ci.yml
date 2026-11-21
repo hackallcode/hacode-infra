@@ -69,6 +69,10 @@ jobs:
         working-directory: "ansible_collections/hacode/infra"
         run: "make test/prometheus-rules"
 
+      - name: "node: unit-test the telegram_relay Worker"
+        working-directory: "ansible_collections/hacode/infra"
+        run: "make test/telegram-relay"
+
       - name: "Build collection artifact"
         working-directory: "ansible_collections/hacode/infra"
         run: "ansible-galaxy collection build --output-path dist/"

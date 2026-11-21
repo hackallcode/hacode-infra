@@ -18,12 +18,14 @@ SCENARIOS := app certbot certificate docker derper failover gitlab_runner gost \
 # files never exist on disk, so the pattern rule fires every time anyway.
 PROMETHEUS_IMAGE := prom/prometheus:latest
 PROMETHEUS_RULES_DIR := $(CURDIR)/roles/prometheus/files/rules
+NODE_IMAGE := node:22-alpine
+TELEGRAM_RELAY_DIR := $(CURDIR)/roles/telegram_relay
 MARKDOWNLINT_IMAGE := davidanson/markdownlint-cli2:latest
 
 .PHONY: help \
         install install/python install/collections \
         lint lint/yaml lint/ansible lint/markdown \
-        test test/molecule test/prometheus-rules \
+        test test/molecule test/prometheus-rules test/telegram-relay \
         build build/collection \
         clean clean/molecule clean/cache
 
@@ -66,7 +68,7 @@ lint/markdown:  ## Run markdownlint-cli2 over every Markdown file
 
 ## ───── test ─────────────────────────────────────────────────────────────
 
-test: lint test/molecule test/prometheus-rules  ## Lint + molecule + prometheus alert rule tests
+test: lint test/molecule test/prometheus-rules test/telegram-relay  ## Lint + molecule + prometheus alert rule + telegram_relay Worker tests
 
 test/molecule: $(addprefix test/molecule/,$(SCENARIOS))  ## Run every molecule scenario sequentially
 
@@ -87,6 +89,9 @@ test/prometheus-rules:  ## promtool check rules + unit tests for prometheus role
 	          echo "==> Unit testing $$f"; \
 	          promtool test rules "$$f"; \
 	        done'
+
+test/telegram-relay:  ## node --test for the telegram_relay role's Worker
+	@docker run --rm -v "$(TELEGRAM_RELAY_DIR):/role:ro" $(NODE_IMAGE) node --test /role/tests/worker.test.mjs
 
 ## ───── build ────────────────────────────────────────────────────────────
 
