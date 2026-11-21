@@ -23,6 +23,7 @@
       name: "Detach {{ item.hostname }}"
       path: "/domains/{{ item.id }}"
       method: "DELETE"
+      ok: [200, 204]
   loop: "{{ _cloudflare_worker_response.json.result }}"
   loop_control:
     label: "{{ item.hostname }}"
