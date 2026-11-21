@@ -3,21 +3,21 @@ _cloudflare_worker_headers:
   Authorization: "Bearer {{ cloudflare_worker_token }}"
 
 _cloudflare_worker_telegram_ids: "{{ cloudflare_worker_telegram_bot_ids | map('string') | list }}"
-_cloudflare_worker_upstream: >-
-  {{ 'https://api.telegram.org' if cloudflare_worker_mode == 'telegram' else cloudflare_worker_upstream }}
 _cloudflare_worker_telegram_paths: >-
   {{ ['/bot', '/file/bot'] | product(_cloudflare_worker_telegram_ids) | map('join') | map('regex_replace', '$', ':')
      | list }}
-_cloudflare_worker_paths: >-
-  {{ _cloudflare_worker_telegram_paths if cloudflare_worker_mode == 'telegram' else cloudflare_worker_paths }}
+_cloudflare_worker_routes: >-
+  {{ {'api.telegram.org': _cloudflare_worker_telegram_paths}
+     if cloudflare_worker_mode == 'telegram' else cloudflare_worker_upstreams }}
 
 _cloudflare_worker_script: "{{ lookup('ansible.builtin.file', 'relay.mjs') }}"
 _cloudflare_worker_metadata:
   main_module: "worker.js"
   compatibility_date: "{{ cloudflare_worker_compatibility_date }}"
-  bindings:
-    - {type: "plain_text", name: "UPSTREAM", text: "{{ _cloudflare_worker_upstream }}"}
-    - {type: "plain_text", name: "PATHS", text: "{{ _cloudflare_worker_paths | to_json }}"}
+  bindings: >-
+    {{ [{'type': 'plain_text', 'name': 'ROUTES', 'text': _cloudflare_worker_routes | to_json}]
+       + ([{'type': 'plain_text', 'name': 'HOST', 'text': 'api.telegram.org'}]
+          if cloudflare_worker_mode == 'telegram' else []) }}
 # A tag names what was uploaded, so a rerun reads it back instead of uploading a new version each time.
 _cloudflare_worker_tag: >-
   deploy-{{ (_cloudflare_worker_script ~ (_cloudflare_worker_metadata | to_json)) | hash('sha256')

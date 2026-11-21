@@ -15,13 +15,15 @@
 - name: "Validate the relay settings"
   ansible.builtin.assert:
     that:
-      - "cloudflare_worker_upstream is match('^https?://[^/]+$')"
-      - "cloudflare_worker_paths is sequence and cloudflare_worker_paths is not string"
-      - "cloudflare_worker_paths | length > 0"
-      - "cloudflare_worker_paths | map('string') | reject('match', '^/') | list | length == 0"
+      - "cloudflare_worker_upstreams is mapping"
+      - "cloudflare_worker_upstreams | length > 0"
+      - "cloudflare_worker_upstreams.keys() | reject('match', '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$') | list | length == 0"
+      - "cloudflare_worker_upstreams.values() | reject('sequence') | list | length == 0"
+      - "cloudflare_worker_upstreams.values() | select('string') | list | length == 0"
+      - "cloudflare_worker_upstreams.values() | map('length') | select('equalto', 0) | list | length == 0"
+      - "cloudflare_worker_upstreams.values() | flatten | map('string') | reject('match', '^/') | list | length == 0"
     fail_msg: >-
-      relay mode needs cloudflare_worker_upstream as an origin without a path and a list of cloudflare_worker_paths
-      starting with /
+      relay mode needs cloudflare_worker_upstreams as {lowercase host name: [path prefixes starting with /]}
     quiet: true
   when: "cloudflare_worker_mode == 'relay'"
 

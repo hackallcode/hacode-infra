@@ -3,9 +3,12 @@ import { beforeEach, test } from "node:test";
 
 import worker from "../files/relay.mjs";
 
-// The paths the role builds in telegram mode for bot 111.
-const telegram = { UPSTREAM: "https://api.telegram.org", PATHS: JSON.stringify(["/bot111:", "/file/bot111:"]) };
-const api = { UPSTREAM: "https://api.example.org", PATHS: JSON.stringify(["/v1/"]) };
+// What the role binds in telegram mode for bot 111, and in relay mode for two upstreams.
+const telegram = {
+  HOST: "api.telegram.org",
+  ROUTES: JSON.stringify({ "api.telegram.org": ["/bot111:", "/file/bot111:"] }),
+};
+const relay = { ROUTES: JSON.stringify({ "api.example.org": ["/v1/"], "files.example.org": ["/"] }) };
 let forwarded;
 
 beforeEach(() => {
@@ -42,21 +45,38 @@ test("a listed bot downloads its files and long-polls with GET", async () => {
 });
 
 for (const path of ["/bot222:secret/getMe", "/bot1111:secret/getMe", "/x/bot111:secret/getMe", "/bot111/getMe", "/"]) {
-  test(`${path} is not relayed for bot 111`, async () => {
+  test(`telegram: ${path} is not relayed for bot 111`, async () => {
     const response = await call(telegram, path, { method: "POST" });
     assert.equal(response.status, 404);
     assert.equal(forwarded.length, 0);
   });
 }
 
-test("a path under a listed prefix goes to the upstream", async () => {
-  await call(api, "/v1/items?id=2");
-  assert.deepEqual(forwarded.map((r) => r.url), ["https://api.example.org/v1/items?id=2"]);
+test("the first segment picks the upstream and the rest goes to it", async () => {
+  await call(relay, "/api.example.org/v1/items?id=2", { method: "PUT", body: "x" });
+  await call(relay, "/files.example.org/a/b.txt");
+  await call(relay, "/files.example.org");
+  assert.deepEqual(forwarded.map((r) => [r.method, r.url]), [
+    ["PUT", "https://api.example.org/v1/items?id=2"],
+    ["GET", "https://files.example.org/a/b.txt"],
+    ["GET", "https://files.example.org/"],
+  ]);
 });
 
-for (const path of ["/v1", "/v2/items", "/v1/../admin"]) {
-  test(`${path} is not relayed outside /v1/`, async () => {
-    const response = await call(api, path);
+for (const path of [
+  "/",
+  "/api.example.org",
+  "/api.example.org/v1",
+  "/api.example.org/v2/items",
+  "/api.example.org/v1/../admin",
+  "/api.example.org/../evil.example/v1/",
+  "/evil.example/v1/",
+  "/api.example.org@evil.example/v1/",
+  "/api.example.org:8443/v1/",
+  "/hasOwnProperty/",
+]) {
+  test(`relay: ${path} is not relayed`, async () => {
+    const response = await call(relay, path);
     assert.equal(response.status, 404);
     assert.equal(forwarded.length, 0);
   });
