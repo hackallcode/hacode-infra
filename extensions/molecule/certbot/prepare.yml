@@ -21,6 +21,7 @@
       ansible.builtin.dnf:
         name: "{{ ansible_distribution | lower }}-release"
         state: "latest"
+        update_only: true
       when:
         - "ansible_os_family == 'RedHat'"
         - "ansible_distribution_major_version == '10'"
