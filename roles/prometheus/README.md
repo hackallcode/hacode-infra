@@ -3,6 +3,12 @@
 Install Prometheus server, Alertmanager and node_exporter using the upstream `prometheus.prometheus` collection as a
 backend. Ships a curated set of alert rules under `files/rules/`.
 
+## Tasks
+
+- `main` (default): node_exporter, Alertmanager and Prometheus.
+- `uninstall`: stop Prometheus, Alertmanager and blackbox_exporter and delete their units, binaries, configs, data and
+  users. node_exporter stays for the Prometheus servers left.
+
 ## Variables
 
 | Variable | Default | Purpose |

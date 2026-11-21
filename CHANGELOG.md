@@ -61,6 +61,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   the map as often. A client relays to a peer through the peer's home region,
   so a relay that only some nodes reach becomes their home and cuts the rest
   off from them.
+- `prometheus` role: `uninstall` takes Prometheus, Alertmanager and
+  blackbox_exporter off a host that no longer watches the others, with their
+  data; node_exporter stays for the Prometheus servers left.
 
 ### Changed
 
