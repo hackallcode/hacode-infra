@@ -42,38 +42,23 @@ def update(state, name, up):
     return {"up": known["up"], "streak": known["streak"] + 1}
 
 
-def yaml(value, indent=""):
-    """Block YAML of JSON-like data; region ids stay integer keys, which JSON cannot write."""
-    if isinstance(value, dict):
-        return "".join(f"{indent}{key}:{nested(item, indent)}" for key, item in value.items())
-    return "".join(f"{indent}-{nested(item, indent, True)}" for item in value)
-
-
-def nested(item, indent, in_list=False):
-    if isinstance(item, (dict, list)) and item:
-        body = yaml(item, indent + "  ")
-        return " " + body.lstrip() if in_list and isinstance(item, dict) else "\n" + body
-    return f" {json.dumps(item)}\n"
-
-
 def main(regions_path, out_path, state_path):
     with open(regions_path) as f:
         regions = json.load(f)
     try:
         with open(state_path) as f:
-            state = json.load(f)
+            known = json.load(f)
     except (OSError, ValueError):
-        state = {}
-    for region in regions.values():
-        for node in region["nodes"]:
-            if not node.get("stunonly"):
-                state[node["name"]] = update(state, node["name"], answers(node))
+        known = {}
+    state = {node["name"]: update(known, node["name"], answers(node))
+             for region in regions.values() for node in region["nodes"] if not node.get("stunonly")}
     up = {}
     for rid, region in regions.items():
         nodes = [n for n in region["nodes"] if not n.get("stunonly") and state[n["name"]]["up"]]
         if nodes:
             up[rid] = {**region, "nodes": [n for n in region["nodes"] if n.get("stunonly") or n in nodes]}
-    text = yaml({"regions": {int(rid): region for rid, region in (up or regions).items()}})
+    # Each region as JSON, which is YAML, under its id as an integer key, which JSON cannot write.
+    text = "regions:\n" + "".join(f"  {int(rid)}: {json.dumps(region)}\n" for rid, region in (up or regions).items())
     for path, content in ((state_path, json.dumps(state)), (out_path, text)):
         tmp = path + ".tmp"
         with open(tmp, "w") as f:
