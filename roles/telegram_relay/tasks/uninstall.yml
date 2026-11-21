@@ -1,0 +1,27 @@
+- name: "Read the custom domains"
+  ansible.builtin.uri:
+    url: "{{ _telegram_relay_api }}/domains?hostname={{ telegram_relay_hostname }}"
+    headers: "{{ _telegram_relay_headers }}"
+  register: "_telegram_relay_domains"
+  check_mode: false
+  no_log: true
+
+- name: "Detach the script from its hostname"
+  ansible.builtin.uri:
+    url: "{{ _telegram_relay_api }}/domains/{{ item }}"
+    method: "DELETE"
+    headers: "{{ _telegram_relay_headers }}"
+  loop: "{{ _telegram_relay_domains.json.result | selectattr('service', 'equalto', telegram_relay_name)
+            | map(attribute='id') | list }}"
+  no_log: true
+  changed_when: true
+
+- name: "Delete the script"
+  ansible.builtin.uri:
+    url: "{{ _telegram_relay_api }}/scripts/{{ telegram_relay_name }}"
+    method: "DELETE"
+    headers: "{{ _telegram_relay_headers }}"
+    status_code: [200, 404]
+  register: "_telegram_relay_delete"
+  no_log: true
+  changed_when: "_telegram_relay_delete.status == 200"

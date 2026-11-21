@@ -1,0 +1,3 @@
+_telegram_relay_api: "https://api.cloudflare.com/client/v4/accounts/{{ telegram_relay_account_id }}/workers"
+_telegram_relay_headers:
+  Authorization: "Bearer {{ telegram_relay_cloudflare_token }}"
