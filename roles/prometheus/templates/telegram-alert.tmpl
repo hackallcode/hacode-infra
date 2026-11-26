@@ -46,7 +46,6 @@
 {{- end }}
 {{- end }}
 {{- end }}
-{{- if and (eq $a.Status "firing") (ne (or $a.Labels.severity "info") "info") (lt (since $a.StartsAt).Seconds 60.0) }} &#127381;{{ end }}
 {{ $text | reReplaceAll "\\.$" "" }}
 {{- end }}
 {{- end }}
