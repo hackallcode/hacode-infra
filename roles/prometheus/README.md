@@ -37,7 +37,7 @@ backend. Ships a curated set of alert rules under `files/rules/`.
 The bundled `telegram.default.message` template turns a notification into a bold header and one line per alert:
 
 ```text
-🚨🌍🧠 Critical • Memory
+🚨🧠🌍 Critical • Memory
 
 ▸ 14:14  host-2 has 6% of its memory available, not counting swap.
   14:02  host-1 has 7% of its memory available, not counting swap.  12m
