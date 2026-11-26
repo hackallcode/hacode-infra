@@ -89,12 +89,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `prometheus` role: `NodeTrafficUsage1Day` is gone, as its 35 GB threshold is
   one hosting plan's; a project ships such a rule through
   `prometheus_extra_rule_dirs`.
-- `prometheus` role: the Telegram message is a bold header of severity,
-  category and how long the alert has fired or lasted, over one line per alert
-  from its `description`. `alertmanager_instance_emojis` adds an emoji of each
-  host to the header, by the `instance_name` label. Every bundled rule carries
-  a `category` label and a `description` sentence that names the host and the
-  value.
+- `prometheus` role: the Telegram message is a header of the firing
+  severities, hosts and count, over one line per alert, oldest first, firing
+  and resolved together: when it fired or resolved, its severity, category and
+  host emoji, and its `description`; 🆕 marks the ones fired under a minute
+  ago. `alertmanager_instance_emojis` gives each host its emoji, by the
+  `instance_name` label. Every bundled rule carries a `category` label and a
+  `description` sentence that names the host and the value.
 - `nginx` role: the `app-prepare` scaffold enables HTTP/2 with `http2 on;`, as
   the `http2` parameter of `listen` is deprecated since nginx 1.25.1. The
   directive needs that version or newer; on an older nginx, move `http2` back
@@ -102,15 +103,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
-- `prometheus` role: `InstanceDown`, `PrometheusIsolated`, `ProbeFailed` and
-  `NatsRouteMissing` keep firing for five minutes after the last failure. On a
-  lossy link scrapes and routes fail and pass in turn, and each such alert
-  fired and resolved every minute or two.
-- `prometheus` role: the Telegram message lists a group's alerts oldest first,
-  firing and resolved together, each with when it fired or resolved and its
-  own severity, category and host emoji; 🆕 marks the ones fired under a minute
-  ago, and the header counts the firing ones. The header's duration was the
-  oldest alert's and read as the new one's.
+- `prometheus` role: `InstanceDown`, `PrometheusIsolated` and `ProbeFailed`
+  keep firing for five minutes after the last failure. On a lossy link scrapes
+  and probes fail and pass in turn, and each such alert fired and resolved
+  every minute or two.
+- `prometheus` role: a template change reloads Alertmanager instead of
+  restarting it. A restart dropped the alerts it held, and they were notified
+  again as they came back from each Prometheus.
 - `prometheus` role: `NodeFilesystemSpaceFillingUp` and
   `NodeFilesystemFilesFillingUp` resolve once space is freed. A short burst of
   usage kept the 6-hour trend negative for hours after the cleanup; they now
