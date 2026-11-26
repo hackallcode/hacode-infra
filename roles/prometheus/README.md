@@ -37,18 +37,18 @@ backend. Ships a curated set of alert rules under `files/rules/`.
 The bundled `telegram.default.message` template turns a notification into a bold header and one line per alert:
 
 ```text
-🚨🌍🧠 Critical • Memory • Firing
+🚨🌍🧠 Critical • Memory
 
-host-1 has 7% of its memory available, not counting swap. since 14:02, 12m 5s
-🆕 host-2 has 6% of its memory available, not counting swap. since 14:14, 20s
+▸ 14:14  host-2 has 6% of its memory available, not counting swap.
+  14:02  host-1 has 7% of its memory available, not counting swap.  12m
 ```
 
-The header takes the `severity` and `category` labels of the first alert and the emoji `alertmanager_instance_emojis`
-gives each host of the message. Each line is the alert's `description` annotation, or `summary` without one, and when
-it started and for how long, in the Alertmanager host's time zone; a resolved one shows when it ended. 🆕 marks an
-alert fired under a minute ago: that is the one the message is about, as a group is notified within `group_interval`
-of a change. A project rule reads well with a `category` label (`memory`, `cpu`, `disk`, `network`, `host`, `clock`,
-`services`, `mesh`, `monitoring`) and a `description` that names the host and the value.
+The header takes the `severity` label of the first alert, or `Resolved`, its `category` label, and the emoji
+`alertmanager_instance_emojis` gives each host of the message. Each line is when the alert started, in the
+Alertmanager host's time zone, its `description` annotation, or `summary` without one, and how long it has been
+firing; a resolved one shows when it started and ended. ▸ marks an alert fired under a minute ago: that is the one the
+message is about, as a group is notified within `group_interval` of a change. A project rule reads well with a
+`category` label (`memory`, `cpu`, `disk`, `network`, `host`, `clock`, `services`, `mesh`, `monitoring`) and a `description` that names the host and the value.
 A route with `group_by: ["alertname", "severity"]` puts every host of one alert into one message.
 
 ## Example

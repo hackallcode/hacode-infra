@@ -27,21 +27,28 @@
 {{- else if eq $category "monitoring" }}&#128225;
 {{- else }}&#128276;
 {{- end }}
-{{- " " }}<b>{{ title $severity }} &#8226; {{ title $category }} &#8226;
-{{- if eq $first.Status "resolved" }} Resolved{{ else }} Firing{{ end }}</b>
+{{- " " }}<b>{{ if eq $first.Status "resolved" }}Resolved{{ else }}{{ title $severity }}{{ end }} &#8226; {{ title $category }}</b>
 {{ range . }}
-{{- /* A group is notified once its alert set changes, within group_interval: an alert fired under a
-minute ago is the one that changed it. Times are in the Alertmanager host's time zone. */}}
+{{- /* A group is notified within group_interval of a change, so an alert fired under a minute ago is the one
+the message is about. Times are in the Alertmanager host's time zone. */}}
 {{- $format := "15:04" }}
 {{- if gt (since .StartsAt).Hours 20.0 }}{{ $format = "02.01 15:04" }}{{ end }}
 {{- $start := .StartsAt.Local.Format $format }}
 {{- $end := .EndsAt.Local.Format $format }}
 {{- $age := (since .StartsAt).Truncate 1000000000 }}
-{{- $lasted := (.EndsAt.Sub .StartsAt).Truncate 1000000000 }}
-{{ if and (eq .Status "firing") (lt $age.Seconds 60.0) }}&#127381; {{ end }}
-{{- or .Annotations.description .Annotations.summary }}
-{{- if eq .Status "firing" }} <i>since {{ $start }}, {{ $age.Seconds | humanizeDuration }}</i>
-{{- else }} <i>{{ $start }}{{ if ne $start $end }}&#8211;{{ $end }}{{ end }}, {{ $lasted.Seconds | humanizeDuration }}</i>
+{{- if eq .Status "firing" }}
+{{- if lt $age.Seconds 60.0 }}
+<code>&#9656; {{ $start }}</code>  {{ or .Annotations.description .Annotations.summary }}
+{{- else }}
+<code>  {{ $start }}</code>  {{ or .Annotations.description .Annotations.summary }}  {{ template "telegram.duration" $age }}
+{{- end }}
+{{- else }}
+<code>{{ $start }}{{ if ne $start $end }}&#8211;{{ $end }}{{ end }}</code>  {{ or .Annotations.description .Annotations.summary }}  {{ template "telegram.duration" ((.EndsAt.Sub .StartsAt).Truncate 1000000000) }}
 {{- end }}
 {{- end }}
+{{- end }}
+
+{{/* 15s, 10m, 2h 5m, 1d 11h. */}}
+{{ define "telegram.duration" }}
+{{- .Seconds | humanizeDuration | reReplaceAll "^(\\d+d \\d+h) .*$" "$1" | reReplaceAll "^((\\d+h )?\\d+m) \\d+s$" "$1" | reReplaceAll " 0[hm]$" "" }}
 {{- end }}
