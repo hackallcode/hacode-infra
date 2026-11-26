@@ -26,7 +26,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `nats_cluster_firewall` run routes over public addresses, a server behind NAT
   dialling out only. A timer writes `nats.prom` for node_exporter, and the
   `prometheus` role's `Nats*` alerts read it: a server down, a route lost, a
-  peer or stream replica behind, a stream near its limit, metrics stale.
+  server or a stream copy behind, a stream near its limit, metrics stale. Each
+  server reports its own JetStream state from `/healthz`, so an alert names the
+  host that is behind rather than its NATS name as seen by the leader.
 - `failover` role: the [failover](https://github.com/hackallcode/failover)
   agent, one `failover@<service>` unit per service: one leader per service
   elected in NATS JetStream, its SQLite databases replicated as compressed
@@ -100,6 +102,10 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `prometheus` role: `InstanceDown`, `PrometheusIsolated`, `ProbeFailed` and
+  `NatsRouteMissing` keep firing for five minutes after the last failure. On a
+  lossy link scrapes and routes fail and pass in turn, and each such alert
+  fired and resolved every minute or two.
 - `prometheus` role: `NodeFilesystemSpaceFillingUp` and
   `NodeFilesystemFilesFillingUp` resolve once space is freed. A short burst of
   usage kept the 6-hour trend negative for hours after the cleanup; they now

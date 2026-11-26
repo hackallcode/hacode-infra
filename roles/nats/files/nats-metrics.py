@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+import urllib.error
 import urllib.request
 
 monitor_port, OUT, routes_expected = sys.argv[1:4]
@@ -16,6 +17,13 @@ UNITS = {"ns": 1e-9, "µs": 1e-6, "us": 1e-6, "ms": 1e-3, "s": 1, "m": 60, "h": 
 def get(path):
     with urllib.request.urlopen(MONITOR + path, timeout=5) as r:
         return json.load(r)
+
+
+def health_errors():
+    try:
+        return get("/healthz?details=true").get("errors") or []
+    except urllib.error.HTTPError as e:
+        return json.load(e).get("errors") or []
 
 
 def go_duration_seconds(duration):
@@ -49,27 +57,23 @@ def collect():
     lines.append(f"nats_routes {len(rtts)}")
     lines += [f'nats_route_rtt_seconds{{remote="{label(r)}"}} {v}' for r, v in sorted(rtts.items())]
 
-    meta = jsz.get("meta_cluster") or {}
-    lines.append(f"nats_jetstream_meta_leader {int(meta.get('leader') == me)}")
-    if meta.get("leader") == me:
-        for peer in meta.get("replicas") or []:
-            current = peer.get("current") and not peer.get("offline")
-            lines.append(f'nats_jetstream_peer_current{{peer="{label(peer["name"])}"}} {int(bool(current))}')
+    # Each server reports its own state, so an alert names the host that is behind.
+    errors = health_errors()
+    lines.append(f"nats_jetstream_current {int(not any(e.get('type') == 'JETSTREAM' for e in errors))}")
+    behind = {e.get("stream") for e in errors if e.get("type") == "STREAM"}
+    lines.append(f"nats_jetstream_meta_leader {int((jsz.get('meta_cluster') or {}).get('leader') == me)}")
 
     for account in jsz.get("account_details") or []:
         for stream in account.get("stream_detail") or []:
             name = label(stream["name"])
-            cluster = stream.get("cluster") or {}
             lines.append(f'nats_stream_bytes{{stream="{name}"}} {stream["state"]["bytes"]}')
             max_bytes = (stream.get("config") or {}).get("max_bytes", -1)
             if max_bytes > 0:
                 lines.append(f'nats_stream_max_bytes{{stream="{name}"}} {max_bytes}')
-            if cluster.get("leader") == me:
-                lines.append(f'nats_stream_leader{{stream="{name}"}} 1')
-                for peer in cluster.get("replicas") or []:
-                    current = peer.get("current") and not peer.get("offline")
-                    lines.append(f'nats_stream_replica_current{{stream="{name}",peer="{label(peer["name"])}"}} '
-                                 f'{int(bool(current))}')
+            # A replica cut off from the cluster still counts itself current until it hears a newer leader.
+            leaderless = "cluster" in stream and not stream["cluster"].get("leader")
+            current = stream["name"] not in behind and not leaderless
+            lines.append(f'nats_stream_current{{stream="{name}"}} {int(current)}')
     return lines
 
 

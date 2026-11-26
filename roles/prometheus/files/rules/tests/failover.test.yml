@@ -105,7 +105,7 @@ tests:
               service: headscale
             exp_annotations:
               summary: "A failover agent keeps failing."
-              description: "The headscale failover agent on a keeps failing; see its journal."
+              description: "The headscale failover agent on a has failed every run for 5 minutes: see `journalctl -u failover@headscale` there."
 
   # агент перестал писать метрики → FailoverStale
   - interval: 1m

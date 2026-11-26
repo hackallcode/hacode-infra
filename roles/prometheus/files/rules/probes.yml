@@ -5,6 +5,7 @@ groups:
         # A Prometheus cut off from every host it watches fails its probes too; PrometheusIsolated covers it.
         expr: 'probe_success == 0 unless on() max(up{instance_name!=""}) == 0'
         for: "2m"
+        keep_firing_for: "5m"
         labels:
           severity: "critical"
           category: "services"

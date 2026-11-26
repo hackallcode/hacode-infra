@@ -117,6 +117,41 @@ tests:
                 observer reaches none of the hosts it watches: it is cut off itself, or they are all down. Its
                 alerts about them and its probes are held back.
 
+  # хост на канале с потерями то отвечает, то нет → один InstanceDown, гаснет через 5 мин без сбоев
+  - interval: 30s
+    input_series:
+      - series: 'up{job="tailscale",instance_name="flaky"}'
+        values: "0x3 1 0 1 0 0 1 0 1x30"
+      - series: 'up{job="node",instance_name="other"}'
+        values: "1x45"
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: host
+              job: tailscale
+              instance_name: flaky
+            exp_annotations:
+              summary: "Instance down."
+              description: "tailscale on flaky does not answer."
+      - eval_time: 9m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: host
+              job: tailscale
+              instance_name: flaky
+            exp_annotations:
+              summary: "Instance down."
+              description: "tailscale on flaky does not answer."
+      - eval_time: 11m
+        alertname: InstanceDown
+        exp_alerts: []
+
   # хост снова отвечает → InstanceDown по остальным возвращается, PrometheusIsolated гаснет
   - interval: 30s
     input_series:
@@ -137,10 +172,10 @@ tests:
               description: >-
                 Prometheus reaches none of the hosts it watches: it is cut off itself, or they are all down. Its
                 alerts about them and its probes are held back.
-      - eval_time: 5m
+      - eval_time: 8m
         alertname: PrometheusIsolated
         exp_alerts: []
-      - eval_time: 5m
+      - eval_time: 8m
         alertname: InstanceDown
         exp_alerts:
           - exp_labels:

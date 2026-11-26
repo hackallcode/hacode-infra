@@ -37,7 +37,9 @@ groups:
           category: "services"
         annotations:
           summary: "A failover agent keeps failing."
-          description: "The {{ $labels.service }} failover agent on {{ $labels.instance_name }} keeps failing; see its journal."
+          description: >-
+            The {{ $labels.service }} failover agent on {{ $labels.instance_name }} has failed every run for 5
+            minutes: see `journalctl -u failover@{{ $labels.service }}` there.
 
       - alert: "FailoverStale"
         expr: "time() - failover_last_tick_timestamp_seconds > 120"

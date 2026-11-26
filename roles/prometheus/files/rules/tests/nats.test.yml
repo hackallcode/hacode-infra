@@ -43,35 +43,62 @@ tests:
               instance_name: a
             exp_annotations:
               summary: "A NATS server lost a route to a peer."
-              description: "NATS on a reaches 1 of its peers: one more lost and JetStream has no quorum."
+              description: "NATS on a has routes to 1 of its 2 peers: with none left it drops out of the cluster."
 
-  # мета-лидер видит отставшего пира → NatsPeerBehind
+  # маршрут то пропадает, то возвращается → один NatsRouteMissing, гаснет через 5 мин без сбоев
   - interval: 1m
     input_series:
-      - series: 'nats_jetstream_peer_current{job="node",instance_name="a",peer="c"}'
-        values: "0x5"
+      - series: 'nats_routes{job="node",instance_name="a"}'
+        values: "1 1 1 2 1 2 1 1 2x15"
+      - series: 'nats_routes_expected{job="node",instance_name="a"}'
+        values: "2x22"
     alert_rule_test:
-      - eval_time: 3m
-        alertname: NatsPeerBehind
+      - eval_time: 5m
+        alertname: NatsRouteMissing
         exp_alerts:
           - exp_labels:
               severity: warning
               category: services
               job: node
               instance_name: a
-              peer: c
             exp_annotations:
-              summary: "A NATS server is not current with the cluster."
-              description: "NATS meta leader a sees c offline or behind."
+              summary: "A NATS server lost a route to a peer."
+              description: "NATS on a has routes to 1 of its 2 peers: with none left it drops out of the cluster."
+      - eval_time: 14m
+        alertname: NatsRouteMissing
+        exp_alerts: []
 
-  # реплика потока отстаёт 5 мин → NatsStreamReplicaBehind
+  # сервер не видит лидера JetStream дольше 2 мин → NatsJetStreamBehind
   - interval: 1m
     input_series:
-      - series: 'nats_stream_replica_current{job="node",instance_name="a",stream="KV_x",peer="c"}'
+      - series: 'nats_jetstream_current{job="node",instance_name="a"}'
+        values: "1 0x5"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: NatsJetStreamBehind
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: NatsJetStreamBehind
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              category: services
+              job: node
+              instance_name: a
+            exp_annotations:
+              summary: "A NATS server is out of sync with the JetStream cluster."
+              description: "NATS on a does not reach the JetStream cluster leader or lags it: see `/healthz?details=true` on its monitoring port."
+
+  # копия потока отстаёт 5 мин → NatsStreamBehind по хосту с этой копией
+  - interval: 1m
+    input_series:
+      - series: 'nats_stream_current{job="node",instance_name="a",stream="KV_x"}'
         values: "0x10"
+      - series: 'nats_stream_current{job="node",instance_name="b",stream="KV_x"}'
+        values: "1x10"
     alert_rule_test:
       - eval_time: 6m
-        alertname: NatsStreamReplicaBehind
+        alertname: NatsStreamBehind
         exp_alerts:
           - exp_labels:
               severity: warning
@@ -79,10 +106,9 @@ tests:
               job: node
               instance_name: a
               stream: KV_x
-              peer: c
             exp_annotations:
-              summary: "A NATS stream replica is behind."
-              description: "The KV_x replica on c is offline or behind its leader a."
+              summary: "A NATS stream copy is behind."
+              description: "The KV_x copy on a has no leader or lags it: writes made elsewhere have not reached it."
 
   # поток заполнен на 90% → NatsStreamFilling; поток без лимита - тишина
   - interval: 1m
