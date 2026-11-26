@@ -45,13 +45,13 @@ The bundled `telegram.default.message` template turns a notification into a head
 ```
 
 The header carries the emoji of each severity among the firing alerts and the emoji `alertmanager_instance_emojis` gives
-each of their hosts, then their count; with none firing it is ✅, the hosts and `resolved`. The lines run oldest first,
+each of their hosts, then their count; with none firing it is ✅ and the hosts. The lines run oldest first,
 each with when the alert fired, or resolved, in the Alertmanager host's time zone, the emoji of its severity (✅ once
 resolved), of its `category` label and of its host, and its `description` annotation, or `summary` without one, less a
 final period. 🆕 marks an alert fired under a minute ago: that is the one the message is about, as a group is notified
 within `group_interval` of a change. A project rule reads well with a `category` label (`memory`, `cpu`, `disk`,
 `network`, `host`, `clock`, `services`, `mesh`, `monitoring`) and a `description` that names the host and the value.
-A route with `group_by: ["alertname", "severity"]` puts every host of one alert into one message.
+A route with `group_by: []` puts all it routes into one group, so each message shows everything that fires.
 
 ## Example
 

@@ -6,7 +6,7 @@
 {{- $hit := false }}{{ range $headed }}{{ if and (eq .Status "firing") (eq (or .Labels.severity "info") $severity) }}{{ $hit = true }}{{ end }}{{ end }}
 {{- if $hit }}{{ template "telegram.severity_emoji" $severity }}{{ end }}
 {{- end }}
-{{- template "telegram.instance_emojis" $headed }} &#8226; {{ if .Alerts.Firing }}{{ len .Alerts.Firing }} firing{{ else }}resolved{{ end }}
+{{- template "telegram.instance_emojis" $headed }}{{ if .Alerts.Firing }} &#8226; {{ len .Alerts.Firing }} firing{{ end }}
 {{ "" }}
 {{- /* Alertmanager orders a group's alerts by labels; print them by the time of their last change instead, the
 earliest first. Printed indexes collect in $done, as templates have no sort. */}}
