@@ -34,22 +34,23 @@ backend. Ships a curated set of alert rules under `files/rules/`.
 
 ## Telegram message
 
-The bundled `telegram.default.message` template turns a notification into a bold header and one line per alert:
+The bundled `telegram.default.message` template turns a notification into a header and one line per alert:
 
 ```text
-🚨🧠🌍 Critical • Memory
+🚨⚠️🌍🍓 • 2 firing
 
-▸ 14:14  host-2 has 6% of its memory available, not counting swap.
-  14:02  host-1 has 7% of its memory available, not counting swap.  12m
+14:02 • ✅🧠🌍 host-1 has 7% of its memory available, not counting swap
+14:10 • ⚠️🧠🍓 host-2 has 18% of its memory available, not counting swap
+14:14 • 🚨🧠🌍 host-1 has 6% of its memory available, not counting swap 🆕
 ```
 
-The header takes the `severity` label of the first alert, or `Resolved`, its `category` label, and the emoji
-`alertmanager_instance_emojis` gives each host of the message. Each line is when the alert started, in the
-Alertmanager host's time zone, its `description` annotation, or `summary` without one, and how long it has been
-firing; a resolved one shows when it started and ended. ▸ marks an alert fired under a minute ago: that is the one the
-message is about, as a group is notified within `group_interval` of a change. A project rule reads well with a
-`category` label (`memory`, `cpu`, `disk`, `network`, `host`, `clock`, `services`, `mesh`, `monitoring`) and a
-`description` that names the host and the value.
+The header carries the emoji of each severity among the firing alerts and the emoji `alertmanager_instance_emojis` gives
+each of their hosts, then their count; with none firing it is ✅, the hosts and `resolved`. The lines run oldest first,
+each with when the alert fired, or resolved, in the Alertmanager host's time zone, the emoji of its severity (✅ once
+resolved), of its `category` label and of its host, and its `description` annotation, or `summary` without one, less a
+final period. 🆕 marks an alert fired under a minute ago: that is the one the message is about, as a group is notified
+within `group_interval` of a change. A project rule reads well with a `category` label (`memory`, `cpu`, `disk`,
+`network`, `host`, `clock`, `services`, `mesh`, `monitoring`) and a `description` that names the host and the value.
 A route with `group_by: ["alertname", "severity"]` puts every host of one alert into one message.
 
 ## Example

@@ -1,54 +1,59 @@
 {{ define "telegram.default.message" }}
-{{- if .Alerts.Firing }}{{ template "telegram.alerts" .Alerts.Firing }}{{ end }}
-{{- if and .Alerts.Firing .Alerts.Resolved }}
-
-{{ end }}
-{{- if .Alerts.Resolved }}{{ template "telegram.alerts" .Alerts.Resolved }}{{ end }}
+{{- $alerts := .Alerts }}
+{{- $headed := .Alerts.Firing }}
+{{- if not $headed }}{{ $headed = .Alerts }}&#9989;{{ end }}
+{{- range $severity := stringSlice "critical" "warning" "info" }}
+{{- $hit := false }}{{ range $headed }}{{ if and (eq .Status "firing") (eq (or .Labels.severity "info") $severity) }}{{ $hit = true }}{{ end }}{{ end }}
+{{- if $hit }}{{ template "telegram.severity_emoji" $severity }}{{ end }}
+{{- end }}
+{{- template "telegram.instance_emojis" $headed }} &#8226; {{ if .Alerts.Firing }}{{ len .Alerts.Firing }} firing{{ else }}resolved{{ end }}
+{{ "" }}
+{{- /* Alertmanager orders a group's alerts by labels; print them by the time of their last change instead, the
+earliest first. Printed indexes collect in $done, as templates have no sort. */}}
+{{- $done := "|" }}
+{{- range $alerts }}
+{{- $next := -1 }}{{ $nextAt := "" }}
+{{- range $i, $a := $alerts }}
+{{- if not (match (printf "\\|%d\\|" $i) $done) }}
+{{- $at := $a.StartsAt.UTC.Format "2006-01-02T15:04:05.000" }}
+{{- if eq $a.Status "resolved" }}{{ $at = $a.EndsAt.UTC.Format "2006-01-02T15:04:05.000" }}{{ end }}
+{{- if or (eq $next -1) (lt $at $nextAt) }}{{ $next = $i }}{{ $nextAt = $at }}{{ end }}
+{{- end }}
+{{- end }}
+{{- $done = printf "%s%d|" $done $next }}
+{{ template "telegram.line" index $alerts $next }}
+{{- end }}
 {{- end }}
 
-{{ define "telegram.alerts" }}
-{{- $first := index . 0 }}
-{{- $severity := or $first.Labels.severity "info" }}
-{{- $category := or $first.Labels.category "alert" }}
-{{- if eq $first.Status "resolved" }}&#9989;
-{{- else if eq $severity "critical" }}&#128680;
-{{- else if eq $severity "warning" }}&#9888;&#65039;
+{{/* Time • status, category and host emoji, description. A firing alert shows when it started, a resolved one
+when it ended, in the Alertmanager host's time zone. A group is notified within group_interval of a change, so
+an alert fired under a minute ago is the one the message is about. */}}
+{{ define "telegram.line" }}
+{{- $at := .StartsAt }}{{ if eq .Status "resolved" }}{{ $at = .EndsAt }}{{ end }}
+{{- $format := "15:04" }}{{ if gt (since $at).Hours 20.0 }}{{ $format = "02.01 15:04" }}{{ end -}}
+{{ $at.Local.Format $format }} &#8226; {{ if eq .Status "resolved" }}&#9989;{{ else }}{{ template "telegram.severity_emoji" (or .Labels.severity "info") }}{{ end }}
+{{- template "telegram.category_emoji" (or .Labels.category "alert") }}
+{{- template "telegram.instance_emoji" . }} {{ or .Annotations.description .Annotations.summary | reReplaceAll "\\.$" "" }}
+{{- if and (eq .Status "firing") (lt (since .StartsAt).Seconds 60.0) }} &#127381;{{ end }}
+{{- end }}
+
+{{ define "telegram.severity_emoji" }}
+{{- if eq . "critical" }}&#128680;
+{{- else if eq . "warning" }}&#9888;&#65039;
 {{- else }}&#8505;&#65039;
 {{- end }}
-{{- if eq $category "memory" }}&#129504;
-{{- else if eq $category "cpu" }}&#9881;&#65039;
-{{- else if eq $category "disk" }}&#128190;
-{{- else if eq $category "network" }}&#127760;
-{{- else if eq $category "host" }}&#128421;&#65039;
-{{- else if eq $category "clock" }}&#128336;
-{{- else if eq $category "services" }}&#129520;
-{{- else if eq $category "mesh" }}&#128376;&#65039;
-{{- else if eq $category "monitoring" }}&#128225;
-{{- else }}&#128276;
-{{- end }}
-{{- template "telegram.instance_emojis" . }}
-{{- " " }}<b>{{ if eq $first.Status "resolved" }}Resolved{{ else }}{{ title $severity }}{{ end }} &#8226; {{ title $category }}</b>
-{{ range . }}
-{{- /* A group is notified within group_interval of a change, so an alert fired under a minute ago is the one
-the message is about. Times are in the Alertmanager host's time zone. */}}
-{{- $format := "15:04" }}
-{{- if gt (since .StartsAt).Hours 20.0 }}{{ $format = "02.01 15:04" }}{{ end }}
-{{- $start := .StartsAt.Local.Format $format }}
-{{- $end := .EndsAt.Local.Format $format }}
-{{- $age := (since .StartsAt).Truncate 1000000000 }}
-{{- if eq .Status "firing" }}
-{{- if lt $age.Seconds 60.0 }}
-<code>&#9656; {{ $start }}</code>  {{ or .Annotations.description .Annotations.summary }}
-{{- else }}
-<code>  {{ $start }}</code>  {{ or .Annotations.description .Annotations.summary }}  {{ template "telegram.duration" $age }}
-{{- end }}
-{{- else }}
-<code>{{ $start }}{{ if ne $start $end }}&#8211;{{ $end }}{{ end }}</code>  {{ or .Annotations.description .Annotations.summary }}  {{ template "telegram.duration" ((.EndsAt.Sub .StartsAt).Truncate 1000000000) }}
-{{- end }}
-{{- end }}
 {{- end }}
 
-{{/* 15s, 10m, 2h 5m, 1d 11h. */}}
-{{ define "telegram.duration" }}
-{{- .Seconds | humanizeDuration | reReplaceAll "^(\\d+d \\d+h) .*$" "$1" | reReplaceAll "^((\\d+h )?\\d+m) \\d+s$" "$1" | reReplaceAll " 0[hm]$" "" }}
+{{ define "telegram.category_emoji" }}
+{{- if eq . "memory" }}&#129504;
+{{- else if eq . "cpu" }}&#9881;&#65039;
+{{- else if eq . "disk" }}&#128190;
+{{- else if eq . "network" }}&#127760;
+{{- else if eq . "host" }}&#128421;&#65039;
+{{- else if eq . "clock" }}&#128336;
+{{- else if eq . "services" }}&#129520;
+{{- else if eq . "mesh" }}&#128376;&#65039;
+{{- else if eq . "monitoring" }}&#128225;
+{{- else }}&#128276;
+{{- end }}
 {{- end }}
