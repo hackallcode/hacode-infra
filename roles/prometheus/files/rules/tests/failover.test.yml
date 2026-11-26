@@ -76,13 +76,49 @@ tests:
         alertname: FailoverLeaderChanged
         exp_alerts: []
 
-  # перезапуск или фенсинг лидера на минуту-две без смены узла → тишина
+  # лидерство ушло на b и через 5 мин вернулось на a → срабатывает у b, потом у a
   - interval: 1m
     input_series:
       - series: 'failover_leader{job="node",instance_name="a",service="headscale"}'
-        values: "1x15 0 0 1x20"
+        values: "1x5 0x4 1x10"
+      - series: 'failover_leader{job="node",instance_name="b",service="headscale"}'
+        values: "0x5 1x4 0x10"
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: FailoverLeaderChanged
+        exp_alerts:
+          - exp_labels:
+              severity: info
+              category: services
+              job: node
+              instance_name: b
+              service: headscale
+            exp_annotations:
+              summary: "Failover leadership moved."
+              description: "headscale moved to b."
+      - eval_time: 12m
+        alertname: FailoverLeaderChanged
+        exp_alerts:
+          - exp_labels:
+              severity: info
+              category: services
+              job: node
+              instance_name: a
+              service: headscale
+            exp_annotations:
+              summary: "Failover leadership moved."
+              description: "headscale moved to a."
+
+  # перезапуск или фенсинг лидера без смены узла → тишина
+  - interval: 1m
+    input_series:
+      - series: 'failover_leader{job="node",instance_name="a",service="headscale"}'
+        values: "1x15 0x5 1x20"
     alert_rule_test:
       - eval_time: 18m
+        alertname: FailoverLeaderChanged
+        exp_alerts: []
+      - eval_time: 23m
         alertname: FailoverLeaderChanged
         exp_alerts: []
 
