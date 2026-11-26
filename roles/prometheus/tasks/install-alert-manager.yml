@@ -28,7 +28,7 @@
 
 # The upstream role restarts Alertmanager on a template change, and a restart drops the alerts it holds: they
 # come back from Prometheus one by one and each set is notified again. Copied first, the upstream copy finds them
-# current, and a reload keeps the alerts.
+# current, and a reload keeps the alerts. On a first install the upstream role creates the user and the dir.
 - name: "Check the Alertmanager templates dir"
   tags: ["install"]
   ansible.builtin.stat:
@@ -44,7 +44,7 @@
     group: "alertmanager"
     mode: "0644"
   loop: "{{ query('ansible.builtin.fileglob', *_am_template_files) }}"
-  when: "_am_templates_dir.stat.isdir | default(false)"
+  when: "_am_templates_dir.stat.pw_name | default('') == 'alertmanager'"
   register: "_am_templates"
 
 - name: "Install Alert Manager"
