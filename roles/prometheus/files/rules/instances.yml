@@ -9,6 +9,7 @@ groups:
           unless on(job, instance_name) (up{job="headscale"} and on(instance_name) failover_leader{service="headscale"} == 0)
           unless on() max(up{instance_name!=""}) == 0
         for: "1m"
+        keep_firing_for: "5m"
         labels:
           severity: "critical"
           category: "host"
@@ -19,6 +20,7 @@ groups:
       - alert: "PrometheusIsolated"
         expr: 'max(up{instance_name!=""}) == 0'
         for: "1m"
+        keep_firing_for: "5m"
         labels:
           severity: "critical"
           category: "monitoring"

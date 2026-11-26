@@ -1,40 +1,73 @@
 {{ define "telegram.default.message" }}
-{{- if .Alerts.Firing }}{{ template "telegram.alerts" .Alerts.Firing }}{{ end }}
-{{- if and .Alerts.Firing .Alerts.Resolved }}
+{{- $alerts := .Alerts }}
+{{- $headed := .Alerts.Firing }}
+{{- if not $headed }}{{ $headed = .Alerts }}&#9989;{{ end }}
+{{- range $severity := stringSlice "critical" "warning" "info" }}
+{{- $hit := false }}{{ range $headed }}{{ if and (eq .Status "firing") (eq (or .Labels.severity "info") $severity) }}{{ $hit = true }}{{ end }}{{ end }}
+{{- if $hit }}{{ template "telegram.severity_emoji" $severity }}{{ end }}
+{{- end }}
+{{- template "telegram.instance_emojis" $headed }}
+{{- $firingTally := "" }}
+{{- range $i, $a := .Alerts.Firing }}
+{{- $seen := false }}
+{{- range $j, $b := $.Alerts.Firing }}{{ if and (lt $j $i) (eq (or $a.Annotations.description $a.Annotations.summary) (or $b.Annotations.description $b.Annotations.summary)) }}{{ $seen = true }}{{ end }}{{ end }}
+{{- if and (not $seen) (ne (or $a.Labels.severity "info") "info") }}{{ $firingTally = printf "%sx" $firingTally }}{{ end }}
+{{- end }}
+{{- if $firingTally }} &#8226; {{ len $firingTally }} firing{{ end }}
+{{- $printed := "|" }}
+{{- range $alerts }}
+{{- $next := -1 }}{{ $nextAt := "" }}
+{{- range $i, $a := $alerts }}
+{{- if not (match (printf "\\|%d\\|" $i) $printed) }}
+{{- $at := $a.StartsAt.UTC.Format "2006-01-02T15:04:05.000" }}
+{{- if eq $a.Status "resolved" }}{{ $at = $a.EndsAt.UTC.Format "2006-01-02T15:04:05.000" }}{{ end }}
+{{- if or (eq $next -1) (lt $at $nextAt) }}{{ $next = $i }}{{ $nextAt = $at }}{{ end }}
+{{- end }}
+{{- end }}
+{{- if ge $next 0 }}
+{{- $a := index $alerts $next }}
+{{- $text := or $a.Annotations.description $a.Annotations.summary }}
+{{- range $j, $b := $alerts }}
+{{- if and (eq $b.Status $a.Status) (eq $text (or $b.Annotations.description $b.Annotations.summary)) }}{{ $printed = printf "%s%d|" $printed $j }}{{ end }}
+{{- end }}
+{{- $at := $a.StartsAt }}{{ if eq $a.Status "resolved" }}{{ $at = $a.EndsAt }}{{ end }}
+{{- $format := "15:04" }}{{ if gt (since $at).Hours 20.0 }}{{ $format = "02.01 15:04" }}{{ end }}
+{{- $observed := false }}{{ range $alerts }}{{ if and .Labels.observer (eq .Status $a.Status) (eq $text (or .Annotations.description .Annotations.summary)) }}{{ $observed = true }}{{ end }}{{ end }}
 
-{{ end }}
-{{- if .Alerts.Resolved }}{{ template "telegram.alerts" .Alerts.Resolved }}{{ end }}
+{{ $at.Local.Format $format }} &#8226; {{ if eq $a.Status "resolved" }}&#9989;{{ else }}{{ template "telegram.severity_emoji" (or $a.Labels.severity "info") }}{{ end }}
+{{- template "telegram.instance_emoji" $a.Labels.instance_name }}
+{{- template "telegram.category_emoji" (or $a.Labels.category "alert") }}
+{{- if $observed }} &#8226; &#128064;
+{{- range $j, $b := $alerts }}
+{{- if and $b.Labels.observer (eq $b.Status $a.Status) (eq $text (or $b.Annotations.description $b.Annotations.summary)) }}
+{{- $again := false }}
+{{- range $k, $c := $alerts }}{{ if and (lt $k $j) (eq $c.Labels.observer $b.Labels.observer) (eq $c.Status $a.Status) (eq $text (or $c.Annotations.description $c.Annotations.summary)) }}{{ $again = true }}{{ end }}{{ end }}
+{{- if not $again }}{{ template "telegram.instance_emoji" $b.Labels.observer }}{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{ $text | reReplaceAll "\\.$" "" }}
+{{- end }}
+{{- end }}
 {{- end }}
 
-{{ define "telegram.alerts" }}
-{{- $first := index . 0 }}
-{{- $severity := or $first.Labels.severity "info" }}
-{{- $category := or $first.Labels.category "alert" }}
-{{- if eq $first.Status "resolved" }}&#9989;
-{{- else if eq $severity "critical" }}&#128680;
-{{- else if eq $severity "warning" }}&#9888;&#65039;
+{{ define "telegram.severity_emoji" }}
+{{- if eq . "critical" }}&#128680;
+{{- else if eq . "warning" }}&#9888;&#65039;
 {{- else }}&#8505;&#65039;
 {{- end }}
-{{- template "telegram.instance_emojis" . }}
-{{- if eq $category "memory" }}&#129504;
-{{- else if eq $category "cpu" }}&#9881;&#65039;
-{{- else if eq $category "disk" }}&#128190;
-{{- else if eq $category "network" }}&#127760;
-{{- else if eq $category "host" }}&#128421;&#65039;
-{{- else if eq $category "clock" }}&#128336;
-{{- else if eq $category "services" }}&#129520;
-{{- else if eq $category "mesh" }}&#128376;&#65039;
-{{- else if eq $category "monitoring" }}&#128225;
-{{- else }}&#128276;
 {{- end }}
-{{- $longest := 0.0 }}
-{{- range . }}
-{{- $d := (.EndsAt.Sub .StartsAt).Seconds }}
-{{- if eq .Status "firing" }}{{ $d = (since .StartsAt).Seconds }}{{ end }}
-{{- if gt $d $longest }}{{ $longest = $d }}{{ end }}
-{{- end }} <b>{{ title $severity }} &#8226; {{ title $category }} &#8226;
-{{- if eq $first.Status "resolved" }} Resolved in {{ else }} Firing {{ end }}{{ $longest | humanizeDuration }}</b>
-{{ range . }}
-{{ or .Annotations.description .Annotations.summary }}
+
+{{ define "telegram.category_emoji" }}
+{{- if eq . "memory" }}&#129504;
+{{- else if eq . "cpu" }}&#9881;&#65039;
+{{- else if eq . "disk" }}&#128190;
+{{- else if eq . "network" }}&#127760;
+{{- else if eq . "host" }}&#128421;&#65039;
+{{- else if eq . "clock" }}&#128336;
+{{- else if eq . "services" }}&#129520;
+{{- else if eq . "mesh" }}&#128376;&#65039;
+{{- else if eq . "monitoring" }}&#128225;
+{{- else }}&#128276;
 {{- end }}
 {{- end }}

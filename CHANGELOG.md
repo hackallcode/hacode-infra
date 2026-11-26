@@ -26,7 +26,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `nats_cluster_firewall` run routes over public addresses, a server behind NAT
   dialling out only. A timer writes `nats.prom` for node_exporter, and the
   `prometheus` role's `Nats*` alerts read it: a server down, a route lost, a
-  peer or stream replica behind, a stream near its limit, metrics stale.
+  server or a stream copy behind, a stream near its limit, metrics stale. Each
+  server reports its own JetStream state from `/healthz`, so an alert names the
+  host that is behind rather than its NATS name as seen by the leader.
 - `failover` role: the [failover](https://github.com/hackallcode/failover)
   agent, one `failover@<service>` unit per service: one leader per service
   elected in NATS JetStream, its SQLite databases replicated as compressed
@@ -87,12 +89,15 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 - `prometheus` role: `NodeTrafficUsage1Day` is gone, as its 35 GB threshold is
   one hosting plan's; a project ships such a rule through
   `prometheus_extra_rule_dirs`.
-- `prometheus` role: the Telegram message is a bold header of severity,
-  category and how long the alert has fired or lasted, over one line per alert
-  from its `description`. `alertmanager_instance_emojis` adds an emoji of each
-  host to the header, by the `instance_name` label. Every bundled rule carries
-  a `category` label and a `description` sentence that names the host and the
-  value.
+- `prometheus` role: the Telegram message is a header of the firing
+  severities, hosts and count, over an item per alert, oldest first, firing
+  and resolved together: when it fired or resolved, its severity, host and
+  category emoji, and below them its `description`. `info` alerts are events:
+  the count leaves them out. `alertmanager_instance_emojis` gives each host its
+  emoji, by the `instance_name` label. An `observer` label on each
+  Prometheus server's alerts keeps their copies apart and adds 👀 and the
+  observers' emoji to the item. Every bundled rule carries a `category` label
+  and a `description` sentence that names the host and the value.
 - `nginx` role: the `app-prepare` scaffold enables HTTP/2 with `http2 on;`, as
   the `http2` parameter of `listen` is deprecated since nginx 1.25.1. The
   directive needs that version or newer; on an older nginx, move `http2` back
@@ -100,6 +105,13 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
 
 ### Fixed
 
+- `prometheus` role: `InstanceDown`, `PrometheusIsolated` and `ProbeFailed`
+  keep firing for five minutes after the last failure. On a lossy link scrapes
+  and probes fail and pass in turn, and each such alert fired and resolved
+  every minute or two.
+- `prometheus` role: a template change reloads Alertmanager instead of
+  restarting it. A restart dropped the alerts it held, and they were notified
+  again as they came back from each Prometheus.
 - `prometheus` role: `NodeFilesystemSpaceFillingUp` and
   `NodeFilesystemFilesFillingUp` resolve once space is freed. A short burst of
   usage kept the 6-hour trend negative for hours after the cleanup; they now

@@ -5,3 +5,11 @@
 {{- if $hit }}[[ emoji ]]{{ end }}
 [% endfor %]
 {{- end }}
+
+{{ define "telegram.instance_emoji" }}
+{{- $name := . }}{{ $hit := false }}
+[% for name, emoji in alertmanager_instance_emojis.items() %]
+{{- if eq $name [[ name | to_json ]] }}[[ emoji ]]{{ $hit = true }}{{ end }}
+[% endfor %]
+{{- if not $hit }}{{ $name }}{{ end }}
+{{- end }}

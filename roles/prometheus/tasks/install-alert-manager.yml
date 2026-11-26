@@ -26,6 +26,27 @@
           if alertmanager_severity_inhibit_enabled else [])
          + (alertmanager_inhibit_rules | default([])) }}
 
+# The upstream role restarts Alertmanager on a template change, and a restart drops the alerts it holds: they
+# come back from Prometheus one by one and each set is notified again. Copied first, the upstream copy finds them
+# current, and a reload keeps the alerts. On a first install the upstream role creates the user and the dir.
+- name: "Check the Alertmanager templates dir"
+  tags: ["install"]
+  ansible.builtin.stat:
+    path: "/etc/alertmanager/templates"
+  register: "_am_templates_dir"
+
+- name: "Install Alertmanager templates ahead of the upstream role"
+  tags: ["install"]
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/alertmanager/templates/"
+    owner: "alertmanager"
+    group: "alertmanager"
+    mode: "0644"
+  loop: "{{ query('ansible.builtin.fileglob', *_am_template_files) }}"
+  when: "_am_templates_dir.stat.pw_name | default('') == 'alertmanager'"
+  register: "_am_templates"
+
 - name: "Install Alert Manager"
   tags: ["install"]
   vars:
@@ -82,9 +103,9 @@
     }}
   register: "stale_templates_cleanup"
 
-- name: "Restart Alertmanager after template changes"  # noqa: no-handler
+- name: "Reload Alertmanager after template changes"  # noqa: no-handler
   tags: ["install"]
   ansible.builtin.systemd:
     name: "alertmanager"
-    state: "restarted"
-  when: "stale_templates_cleanup.changed or instance_emojis_template.changed"
+    state: "reloaded"
+  when: "_am_templates is changed or stale_templates_cleanup is changed or instance_emojis_template is changed"
