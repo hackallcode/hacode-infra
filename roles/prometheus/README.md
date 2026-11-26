@@ -34,24 +34,36 @@ backend. Ships a curated set of alert rules under `files/rules/`.
 
 ## Telegram message
 
-The bundled `telegram.default.message` template turns a notification into a header and one line per alert:
+The bundled `telegram.default.message` template turns a notification into a header and an item per alert:
 
 ```text
 🚨⚠️🌍🍓 • 2 firing
 
-14:02 • ✅🧠🌍 host-1 has 7% of its memory available, not counting swap
-14:10 • ⚠️🧠🍓 host-2 has 18% of its memory available, not counting swap
-14:14 • 🚨🧠🌍 host-1 has 6% of its memory available, not counting swap 🆕
+14:02 • ✅🌍🧠 • 👀🍓
+host-1 has 7% of its memory available, not counting swap
+
+14:10 • ⚠️🍓🧠 • 👀🌍🍓
+host-2 has 18% of its memory available, not counting swap
+
+14:14 • 🚨🌍🧠 • 👀🍓 🆕
+host-1 has 6% of its memory available, not counting swap
 ```
 
 The header carries the emoji of each severity among the firing alerts and the emoji `alertmanager_instance_emojis` gives
-each of their hosts, then their count; with none firing it is ✅ and the hosts. The lines run oldest first,
-each with when the alert fired, or resolved, in the Alertmanager host's time zone, the emoji of its severity (✅ once
-resolved), of its `category` label and of its host, and its `description` annotation, or `summary` without one, less a
-final period. 🆕 marks an alert fired under a minute ago: that is the one the message is about, as a group is notified
-within `group_interval` of a change. A project rule reads well with a `category` label (`memory`, `cpu`, `disk`,
-`network`, `host`, `clock`, `services`, `mesh`, `monitoring`) and a `description` that names the host and the value.
-A route with `group_by: []` puts all it routes into one group, so each message shows everything that fires.
+each of their hosts, then their count; with none firing it is ✅ and the hosts. Items run oldest first, each with when
+the alert fired, or resolved, in the Alertmanager host's time zone, the emoji of its severity (✅ once resolved), of its
+host and of its `category` label, and below them its `description` annotation, or `summary` without one, less a final
+period. 🆕 marks an alert fired under a minute ago: that is the one the message is about, as a group is notified within
+`group_interval` of a change.
+
+Prometheus servers that watch the same hosts each send their own copy of an alert. An `observer` label naming the
+server's host, set through `prometheus_alert_relabel_configs`, keeps the copies apart, so one that sees a host down and
+one that sees it up do not flip a shared alert between firing and resolved; the item then shows 👀 and the emoji of each
+observer that sees it. Without the label, the copies are one alert and the item shows no observers.
+
+A project rule reads well with a `category` label (`memory`, `cpu`, `disk`, `network`, `host`, `clock`, `services`,
+`mesh`, `monitoring`) and a `description` that names the host and the value. A route with `group_by: []` puts all it
+routes into one group, so each message shows everything that fires.
 
 ## Example
 

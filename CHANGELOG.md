@@ -90,12 +90,14 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   one hosting plan's; a project ships such a rule through
   `prometheus_extra_rule_dirs`.
 - `prometheus` role: the Telegram message is a header of the firing
-  severities, hosts and count, over one line per alert, oldest first, firing
-  and resolved together: when it fired or resolved, its severity, category and
-  host emoji, and its `description`; 🆕 marks the ones fired under a minute
-  ago. `alertmanager_instance_emojis` gives each host its emoji, by the
-  `instance_name` label. Every bundled rule carries a `category` label and a
-  `description` sentence that names the host and the value.
+  severities, hosts and count, over an item per alert, oldest first, firing
+  and resolved together: when it fired or resolved, its severity, host and
+  category emoji, and below them its `description`; 🆕 marks the ones fired
+  under a minute ago. `alertmanager_instance_emojis` gives each host its
+  emoji, by the `instance_name` label. An `observer` label on each
+  Prometheus server's alerts keeps their copies apart and adds 👀 and the
+  observers' emoji to the item. Every bundled rule carries a `category` label
+  and a `description` sentence that names the host and the value.
 - `nginx` role: the `app-prepare` scaffold enables HTTP/2 with `http2 on;`, as
   the `http2` parameter of `listen` is deprecated since nginx 1.25.1. The
   directive needs that version or newer; on an older nginx, move `http2` back

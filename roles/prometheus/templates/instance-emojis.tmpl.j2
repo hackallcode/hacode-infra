@@ -6,8 +6,11 @@
 [% endfor %]
 {{- end }}
 
+{{/* One instance_name or observer label value: its emoji, or the value itself without one. */}}
 {{ define "telegram.instance_emoji" }}
+{{- $name := . }}{{ $hit := false }}
 [% for name, emoji in alertmanager_instance_emojis.items() %]
-{{- if eq .Labels.instance_name [[ name | to_json ]] }}[[ emoji ]]{{ end }}
+{{- if eq $name [[ name | to_json ]] }}[[ emoji ]]{{ $hit = true }}{{ end }}
 [% endfor %]
+{{- if not $hit }}{{ $name }}{{ end }}
 {{- end }}

@@ -6,8 +6,17 @@
 {{- $hit := false }}{{ range $headed }}{{ if and (eq .Status "firing") (eq (or .Labels.severity "info") $severity) }}{{ $hit = true }}{{ end }}{{ end }}
 {{- if $hit }}{{ template "telegram.severity_emoji" $severity }}{{ end }}
 {{- end }}
-{{- template "telegram.instance_emojis" $headed }}{{ if .Alerts.Firing }} &#8226; {{ len .Alerts.Firing }} firing{{ end }}
-{{ "" }}
+{{- template "telegram.instance_emojis" $headed }}
+{{- /* Each Prometheus sends its own copy of an alert, told apart by an observer label naming its host; one item
+stands for all copies of a description and state, with 👀 and the emoji of each observer. Templates have no
+arithmetic, so the count is a string's length. */}}
+{{- $firing := "" }}
+{{- range $i, $a := .Alerts.Firing }}
+{{- $seen := false }}
+{{- range $j, $b := $.Alerts.Firing }}{{ if and (lt $j $i) (eq (or $a.Annotations.description $a.Annotations.summary) (or $b.Annotations.description $b.Annotations.summary)) }}{{ $seen = true }}{{ end }}{{ end }}
+{{- if not $seen }}{{ $firing = printf "%sx" $firing }}{{ end }}
+{{- end }}
+{{- if $firing }} &#8226; {{ len $firing }} firing{{ end }}
 {{- /* Alertmanager orders a group's alerts by labels; print them by the time of their last change instead, the
 earliest first. Printed indexes collect in $done, as templates have no sort. */}}
 {{- $done := "|" }}
@@ -20,21 +29,35 @@ earliest first. Printed indexes collect in $done, as templates have no sort. */}
 {{- if or (eq $next -1) (lt $at $nextAt) }}{{ $next = $i }}{{ $nextAt = $at }}{{ end }}
 {{- end }}
 {{- end }}
-{{- $done = printf "%s%d|" $done $next }}
-{{ template "telegram.line" index $alerts $next }}
+{{- if ge $next 0 }}
+{{- $a := index $alerts $next }}
+{{- $text := or $a.Annotations.description $a.Annotations.summary }}
+{{- range $j, $b := $alerts }}
+{{- if and (eq $b.Status $a.Status) (eq $text (or $b.Annotations.description $b.Annotations.summary)) }}{{ $done = printf "%s%d|" $done $j }}{{ end }}
 {{- end }}
-{{- end }}
+{{- /* A firing line shows when the first copy started, a resolved one when it ended, in the Alertmanager host's
+time zone. A group is notified within group_interval of a change, so an alert fired under a minute ago is the one
+the message is about. */}}
+{{- $at := $a.StartsAt }}{{ if eq $a.Status "resolved" }}{{ $at = $a.EndsAt }}{{ end }}
+{{- $format := "15:04" }}{{ if gt (since $at).Hours 20.0 }}{{ $format = "02.01 15:04" }}{{ end }}
+{{- $observed := false }}{{ range $alerts }}{{ if and .Labels.observer (eq .Status $a.Status) (eq $text (or .Annotations.description .Annotations.summary)) }}{{ $observed = true }}{{ end }}{{ end }}
 
-{{/* Time • status, category and host emoji, description. A firing alert shows when it started, a resolved one
-when it ended, in the Alertmanager host's time zone. A group is notified within group_interval of a change, so
-an alert fired under a minute ago is the one the message is about. */}}
-{{ define "telegram.line" }}
-{{- $at := .StartsAt }}{{ if eq .Status "resolved" }}{{ $at = .EndsAt }}{{ end }}
-{{- $format := "15:04" }}{{ if gt (since $at).Hours 20.0 }}{{ $format = "02.01 15:04" }}{{ end -}}
-{{ $at.Local.Format $format }} &#8226; {{ if eq .Status "resolved" }}&#9989;{{ else }}{{ template "telegram.severity_emoji" (or .Labels.severity "info") }}{{ end }}
-{{- template "telegram.category_emoji" (or .Labels.category "alert") }}
-{{- template "telegram.instance_emoji" . }} {{ or .Annotations.description .Annotations.summary | reReplaceAll "\\.$" "" }}
-{{- if and (eq .Status "firing") (lt (since .StartsAt).Seconds 60.0) }} &#127381;{{ end }}
+{{ $at.Local.Format $format }} &#8226; {{ if eq $a.Status "resolved" }}&#9989;{{ else }}{{ template "telegram.severity_emoji" (or $a.Labels.severity "info") }}{{ end }}
+{{- template "telegram.instance_emoji" $a.Labels.instance_name }}
+{{- template "telegram.category_emoji" (or $a.Labels.category "alert") }}
+{{- if $observed }} &#8226; &#128064;
+{{- range $j, $b := $alerts }}
+{{- if and $b.Labels.observer (eq $b.Status $a.Status) (eq $text (or $b.Annotations.description $b.Annotations.summary)) }}
+{{- $again := false }}
+{{- range $k, $c := $alerts }}{{ if and (lt $k $j) (eq $c.Labels.observer $b.Labels.observer) (eq $c.Status $a.Status) (eq $text (or $c.Annotations.description $c.Annotations.summary)) }}{{ $again = true }}{{ end }}{{ end }}
+{{- if not $again }}{{ template "telegram.instance_emoji" $b.Labels.observer }}{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if and (eq $a.Status "firing") (lt (since $a.StartsAt).Seconds 60.0) }} &#127381;{{ end }}
+{{ $text | reReplaceAll "\\.$" "" }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{ define "telegram.severity_emoji" }}
