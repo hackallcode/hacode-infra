@@ -57,7 +57,6 @@ def collect():
     lines.append(f"nats_routes {len(rtts)}")
     lines += [f'nats_route_rtt_seconds{{remote="{label(r)}"}} {v}' for r, v in sorted(rtts.items())]
 
-    # Each server reports its own state, so an alert names the host that is behind.
     errors = health_errors()
     lines.append(f"nats_jetstream_current {int(not any(e.get('type') == 'JETSTREAM' for e in errors))}")
     behind = {e.get("stream") for e in errors if e.get("type") == "STREAM"}
@@ -70,7 +69,6 @@ def collect():
             max_bytes = (stream.get("config") or {}).get("max_bytes", -1)
             if max_bytes > 0:
                 lines.append(f'nats_stream_max_bytes{{stream="{name}"}} {max_bytes}')
-            # A replica cut off from the cluster still counts itself current until it hears a newer leader.
             leaderless = "cluster" in stream and not stream["cluster"].get("leader")
             current = stream["name"] not in behind and not leaderless
             lines.append(f'nats_stream_current{{stream="{name}"}} {int(current)}')

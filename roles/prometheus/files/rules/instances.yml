@@ -3,9 +3,7 @@ groups:
     rules:
       - alert: "InstanceDown"
         # A failover standby keeps headscale stopped, so its scrape target is down by design. A Prometheus that
-        # reaches no host it watches is the one cut off: PrometheusIsolated says so instead. On a lossy link
-        # scrapes fail and pass in turn; keep_firing_for holds that as one alert instead of a fire and resolve
-        # every minute.
+        # reaches no host it watches is the one cut off: PrometheusIsolated says so instead.
         expr: >-
           up == 0
           unless on(job, instance_name) (up{job="headscale"} and on(instance_name) failover_leader{service="headscale"} == 0)

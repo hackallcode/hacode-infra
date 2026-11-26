@@ -7,23 +7,18 @@
 {{- if $hit }}{{ template "telegram.severity_emoji" $severity }}{{ end }}
 {{- end }}
 {{- template "telegram.instance_emojis" $headed }}
-{{- /* Each Prometheus sends its own copy of an alert, told apart by an observer label naming its host; one item
-stands for all copies of a description and state, with 👀 and the emoji of each observer. Templates have no
-arithmetic, so the count is a string's length. */}}
-{{- $firing := "" }}
+{{- $firingTally := "" }}
 {{- range $i, $a := .Alerts.Firing }}
 {{- $seen := false }}
 {{- range $j, $b := $.Alerts.Firing }}{{ if and (lt $j $i) (eq (or $a.Annotations.description $a.Annotations.summary) (or $b.Annotations.description $b.Annotations.summary)) }}{{ $seen = true }}{{ end }}{{ end }}
-{{- if not $seen }}{{ $firing = printf "%sx" $firing }}{{ end }}
+{{- if not $seen }}{{ $firingTally = printf "%sx" $firingTally }}{{ end }}
 {{- end }}
-{{- if $firing }} &#8226; {{ len $firing }} firing{{ end }}
-{{- /* Alertmanager orders a group's alerts by labels; print them by the time of their last change instead, the
-earliest first. Printed indexes collect in $done, as templates have no sort. */}}
-{{- $done := "|" }}
+{{- if $firingTally }} &#8226; {{ len $firingTally }} firing{{ end }}
+{{- $printed := "|" }}
 {{- range $alerts }}
 {{- $next := -1 }}{{ $nextAt := "" }}
 {{- range $i, $a := $alerts }}
-{{- if not (match (printf "\\|%d\\|" $i) $done) }}
+{{- if not (match (printf "\\|%d\\|" $i) $printed) }}
 {{- $at := $a.StartsAt.UTC.Format "2006-01-02T15:04:05.000" }}
 {{- if eq $a.Status "resolved" }}{{ $at = $a.EndsAt.UTC.Format "2006-01-02T15:04:05.000" }}{{ end }}
 {{- if or (eq $next -1) (lt $at $nextAt) }}{{ $next = $i }}{{ $nextAt = $at }}{{ end }}
@@ -33,11 +28,8 @@ earliest first. Printed indexes collect in $done, as templates have no sort. */}
 {{- $a := index $alerts $next }}
 {{- $text := or $a.Annotations.description $a.Annotations.summary }}
 {{- range $j, $b := $alerts }}
-{{- if and (eq $b.Status $a.Status) (eq $text (or $b.Annotations.description $b.Annotations.summary)) }}{{ $done = printf "%s%d|" $done $j }}{{ end }}
+{{- if and (eq $b.Status $a.Status) (eq $text (or $b.Annotations.description $b.Annotations.summary)) }}{{ $printed = printf "%s%d|" $printed $j }}{{ end }}
 {{- end }}
-{{- /* A firing line shows when the first copy started, a resolved one when it ended, in the Alertmanager host's
-time zone. A group is notified within group_interval of a change, so an alert fired under a minute ago is the one
-the message is about. */}}
 {{- $at := $a.StartsAt }}{{ if eq $a.Status "resolved" }}{{ $at = $a.EndsAt }}{{ end }}
 {{- $format := "15:04" }}{{ if gt (since $at).Hours 20.0 }}{{ $format = "02.01 15:04" }}{{ end }}
 {{- $observed := false }}{{ range $alerts }}{{ if and .Labels.observer (eq .Status $a.Status) (eq $text (or .Annotations.description .Annotations.summary)) }}{{ $observed = true }}{{ end }}{{ end }}

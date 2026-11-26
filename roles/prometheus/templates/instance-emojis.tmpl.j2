@@ -6,7 +6,6 @@
 [% endfor %]
 {{- end }}
 
-{{/* One instance_name or observer label value: its emoji, or the value itself without one. */}}
 {{ define "telegram.instance_emoji" }}
 {{- $name := . }}{{ $hit := false }}
 [% for name, emoji in alertmanager_instance_emojis.items() %]
