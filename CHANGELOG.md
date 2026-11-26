@@ -93,7 +93,8 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   severities, hosts and count, over an item per alert, oldest first, firing
   and resolved together: when it fired or resolved, its severity, host and
   category emoji, and below them its `description`; 🆕 marks the ones fired
-  under a minute ago. `alertmanager_instance_emojis` gives each host its
+  under a minute ago. `info` alerts are events: the count and 🆕 leave them
+  out. `alertmanager_instance_emojis` gives each host its
   emoji, by the `instance_name` label. An `observer` label on each
   Prometheus server's alerts keeps their copies apart and adds 👀 and the
   observers' emoji to the item. Every bundled rule carries a `category` label

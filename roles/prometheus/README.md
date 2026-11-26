@@ -50,11 +50,11 @@ host-1 has 6% of its memory available, not counting swap
 ```
 
 The header carries the emoji of each severity among the firing alerts and the emoji `alertmanager_instance_emojis` gives
-each of their hosts, then their count; with none firing it is ✅ and the hosts. Items run oldest first, each with when
-the alert fired, or resolved, in the Alertmanager host's time zone, the emoji of its severity (✅ once resolved), of its
-host and of its `category` label, and below them its `description` annotation, or `summary` without one, less a final
-period. 🆕 marks an alert fired under a minute ago: that is the one the message is about, as a group is notified within
-`group_interval` of a change.
+each of their hosts, then the count of those not `info`, which are events rather than state; with none firing it is ✅
+and the hosts. Items run oldest first, each with when the alert fired, or resolved, in the Alertmanager host's time
+zone, the emoji of its severity (✅ once resolved), of its host and of its `category` label, and below them its
+`description` annotation, or `summary` without one, less a final period. 🆕 marks an alert other than `info` fired under
+a minute ago: that is the one the message is about, as a group is notified within `group_interval` of a change.
 
 Prometheus servers that watch the same hosts each send their own copy of an alert. An `observer` label naming the
 server's host, set through `prometheus_alert_relabel_configs`, keeps the copies apart, so one that sees a host down and
