@@ -48,7 +48,8 @@ The header takes the `severity` label of the first alert, or `Resolved`, its `ca
 Alertmanager host's time zone, its `description` annotation, or `summary` without one, and how long it has been
 firing; a resolved one shows when it started and ended. ▸ marks an alert fired under a minute ago: that is the one the
 message is about, as a group is notified within `group_interval` of a change. A project rule reads well with a
-`category` label (`memory`, `cpu`, `disk`, `network`, `host`, `clock`, `services`, `mesh`, `monitoring`) and a `description` that names the host and the value.
+`category` label (`memory`, `cpu`, `disk`, `network`, `host`, `clock`, `services`, `mesh`, `monitoring`) and a
+`description` that names the host and the value.
 A route with `group_by: ["alertname", "severity"]` puts every host of one alert into one message.
 
 ## Example
