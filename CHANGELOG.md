@@ -106,6 +106,9 @@ and this collection adheres to [Semantic Versioning](https://semver.org/spec/v2.
   `NatsRouteMissing` keep firing for five minutes after the last failure. On a
   lossy link scrapes and routes fail and pass in turn, and each such alert
   fired and resolved every minute or two.
+- `prometheus` role: the Telegram message gives each alert its own start time
+  and duration, marks the ones fired under a minute ago with 🆕, and drops the
+  header's duration, which was the oldest alert's and read as the new one's.
 - `prometheus` role: `NodeFilesystemSpaceFillingUp` and
   `NodeFilesystemFilesFillingUp` resolve once space is freed. A short burst of
   usage kept the 6-hour trend negative for hours after the cleanup; they now

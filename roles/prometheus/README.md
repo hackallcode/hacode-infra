@@ -37,16 +37,18 @@ backend. Ships a curated set of alert rules under `files/rules/`.
 The bundled `telegram.default.message` template turns a notification into a bold header and one line per alert:
 
 ```text
-🚨🌍🧠 Critical • Memory • Firing 5m 12s
+🚨🌍🧠 Critical • Memory • Firing
 
-host-1 has 7% of its memory available, not counting swap.
+host-1 has 7% of its memory available, not counting swap. since 14:02, 12m 5s
+🆕 host-2 has 6% of its memory available, not counting swap. since 14:14, 20s
 ```
 
-The header takes the `severity` and `category` labels of the first alert, the emoji `alertmanager_instance_emojis`
-gives each host of the message, and how long the oldest alert has been firing, or `Resolved in` and the longest
-duration among the resolved ones. Each line is the alert's `description` annotation, or `summary` without one, so a
-project rule reads well with a `category` label (`memory`, `cpu`, `disk`, `network`, `host`, `clock`, `services`,
-`mesh`, `monitoring`) and a `description` that names the host and the value.
+The header takes the `severity` and `category` labels of the first alert and the emoji `alertmanager_instance_emojis`
+gives each host of the message. Each line is the alert's `description` annotation, or `summary` without one, and when
+it started and for how long, in the Alertmanager host's time zone; a resolved one shows when it ended. 🆕 marks an
+alert fired under a minute ago: that is the one the message is about, as a group is notified within `group_interval`
+of a change. A project rule reads well with a `category` label (`memory`, `cpu`, `disk`, `network`, `host`, `clock`,
+`services`, `mesh`, `monitoring`) and a `description` that names the host and the value.
 A route with `group_by: ["alertname", "severity"]` puts every host of one alert into one message.
 
 ## Example
